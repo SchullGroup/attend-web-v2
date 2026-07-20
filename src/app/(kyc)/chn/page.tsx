@@ -1,20 +1,53 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Lock } from "lucide-react";
+import { useKycStep2, useKycStep2Skip } from "@/api/kyc/hooks";
 
 export default function ChnPage() {
   const router = useRouter();
   const [chn, setChn] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const isValid = /^[a-zA-Z0-9]{10,}$/.test(chn);
+
+  const { mutate: submitStep2, isPending: submitting } = useKycStep2();
+  const { mutate: skipStep2, isPending: skipping } = useKycStep2Skip();
+  const busy = submitting || skipping;
+
+  useEffect(() => {
+    // Step 1 (BVN) must have run first — it stores the BVN we need for step 3.
+    if (!sessionStorage.getItem("kyc_bvn")) {
+      router.replace("/bvn");
+    }
+  }, [router]);
+
+  function handleError(err: any) {
+    const msg = err?.response?.data?.message || err?.message || "";
+    // CHN already on file — not an error; continue to the liveness step.
+    if (/already.*(submitted|verif)/i.test(msg)) {
+      router.push("/liveness");
+      return;
+    }
+    setErrorMsg(msg || "Submission failed. Please check your details and try again.");
+  }
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    setTimeout(() => router.push("/liveness"), 1500);
+    setErrorMsg(null);
+    submitStep2(
+      { chn },
+      { onSuccess: () => router.push("/liveness"), onError: handleError },
+    );
+  }
+
+  function onSkip() {
+    setErrorMsg(null);
+    skipStep2(undefined, {
+      onSuccess: () => router.push("/liveness"),
+      onError: handleError,
+    });
   }
 
   return (
@@ -30,6 +63,12 @@ export default function ChnPage() {
         </p>
       </div>
 
+      {errorMsg && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+          {errorMsg}
+        </div>
+      )}
+
       <Input
         name="chn"
         label="CHN"
@@ -44,8 +83,9 @@ export default function ChnPage() {
         Don&apos;t have a CHN?{" "}
         <button
           type="button"
-          className="underline underline-offset-2 hover:text-foreground transition-colors"
-          onClick={() => router.push("/liveness")}
+          disabled={busy}
+          className="underline underline-offset-2 hover:text-foreground transition-colors disabled:opacity-50"
+          onClick={onSkip}
         >
           Skip for now
         </button>
@@ -58,11 +98,12 @@ export default function ChnPage() {
           variant="outline"
           fullWidth
           onClick={() => router.push("/bvn")}
+          disabled={busy}
         >
           Back
         </Button>
-        <Button type="submit" fullWidth loading={loading} disabled={!isValid}>
-          Continue
+        <Button type="submit" fullWidth loading={submitting} disabled={!isValid || busy}>
+          {submitting ? "Submitting…" : "Continue"}
         </Button>
       </div>
     </form>

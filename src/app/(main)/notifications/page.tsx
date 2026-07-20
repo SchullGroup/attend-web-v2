@@ -1,9 +1,9 @@
 "use client";
-import { useState } from "react";
-import { MOCK_NOTIFICATIONS } from "@/lib/mock-data";
+import { Bell, FileText, Megaphone, CalendarClock, Vote, Sparkles } from "lucide-react";
+import { useGetNotifications, useMarkRead, useMarkAllRead } from "@/api/notifications/hooks";
+import { Notification } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { formatRelativeTime } from "@/lib/utils";
-import { Bell, FileText, Megaphone, CalendarClock, Vote, Sparkles } from "lucide-react";
 
 const ICONS: Record<string, typeof Bell> = {
   vote_open: Vote,
@@ -22,13 +22,25 @@ const TYPE_COLOR: Record<string, string> = {
 };
 
 export default function NotificationsPage() {
-  const [items, setItems] = useState(MOCK_NOTIFICATIONS);
+  const { data, isLoading } = useGetNotifications({ size: 50 });
+  const { mutate: markRead } = useMarkRead();
+  const { mutate: markAllRead, isPending: markingAll } = useMarkAllRead();
 
-  const unread = items.filter((n) => !n.read);
-  const read = items.filter((n) => n.read);
+  const notifications = data?.data?.notifications ?? [];
+  const unreadCount = data?.data?.unreadCount ?? 0;
+  const totalCount = data?.data?.totalCount ?? 0;
 
-  function markAll() {
-    setItems((xs) => xs.map((n) => ({ ...n, read: true })));
+  const unread = notifications.filter((n) => !n.read);
+  const read = notifications.filter((n) => n.read);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3, 4].map((n) => (
+          <div key={n} className="h-20 animate-pulse rounded-2xl border border-border bg-muted" />
+        ))}
+      </div>
+    );
   }
 
   return (
@@ -37,80 +49,87 @@ export default function NotificationsPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
           <p className="text-sm text-muted-foreground">
-            {unread.length} unread · {items.length} total
+            {unreadCount} unread · {totalCount} total
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={markAll} disabled={unread.length === 0}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => markAllRead()}
+          loading={markingAll}
+          disabled={unreadCount === 0}
+        >
           Mark all as read
         </Button>
       </header>
 
-      {unread.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Unread
-          </h2>
-          <ul className="space-y-2">
-            {unread.map((n) => {
-              const Icon = ICONS[n.type] || Bell;
-              return (
-                <li
-                  key={n.id}
-                  className="flex items-start gap-3 rounded-2xl border border-border bg-white p-4 shadow-sm"
-                >
-                  <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${TYPE_COLOR[n.type] || "bg-muted text-muted-foreground"}`}
-                  >
-                    <Icon className="h-4.5 w-4.5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-semibold text-foreground">{n.title}</p>
-                      <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
-                    </div>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{n.body}</p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {formatRelativeTime(n.createdAt)}
-                    </p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+      {notifications.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+          You have no notifications yet.
+        </div>
+      ) : (
+        <>
+          {unread.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Unread
+              </h2>
+              <ul className="space-y-2">
+                {unread.map((n) => (
+                  <NotificationItem key={n.id} notification={n} onRead={() => markRead(n.id)} />
+                ))}
+              </ul>
+            </section>
+          )}
 
-      {read.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Earlier
-          </h2>
-          <ul className="space-y-2">
-            {read.map((n) => {
-              const Icon = ICONS[n.type] || Bell;
-              return (
-                <li
-                  key={n.id}
-                  className="flex items-start gap-3 rounded-2xl border border-border bg-white/60 p-4"
-                >
-                  <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${TYPE_COLOR[n.type] || "bg-muted text-muted-foreground"}`}
-                  >
-                    <Icon className="h-4.5 w-4.5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground">{n.title}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{n.body}</p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {formatRelativeTime(n.createdAt)}
-                    </p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
+          {read.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Earlier
+              </h2>
+              <ul className="space-y-2">
+                {read.map((n) => (
+                  <NotificationItem key={n.id} notification={n} />
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
       )}
     </div>
+  );
+}
+
+function NotificationItem({
+  notification: n,
+  onRead,
+}: {
+  notification: Notification;
+  onRead?: () => void;
+}) {
+  const Icon = ICONS[n.type] ?? Bell;
+  const colorClass = TYPE_COLOR[n.type] ?? "bg-muted text-muted-foreground";
+
+  return (
+    <li
+      onClick={() => !n.read && onRead?.()}
+      className={`flex items-start gap-3 rounded-2xl border border-border p-4 transition-colors ${
+        n.read ? "bg-white/60" : "cursor-pointer bg-white shadow-sm hover:bg-muted/20"
+      }`}
+    >
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${colorClass}`}>
+        <Icon className="h-4.5 w-4.5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <p className={`text-sm ${n.read ? "font-medium" : "font-semibold"} text-foreground`}>
+            {n.title}
+          </p>
+          {!n.read && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />}
+        </div>
+        <p className="mt-0.5 text-xs text-muted-foreground">{n.message}</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">{formatRelativeTime(n.createdAt)}</p>
+      </div>
+    </li>
   );
 }

@@ -1,9 +1,31 @@
 "use client";
+import { Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft, FileText, PlayCircle, ExternalLink } from "lucide-react";
-import { MOCK_RESOURCES } from "@/lib/mock-data";
+import { useGetResources } from "@/api/hackathon/hooks";
 
-export default function ResourcesPage() {
+interface ResourceRow {
+  id: string;
+  isVideo: boolean;
+  title: string;
+  description: string;
+  url: string;
+}
+
+function ResourcesInner() {
+  const challengeId = useSearchParams().get("challengeId") ?? "";
+  const { data, isLoading } = useGetResources(challengeId);
+  const apiResources = data?.data ?? [];
+
+  const resources: ResourceRow[] = apiResources.map((r) => ({
+    id: r.id,
+    isVideo: `${r.resourceType} ${r.fileType}`.toLowerCase().includes("video"),
+    title: r.title,
+    description: r.description,
+    url: r.url,
+  }));
+
   return (
     <div className="space-y-6">
       <Link href="/hackathon" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
@@ -17,35 +39,56 @@ export default function ResourcesPage() {
         </p>
       </header>
 
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {MOCK_RESOURCES.map((r) => {
-          const isVideo = r.type === "video";
-          const Icon = isVideo ? PlayCircle : FileText;
-          return (
-            <a
-              key={r.id}
-              href={r.url}
-              className="group flex flex-col gap-3 rounded-2xl border border-border bg-white p-5 transition-all hover:-translate-y-0.5 hover:shadow-md"
-            >
-              <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${isVideo ? "bg-rose-50 text-rose-600" : "bg-purple-50 text-purple-600"}`}>
-                <Icon className="h-5 w-5" />
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {isVideo ? "Video" : "Document"}
-                </p>
-                <h3 className="mt-0.5 text-sm font-semibold text-foreground group-hover:text-primary">
-                  {r.title}
-                </h3>
-                <p className="mt-1 text-xs text-muted-foreground">{r.description}</p>
-              </div>
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
-                Open <ExternalLink className="h-3 w-3" />
-              </span>
-            </a>
-          );
-        })}
-      </div>
+      {isLoading ? (
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="h-40 animate-pulse rounded-2xl border border-border bg-muted" />
+          ))}
+        </div>
+      ) : resources.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+          No resources have been shared for this challenge yet.
+        </div>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {resources.map((r) => {
+            const Icon = r.isVideo ? PlayCircle : FileText;
+            return (
+              <a
+                key={r.id}
+                href={r.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex flex-col gap-3 rounded-2xl border border-border bg-white p-5 transition-all hover:-translate-y-0.5 hover:shadow-md"
+              >
+                <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${r.isVideo ? "bg-rose-50 text-rose-600" : "bg-purple-50 text-purple-600"}`}>
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {r.isVideo ? "Video" : "Document"}
+                  </p>
+                  <h3 className="mt-0.5 text-sm font-semibold text-foreground group-hover:text-primary">
+                    {r.title}
+                  </h3>
+                  {r.description && <p className="mt-1 text-xs text-muted-foreground">{r.description}</p>}
+                </div>
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
+                  Open <ExternalLink className="h-3 w-3" />
+                </span>
+              </a>
+            );
+          })}
+        </div>
+      )}
     </div>
+  );
+}
+
+export default function ResourcesPage() {
+  return (
+    <Suspense>
+      <ResourcesInner />
+    </Suspense>
   );
 }

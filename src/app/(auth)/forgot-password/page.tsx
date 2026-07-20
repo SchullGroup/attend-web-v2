@@ -2,21 +2,35 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Phone, ArrowLeft } from "lucide-react";
+import { Mail, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { useForgotPassword } from "@/api/auth/hooks";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
-  const [phone, setPhone] = useState("");
-  const [loading, setLoading] = useState(false);
+  const { mutate: forgotMutation, isPending } = useForgotPassword();
+  const [email, setEmail] = useState("");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    setTimeout(
-      () => router.push(`/verify?phone=${encodeURIComponent(phone || "+234 800 000 0000")}`),
-      1000
+    setErrorMsg(null);
+    forgotMutation(
+      { email },
+      {
+        onSuccess: () => {
+          sessionStorage.setItem("pendingResetEmail", email);
+          router.push("/reset-password");
+        },
+        onError: (err: any) => {
+          setErrorMsg(
+            err?.response?.data?.message ||
+              err?.message ||
+              "Could not send reset code. Check your email and try again.",
+          );
+        },
+      },
     );
   }
 
@@ -29,23 +43,28 @@ export default function ForgotPasswordPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Forgot password?</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Enter your phone number and we&apos;ll send you a verification code.
+          Enter your email and we&apos;ll send you a verification code.
         </p>
       </div>
 
       <form onSubmit={onSubmit} className="space-y-4">
+        {errorMsg && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+            {errorMsg}
+          </div>
+        )}
         <Input
-          name="phone"
-          label="Phone number"
-          type="tel"
-          autoComplete="tel"
-          leftIcon={<Phone className="h-4 w-4" />}
-          placeholder="+234 800 000 0000"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          name="email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          leftIcon={<Mail className="h-4 w-4" />}
+          placeholder="you@email.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
         />
-        <Button type="submit" fullWidth size="lg" loading={loading} disabled={!phone.trim()}>
-          {loading ? "Sending code…" : "Send OTP"}
+        <Button type="submit" fullWidth size="lg" loading={isPending} disabled={!email.trim()}>
+          {isPending ? "Sending code…" : "Send reset code"}
         </Button>
       </form>
 

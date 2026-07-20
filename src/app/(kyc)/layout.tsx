@@ -7,9 +7,8 @@ import { cn } from "@/lib/utils";
 
 const STEPS = [
   { key: "bvn",      label: "BVN",   path: "/bvn",      n: 1 },
-  { key: "nin",      label: "NIN",   path: "/nin",      n: 2 },
-  { key: "chn",      label: "CHN",   path: "/chn",      n: 3 },
-  { key: "liveness", label: "Face",  path: "/liveness", n: 4 },
+  { key: "chn",      label: "CHN",   path: "/chn",      n: 2 },
+  { key: "liveness", label: "Face",  path: "/liveness", n: 3 },
 ];
 
 export default function KycLayout({ children }: { children: React.ReactNode }) {
@@ -38,7 +37,7 @@ export default function KycLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       <main className="mx-auto max-w-lg px-6 py-10">
-        {/* Step indicator — only on BVN / NIN / CHN pages */}
+        {/* Step indicator — only on BVN / CHN / Face pages */}
         {!isIntro && !isSuccess && (
           <div className="mb-8">
             {/* Progress label */}

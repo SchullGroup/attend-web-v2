@@ -1,33 +1,58 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, Check, X, CheckCircle2 } from "lucide-react";
+import { Lock, Check, X, CheckCircle2, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import Link from "next/link";
+import { useResetPassword } from "@/api/auth/hooks";
 
 const RULES = [
   { label: "At least 8 characters", test: (p: string) => p.length >= 8 },
-  { label: "One capital letter",     test: (p: string) => /[A-Z]/.test(p) },
-  { label: "Contains a number",      test: (p: string) => /\d/.test(p)    },
+  { label: "One capital letter", test: (p: string) => /[A-Z]/.test(p) },
+  { label: "Contains a number", test: (p: string) => /\d/.test(p) },
 ];
 
 export default function ResetPasswordPage() {
   const router = useRouter();
-  const [password,  setPassword]  = useState("");
-  const [confirm,   setConfirm]   = useState("");
-  const [loading,   setLoading]   = useState(false);
-  const [done,      setDone]      = useState(false);
+  const { mutate: resetMutation, isPending } = useResetPassword();
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
 
-  const rulesPass  = RULES.every((r) => r.test(password));
-  const matches    = password === confirm && confirm.length > 0;
-  const canSubmit  = rulesPass && matches;
+  useEffect(() => {
+    const pending = sessionStorage.getItem("pendingResetEmail");
+    if (pending) setEmail(pending);
+  }, []);
+
+  const rulesPass = RULES.every((r) => r.test(password));
+  const matches = password === confirm && confirm.length > 0;
+  const otpValid = /^\d{6}$/.test(otp);
+  const canSubmit = rulesPass && matches && otpValid && !!email;
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
-    setLoading(true);
-    setTimeout(() => { setLoading(false); setDone(true); }, 1200);
+    setErrorMsg(null);
+    resetMutation(
+      { email, otp, newPassword: password },
+      {
+        onSuccess: () => {
+          sessionStorage.removeItem("pendingResetEmail");
+          setDone(true);
+        },
+        onError: (err: any) => {
+          setErrorMsg(
+            err?.response?.data?.message ||
+              err?.message ||
+              "Reset failed. Check your code and try again.",
+          );
+        },
+      },
+    );
   }
 
   if (done) {
@@ -61,11 +86,28 @@ export default function ResetPasswordPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Set a new password</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Choose a strong password you haven&apos;t used before.
+          Enter the code sent to your email and choose a new password.
         </p>
       </div>
 
       <form onSubmit={onSubmit} className="space-y-4">
+        {errorMsg && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+            {errorMsg}
+          </div>
+        )}
+
+        <Input
+          name="otp"
+          label="Verification code"
+          inputMode="numeric"
+          maxLength={6}
+          leftIcon={<KeyRound className="h-4 w-4" />}
+          placeholder="6-digit code"
+          value={otp}
+          onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+        />
+
         <div>
           <Input
             name="password"
@@ -83,10 +125,11 @@ export default function ResetPasswordPage() {
                 const ok = r.test(password);
                 return (
                   <li key={r.label} className="flex items-center gap-1.5">
-                    {ok
-                      ? <Check className="h-3.5 w-3.5 text-green-600" strokeWidth={2.5} />
-                      : <X    className="h-3.5 w-3.5 text-red-500"   strokeWidth={2.5} />
-                    }
+                    {ok ? (
+                      <Check className="h-3.5 w-3.5 text-green-600" strokeWidth={2.5} />
+                    ) : (
+                      <X className="h-3.5 w-3.5 text-red-500" strokeWidth={2.5} />
+                    )}
                     <span className={`text-xs font-medium ${ok ? "text-green-700" : "text-red-600"}`}>
                       {r.label}
                     </span>
@@ -111,8 +154,8 @@ export default function ResetPasswordPage() {
           <p className="text-xs text-red-600 font-medium -mt-2">Passwords do not match.</p>
         )}
 
-        <Button type="submit" fullWidth size="lg" loading={loading} disabled={!canSubmit}>
-          {loading ? "Updating…" : "Update password"}
+        <Button type="submit" fullWidth size="lg" loading={isPending} disabled={!canSubmit}>
+          {isPending ? "Updating…" : "Update password"}
         </Button>
       </form>
 

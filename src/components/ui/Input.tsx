@@ -1,6 +1,7 @@
 "use client";
 import { cn } from "@/lib/utils";
-import { InputHTMLAttributes, ReactNode, forwardRef } from "react";
+import { InputHTMLAttributes, ReactNode, forwardRef, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 interface Props extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -10,10 +11,14 @@ interface Props extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, Props>(function Input(
-  { label, error, leftIcon, hint, className, id, ...props },
+  { label, error, leftIcon, hint, className, id, type, ...props },
   ref,
 ) {
+  const [showPassword, setShowPassword] = useState(false);
   const inputId = id || props.name;
+  const isPassword = type === "password";
+  const inputType = isPassword ? (showPassword ? "text" : "password") : type;
+
   return (
     <div className="space-y-1.5">
       {label && (
@@ -30,16 +35,27 @@ export const Input = forwardRef<HTMLInputElement, Props>(function Input(
         <input
           ref={ref}
           id={inputId}
+          type={inputType}
           className={cn(
             "h-11 w-full rounded-xl border border-input bg-white px-3 text-sm text-foreground placeholder:text-muted-foreground/70",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary",
             "disabled:opacity-50 transition-colors",
             leftIcon && "pl-10",
+            isPassword && "pr-10",
             error && "border-destructive focus-visible:ring-destructive",
             className,
           )}
           {...props}
         />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground cursor-pointer focus:outline-none"
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        )}
       </div>
       {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
       {error && <p className="text-xs text-destructive">{error}</p>}

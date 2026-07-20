@@ -2,8 +2,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ChevronDown, Mail, MessageCircle } from "lucide-react";
-import { MOCK_FAQ } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
+
+const FAQ = [
+  { q: "What is Attend?", a: "Attend is an enterprise events platform for AGMs, product launches, innovation challenges, and general corporate gatherings." },
+  { q: "How do I verify my identity?", a: "From Home, complete the KYC flow which collects your BVN and CHN. Verification typically completes in under a minute." },
+  { q: "Can I attend an AGM virtually?", a: "Yes. Hybrid and virtual AGMs let you join the live stream and vote on resolutions in real time once your KYC is verified." },
+  { q: "How do I appoint a proxy?", a: "On the AGM page, tap Proxy and choose either the Chairman of the meeting or a named proxy. You must submit the form before the meeting begins." },
+  { q: "How are hackathon submissions judged?", a: "Submissions are evaluated by a panel of industry judges on innovation, technical depth, market fit and presentation quality." },
+];
 
 export default function HelpPage() {
   const [open, setOpen] = useState<number | null>(0);
@@ -22,7 +29,7 @@ export default function HelpPage() {
       </header>
 
       <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-white">
-        {MOCK_FAQ.map((f, i) => {
+        {FAQ.map((f, i) => {
           const expanded = open === i;
           return (
             <li key={i}>

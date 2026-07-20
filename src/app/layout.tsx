@@ -11,13 +11,42 @@ const outfit = Outfit({
 export const metadata: Metadata = {
   title: "Attend — Enterprise Events Platform",
   description: "AGMs, product launches, innovation challenges and more.",
+  openGraph: {
+    title: "Attend — Enterprise Events Platform",
+    description: "AGMs, product launches, innovation challenges and more.",
+    url: "https://attend-web-eight.vercel.app",
+    siteName: "Attend",
+    images: [
+      {
+        url: "https://attend-web-eight.vercel.app/attend-logo.png",
+        width: 1200,
+        height: 630,
+        alt: "Attend - Enterprise Events Platform",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Attend — Enterprise Events Platform",
+    description: "AGMs, product launches, innovation challenges and more.",
+    images: ["https://attend-web-eight.vercel.app/attend-logo.png"],
+  },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+import { QueryProvider } from "@/components/providers/query-provider";
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body className={outfit.className}>
-        <UserProvider>{children}</UserProvider>
+        <QueryProvider>
+          <UserProvider>{children}</UserProvider>
+        </QueryProvider>
       </body>
     </html>
   );

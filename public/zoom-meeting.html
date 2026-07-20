@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zoom Meeting</title>
+
+  <!-- Zoom Client View CSS -->
+  <link rel="stylesheet" href="https://source.zoom.us/6.2.0/css/bootstrap.css" />
+  <link rel="stylesheet" href="https://source.zoom.us/6.2.0/css/react-select.css" />
+
+  <style>
+    /* The Client View takes over the page — make sure it fills the iframe. */
+    html, body, #zmmtg-root {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto !important;
+      background: #0b0b0b;
+    }
+    /* Hide scrollbars visually but allow content to flow so the toolbar isn't clipped. */
+    * {
+      scrollbar-width: none !important;
+    }
+    *::-webkit-scrollbar {
+      display: none !important;
+      width: 0 !important;
+      height: 0 !important;
+    }
+    /* Pre-join / connecting overlay */
+    .zm-preloader {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: #0b0b0b;
+      color: #fff;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .zm-preloader.hidden { display: none; }
+    .zm-spinner {
+      width: 32px;
+      height: 32px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: rgba(255,255,255,0.8);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    /* Left-meeting state */
+    .zm-left {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: #0b0b0b;
+      color: rgba(255,255,255,0.6);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+    }
+  </style>
+
+  <script>
+    // === FOCUS SCROLL-JUMP PATCH ===
+    // Zoom's menus move focus when they open. The browser scrolls the PARENT page
+    // to reveal the focused element inside the iframe — causing a visible page jump
+    // on every menu click. Patching focus() to use preventScroll fixes this.
+    (function() {
+      var orig = HTMLElement.prototype.focus;
+      HTMLElement.prototype.focus = function(opts) {
+        orig.call(this, Object.assign({ preventScroll: true }, opts || {}));
+      };
+    })();
+  </script>
+</head>
+<body>
+
+  <!-- Zoom renders the meeting UI into this root -->
+  <div id="zmmtg-root"></div>
+
+  <!-- Connecting overlay (hidden once joined) -->
+  <div class="zm-preloader" id="preloader">
+    <div class="zm-spinner"></div>
+    <div style="font-size:14px;font-weight:600;opacity:0.85">Connecting to meeting…</div>
+  </div>
+
+  <script>
+    // Debug: log isolation status — saves hours of debugging gallery view issues.
+    console.log('[zoom-meeting.html] crossOriginIsolated:', window.crossOriginIsolated);
+
+    // If we got here via leaveUrl (?left=1), just tell the parent and stay blank.
+    if (new URLSearchParams(window.location.search).get('left') === '1') {
+      document.getElementById('preloader').classList.add('hidden');
+      document.body.innerHTML = '<div class="zm-left">You left the meeting.</div>';
+      window.parent.postMessage({ type: 'ZOOM_LEFT' }, '*');
+    }
+  </script>
+
+  <!-- Zoom Client View SDK (full web client, not the Component View) -->
+  <script src="https://source.zoom.us/6.2.0/lib/vendor/react.min.js"></script>
+  <script src="https://source.zoom.us/6.2.0/lib/vendor/react-dom.min.js"></script>
+  <script src="https://source.zoom.us/6.2.0/lib/vendor/redux.min.js"></script>
+  <script src="https://source.zoom.us/6.2.0/lib/vendor/redux-thunk.min.js"></script>
+  <script src="https://source.zoom.us/6.2.0/lib/vendor/lodash.min.js"></script>
+  <script src="https://source.zoom.us/6.2.0/zoom-meeting-6.2.0.min.js"></script>
+
+  <script>
+    var ZoomMtg = window.ZoomMtg;
+    if (ZoomMtg) {
+      // Pre-load assets from the CDN so init() is faster.
+      ZoomMtg.preLoadWasm();
+      ZoomMtg.prepareWebSDK();
+    }
+
+    // The leaveUrl is this same page with ?left=1.
+    // When Zoom navigates to it after leaving, we post ZOOM_LEFT (handled above).
+    var LEAVE_URL = window.location.origin + '/zoom-meeting.html?left=1';
+    var hasJoined = false;
+
+    // Listen for the join command from the parent (React wrapper).
+    window.addEventListener('message', function(event) {
+      // Only accept messages from same origin (the parent app).
+      if (event.origin !== window.location.origin) return;
+      if (!event.data || event.data.type !== 'ZOOM_JOIN') return;
+
+      var params = event.data;
+      join(params.sdkKey, params.signature, params.meetingNumber, params.password, params.userName);
+    });
+
+    // The parent (ZoomStage.tsx) uses the iframe's onLoad event to know when
+    // scripts are ready, then posts ZOOM_JOIN directly — no handshake needed.
+    console.log('[zoom-meeting.html] SDK loaded, ZoomMtg available:', !!ZoomMtg, '— waiting for ZOOM_JOIN from parent');
+
+    function join(sdkKey, signature, meetingNumber, password, userName) {
+      if (!ZoomMtg) {
+        postError('Zoom SDK failed to load. Please refresh and try again.');
+        return;
+      }
+
+      console.log('[zoom-meeting.html] Calling ZoomMtg.init()...');
+
+      // Start the fallback detector — if the SDK joins but never fires the
+      // success callback (common in Client View 6.x), we detect the Zoom UI
+      // appearing in the DOM and post ZOOM_JOINED anyway.
+      startJoinDetector();
+
+      ZoomMtg.init({
+        leaveUrl: LEAVE_URL,
+        patchJsMedia: true,
+        disablePreview: true,
+        success: function() {
+          console.log('[zoom-meeting.html] init success, calling ZoomMtg.join()...');
+          ZoomMtg.join({
+            sdkKey: sdkKey,
+            signature: signature,
+            meetingNumber: String(meetingNumber),
+            passWord: password,
+            userName: userName,
+            success: function() {
+              console.log('[zoom-meeting.html] join success callback fired');
+              notifyJoined();
+            },
+            error: function(res) {
+              console.error('[zoom-meeting.html] join error:', res);
+              postError(
+                (res && (res.reason || res.errorMessage || res.message)) ||
+                'Failed to join the meeting.'
+              );
+            }
+          });
+        },
+        error: function(res) {
+          console.error('[zoom-meeting.html] init error:', res);
+          postError(
+            (res && (res.reason || res.errorMessage || res.message)) ||
+            'Failed to initialise the Zoom SDK.'
+          );
+        }
+      });
+    }
+
+    // Post ZOOM_JOINED exactly once.
+    function notifyJoined() {
+      if (hasJoined) return;
+      hasJoined = true;
+      document.getElementById('preloader').classList.add('hidden');
+      window.parent.postMessage({ type: 'ZOOM_JOINED' }, '*');
+      console.log('[zoom-meeting.html] Posted ZOOM_JOINED to parent');
+    }
+
+    // Fallback: poll the DOM for Zoom's meeting container. The Client View
+    // renders into #zmmtg-root and creates elements like .meeting-app when
+    // the user is in the meeting. If we see it, the join succeeded even if
+    // the callback never fired.
+    function startJoinDetector() {
+      var attempts = 0;
+      var maxAttempts = 30; // 30 × 2s = 60s max
+      var interval = setInterval(function() {
+        attempts++;
+        // Look for any sign that Zoom's meeting UI has rendered.
+        var zoomUI = document.querySelector('.meeting-app, .meeting-client, .meeting-client-inner, #wc-container-left, [class*="meeting"]');
+        if (zoomUI || hasJoined) {
+          clearInterval(interval);
+          notifyJoined();
+          return;
+        }
+        if (attempts >= maxAttempts) {
+          clearInterval(interval);
+          // After 60s with no Zoom UI and no callback, something is wrong.
+          if (!hasJoined) {
+            console.warn('[zoom-meeting.html] Join detector timed out — no Zoom UI found');
+          }
+        }
+      }, 2000);
+    }
+
+    function postError(message) {
+      document.getElementById('preloader').classList.add('hidden');
+      window.parent.postMessage({ type: 'ZOOM_ERROR', message: message }, '*');
+    }
+  </script>
+</body>
+</html>

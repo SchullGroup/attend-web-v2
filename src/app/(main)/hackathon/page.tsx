@@ -1,59 +1,37 @@
 "use client";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { Search, Trophy, CalendarDays, Users, ArrowRight, FolderOpen } from "lucide-react";
-import { MOCK_EVENTS, MOCK_CHALLENGE } from "@/lib/mock-data";
+import { useState } from "react";
+import { Search, CalendarDays, ArrowRight, FolderOpen } from "lucide-react";
+import { useGetChallenges } from "@/api/hackathon/hooks";
+import { useGetEvents } from "@/api/events/hooks";
+import { EventListItem } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { formatDate } from "@/lib/utils";
 
-const CHALLENGES = [
-  {
-    id: "chl_001",
-    eventId: "evt_005",
-    title: MOCK_CHALLENGE.title,
-    organiser: "Meristem Innovation Hub",
-    deadline: MOCK_CHALLENGE.submissionDeadline,
-    prize: "₦5,000,000",
-    teamMembers: "2–5",
-    tracks: MOCK_CHALLENGE.tracks,
-  },
-  {
-    id: "chl_002",
-    eventId: "evt_005",
-    title: "NGX Builders Sprint 2026",
-    organiser: "NGX Group",
-    deadline: "2026-08-30",
-    prize: "₦3,000,000",
-    teamMembers: "1–4",
-    tracks: ["Market Data APIs", "Investor Analytics", "Compliance"],
-  },
-  {
-    id: "chl_003",
-    eventId: "evt_005",
-    title: "CBN Open Banking Hackathon",
-    organiser: "Central Bank of Nigeria",
-    deadline: "2026-09-20",
-    prize: "₦4,000,000",
-    teamMembers: "3–5",
-    tracks: ["Open Banking", "Consumer Protection", "FX Innovation"],
-  },
-];
+const FORMAT_LABELS: Record<string, string> = {
+  IN_PERSON: "In-person",
+  VIRTUAL: "Virtual",
+  HYBRID: "Hybrid",
+};
+const fmtFormat = (f: string) => FORMAT_LABELS[f] ?? (f || "").replace(/_/g, "-");
 
 export default function HackathonPage() {
   const [q, setQ] = useState("");
+  const { data, isLoading: chLoading } = useGetChallenges({ search: q || undefined });
+  const { data: evData, isLoading: evLoading } = useGetEvents({ search: q || undefined });
 
-  const visible = useMemo(
-    () =>
-      CHALLENGES.filter((c) =>
-        q.trim()
-          ? `${c.title} ${c.organiser}`.toLowerCase().includes(q.toLowerCase())
-          : true,
-      ),
-    [q],
+  // Innovation events live in two places: the /challenges collection and the
+  // shared /events collection (typed HACKATHON / INNOVATION_CHALLENGE). Merge both,
+  // de-duplicated by id, so nothing is missed.
+  const challengeEvents = data?.data?.events ?? [];
+  const eventInnovation = (evData?.data?.events ?? []).filter(
+    (e) => e.eventType === "HACKATHON" || e.eventType === "INNOVATION_CHALLENGE",
+  );
+  const apiChallenges = Array.from(
+    new Map([...challengeEvents, ...eventInnovation].map((e) => [e.id, e])).values(),
   );
 
-  // ensure referenced events render
-  void MOCK_EVENTS;
+  const isLoading = chLoading || evLoading;
 
   return (
     <div className="space-y-6">
@@ -86,63 +64,60 @@ export default function HackathonPage() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search innovation challenges, tracks or sponsors"
+          placeholder="Search innovation challenges or organisers"
           className="h-11 w-full rounded-xl border border-input bg-white pl-10 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary"
         />
       </div>
 
-      <ul className="space-y-4">
-        {visible.map((c) => (
-          <li
-            key={c.id}
-            className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm"
-          >
-            <div className="grid gap-4 p-5 md:grid-cols-[1fr_auto] md:items-center">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">
-                  {c.organiser}
-                </p>
-                <h2 className="mt-0.5 text-base font-semibold text-foreground md:text-lg">
-                  {c.title}
-                </h2>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {c.tracks.map((t) => (
-                    <span
-                      key={t}
-                      className="rounded-full bg-purple-50 px-2.5 py-1 text-[11px] font-medium text-purple-700"
-                    >
-                      {t}
+      {isLoading ? (
+        <div className="space-y-4">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="h-32 animate-pulse rounded-2xl border border-border bg-muted" />
+          ))}
+        </div>
+      ) : apiChallenges.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+          No innovation challenges available right now. Check back soon.
+        </div>
+      ) : (
+        <ul className="space-y-4">
+          {apiChallenges.map((c: EventListItem) => (
+            <li key={c.id} className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
+              <div className="grid gap-4 p-5 md:grid-cols-[1fr_auto] md:items-center">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">
+                      {c.registerName || c.organizerName}
+                    </p>
+                    {(c.status || "").toUpperCase() === "LIVE" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                        Live
+                      </span>
+                    )}
+                  </div>
+                  <h2 className="mt-0.5 text-base font-semibold text-foreground md:text-lg">{c.title}</h2>
+                  <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <CalendarDays className="h-3.5 w-3.5" /> {formatDate(c.date)} · {c.startTime}
                     </span>
-                  ))}
+                    {c.venue && <span>{c.venue}</span>}
+                    <span>{fmtFormat(c.format)}</span>
+                  </div>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <Trophy className="h-3.5 w-3.5" /> Prize: {c.prize}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <CalendarDays className="h-3.5 w-3.5" /> Deadline: {formatDate(c.deadline)}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Users className="h-3.5 w-3.5" /> Team: {c.teamMembers}
-                  </span>
+                <div className="flex shrink-0 gap-2">
+                  <Link href={`/hackathon/${c.id}`}>
+                    <Button variant="outline" size="sm">View</Button>
+                  </Link>
+                  <Link href={`/hackathon/apply?challengeId=${c.id}`}>
+                    <Button size="sm">Apply <ArrowRight className="h-3.5 w-3.5" /></Button>
+                  </Link>
                 </div>
               </div>
-              <div className="flex shrink-0 gap-2">
-                <Link href={`/hackathon/${c.id}`}>
-                  <Button variant="outline" size="sm">
-                    View
-                  </Button>
-                </Link>
-                <Link href="/hackathon/apply">
-                  <Button size="sm">
-                    Apply <ArrowRight className="h-3.5 w-3.5" />
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

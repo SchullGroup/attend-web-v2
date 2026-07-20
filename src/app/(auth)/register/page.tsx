@@ -5,16 +5,18 @@ import Link from "next/link";
 import { Mail, Lock, User, Phone, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { useRegister } from "@/api/auth/hooks";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { mutate: registerMutation, isPending } = useRegister();
   const [form, setForm] = useState({
     fullName: "",
     email: "",
     phone: "",
     password: "",
   });
-  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   function update<K extends keyof typeof form>(k: K, v: string) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -22,8 +24,46 @@ export default function RegisterPage() {
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    setTimeout(() => router.push(`/verify?phone=${encodeURIComponent(form.phone || "+234 800 000 0000")}`), 1200);
+    setErrorMsg(null);
+
+    const nameParts = form.fullName.trim().split(/\s+/);
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "";
+    if (!firstName || !lastName) {
+      setErrorMsg("Please enter your first and last name.");
+      return;
+    }
+
+    // Item C — at least one of email or phone is required (both optional individually).
+    if (!form.email.trim() && !form.phone.trim()) {
+      setErrorMsg("Provide at least one of email or phone.");
+      return;
+    }
+
+    registerMutation(
+      {
+        firstName,
+        lastName,
+        email: form.email || undefined,
+        phone: form.phone || undefined,
+        password: form.password,
+      },
+      {
+        onSuccess: () => {
+          // OTP is sent to whichever channel was provided.
+          if (form.email) sessionStorage.setItem("pendingVerifyEmail", form.email);
+          if (form.phone) sessionStorage.setItem("pendingVerifyPhone", form.phone);
+          router.push("/verify");
+        },
+        onError: (err: any) => {
+          setErrorMsg(
+            err?.response?.data?.message ||
+              err?.message ||
+              "Registration failed. Please try again.",
+          );
+        },
+      },
+    );
   }
 
   return (
@@ -40,6 +80,11 @@ export default function RegisterPage() {
       </div>
 
       <form onSubmit={onSubmit} className="space-y-4">
+        {errorMsg && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+            {errorMsg}
+          </div>
+        )}
         <Input
           name="fullName"
           label="Full name"
@@ -66,6 +111,12 @@ export default function RegisterPage() {
           value={form.phone}
           onChange={(e) => update("phone", e.target.value)}
         />
+        <p className="text-xs text-muted-foreground -mt-2">
+          You need at least one of email or phone.{" "}
+          <Link href="/bvn-recover" className="font-medium underline">
+            Don&apos;t have either? Sign in with BVN
+          </Link>
+        </p>
         <div>
           <Input
             name="password"
@@ -96,8 +147,8 @@ export default function RegisterPage() {
             </ul>
           )}
         </div>
-        <Button type="submit" fullWidth size="lg" loading={loading}>
-          {loading ? "Creating account" : "Create account"}
+        <Button type="submit" fullWidth size="lg" loading={isPending}>
+          {isPending ? "Creating account" : "Create account"}
         </Button>
       </form>
 

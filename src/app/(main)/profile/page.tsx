@@ -13,10 +13,10 @@ import {
   Mail,
   Phone,
 } from "lucide-react";
-import { MOCK_USER } from "@/lib/mock-data";
+import { useGetMe, useLogout } from "@/api/auth/hooks";
 import { useUserStore } from "@/lib/user-store";
 import { Badge } from "@/components/ui/Badge";
-import { initialsFor, formatDate } from "@/lib/utils";
+import { initialsFor } from "@/lib/utils";
 
 interface RowItem {
   icon: typeof Lock;
@@ -53,7 +53,37 @@ const SECTIONS: { title: string; items: RowItem[] }[] = [
 
 export default function ProfilePage() {
   const { kycStatus } = useUserStore();
+  const { data: userResponse, isLoading, error } = useGetMe();
+  const currentUser = userResponse?.data;
+  const { mutate: logout } = useLogout();
   const verified = kycStatus === "full";
+
+  if (isLoading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <p className="text-sm text-muted-foreground animate-pulse">Loading profile...</p>
+      </div>
+    );
+  }
+
+  if (error || !currentUser) {
+    return (
+      <div className="flex h-[50vh] flex-col items-center justify-center gap-4 text-center">
+        <div>
+          <h2 className="text-lg font-bold text-foreground">Could not load profile</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Please check your connection or try signing out and in again.
+          </p>
+        </div>
+        <button
+          onClick={() => logout()}
+          className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/95"
+        >
+          Sign out
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -68,11 +98,11 @@ export default function ProfilePage() {
         <div className="border-b border-border bg-gradient-to-br from-primary/5 to-primary/10 p-6">
           <div className="flex items-start gap-4">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-xl font-bold text-white">
-              {initialsFor(MOCK_USER.fullName)}
+              {currentUser.initials || initialsFor(currentUser.fullName)}
             </div>
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-lg font-bold text-foreground">{MOCK_USER.fullName}</h2>
+                <h2 className="text-lg font-bold text-foreground">{currentUser.fullName}</h2>
                 {verified ? (
                   <Badge variant="success">
                     <ShieldCheck className="h-3 w-3" /> Verified
@@ -82,16 +112,17 @@ export default function ProfilePage() {
                 )}
               </div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                {MOCK_USER.role}
+                {currentUser.role}
               </p>
               <div className="mt-3 grid gap-1.5 text-xs text-muted-foreground">
                 <p className="flex items-center gap-1.5">
-                  <Mail className="h-3.5 w-3.5" /> {MOCK_USER.email}
+                  <Mail className="h-3.5 w-3.5" /> {currentUser.email}
                 </p>
-                <p className="flex items-center gap-1.5">
-                  <Phone className="h-3.5 w-3.5" /> {MOCK_USER.phone}
-                </p>
-                <p>Member since {formatDate(MOCK_USER.createdAt)}</p>
+                {currentUser.phoneNumber && (
+                  <p className="flex items-center gap-1.5">
+                    <Phone className="h-3.5 w-3.5" /> {currentUser.phoneNumber}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -140,9 +171,9 @@ export default function ProfilePage() {
         <h3 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Danger
         </h3>
-        <Link
-          href="/login"
-          className="flex items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 hover:bg-red-100"
+        <button
+          onClick={() => logout()}
+          className="flex w-full items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 hover:bg-red-100"
         >
           <span className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white">
@@ -151,7 +182,7 @@ export default function ProfilePage() {
             Sign out
           </span>
           <ChevronRight className="h-4 w-4" />
-        </Link>
+        </button>
       </section>
     </div>
   );

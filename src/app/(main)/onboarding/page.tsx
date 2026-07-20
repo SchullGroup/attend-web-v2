@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { Building2, Lightbulb, Rocket, ShieldCheck, ArrowRight, Star } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { MOCK_USER } from "@/lib/mock-data";
+import { useGetMe } from "@/api/auth/hooks";
 import { initialsFor } from "@/lib/utils";
 
 const FEATURES = [
@@ -35,20 +35,22 @@ const FEATURES = [
     color: "#d97706",
     bg: "#fffbeb",
     title: "Identity Verification",
-    desc: "Complete KYC with your BVN, NIN, and CHN to unlock shareholder voting and full platform access.",
+    desc: "Complete KYC with your BVN and CHN to unlock shareholder voting and full platform access.",
     href: "/intro",
   },
 ];
 
 export default function OnboardingPage() {
-  const firstName = MOCK_USER.fullName.split(" ")[0];
+  const { data: meResp } = useGetMe();
+  const fullName = meResp?.data?.fullName || "there";
+  const firstName = fullName.split(" ")[0];
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 py-4">
       {/* Welcome hero */}
       <div className="rounded-3xl border border-border bg-gradient-to-br from-gray-900 to-gray-700 p-8 text-white text-center">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-2xl font-bold">
-          {initialsFor(MOCK_USER.fullName)}
+          {initialsFor(fullName)}
         </div>
         <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold mb-3">
           <Star className="h-3 w-3" /> Welcome to Attend
@@ -87,7 +89,7 @@ export default function OnboardingPage() {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-amber-900">Complete your identity verification</p>
           <p className="text-xs text-amber-700 mt-0.5">
-            Verify your BVN, NIN, and CHN to unlock AGM voting and full shareholder access. Takes about 2 minutes.
+            Verify your BVN and CHN to unlock AGM voting and full shareholder access. Takes about 2 minutes.
           </p>
         </div>
         <Link href="/intro" className="shrink-0">

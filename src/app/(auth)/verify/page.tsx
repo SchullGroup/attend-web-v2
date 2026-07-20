@@ -1,37 +1,35 @@
 "use client";
 import { useRef, useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import { Phone } from "lucide-react";
+import { Mail } from "lucide-react";
+import { useVerifyEmail, useResendEmailOtp } from "@/api/auth/hooks";
 
-function maskPhone(raw: string): string {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length < 6) return raw;
-  const last4 = digits.slice(-4);
-  const countryCode = digits.startsWith("234") ? "+234" : `+${digits.slice(0, digits.length - 10)}`;
-  return `${countryCode} *** *** ${last4}`;
+function maskEmail(email: string): string {
+  if (!email) return "your email";
+  return email.replace(/^(.{2})(.*)(@.*)$/, (_, a, b, c) => a + b.replace(/./g, "•") + c);
 }
 
 function VerifyForm() {
   const router = useRouter();
-  const params = useSearchParams();
-  const rawPhone = params.get("phone") ?? "+234 800 000 0000";
-  const displayPhone = maskPhone(rawPhone);
+  const { mutate: verifyMutation, isPending } = useVerifyEmail();
+  const { mutate: resendMutation, isPending: resending } = useResendEmailOtp();
 
+  const [email, setEmail] = useState("");
   const [digits, setDigits] = useState(["", "", "", "", "", ""]);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(60);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Auto-focus first input on mount
   useEffect(() => {
+    const pending = sessionStorage.getItem("pendingVerifyEmail");
+    if (pending) setEmail(pending);
     refs.current[0]?.focus();
   }, []);
 
-  // Resend countdown
   useEffect(() => {
     if (resendCooldown <= 0) return;
     const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
@@ -65,23 +63,63 @@ function VerifyForm() {
   }
 
   function verifyCode(code: string) {
-    // Demo: any 6-digit code passes
-    setLoading(true);
-    setTimeout(() => router.push("/onboarding"), 1200);
+    if (!email) {
+      setError("No email found. Please go back and register again.");
+      return;
+    }
+    setError("");
+    verifyMutation(
+      { email, otp: code },
+      {
+        onSuccess: () => {
+          setSuccess(true);
+          sessionStorage.removeItem("pendingVerifyEmail");
+          setTimeout(() => router.push("/login"), 1500);
+        },
+        onError: (err: any) => {
+          setError(
+            err?.response?.data?.message ||
+              err?.message ||
+              "Verification failed. Check your code and try again.",
+          );
+        },
+      },
+    );
   }
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const code = digits.join("");
-    if (code.length < 6) { setError("Please enter the full 6-digit code."); return; }
+    if (code.length < 6) {
+      setError("Please enter the full 6-digit code.");
+      return;
+    }
     verifyCode(code);
   }
 
   function handleResend() {
-    setDigits(["", "", "", "", "", ""]);
+    if (!email) {
+      setError("No email found. Please go back and register again.");
+      return;
+    }
     setError("");
-    setResendCooldown(60);
-    refs.current[0]?.focus();
+    resendMutation(
+      { email },
+      {
+        onSuccess: () => {
+          setDigits(["", "", "", "", "", ""]);
+          setResendCooldown(60);
+          refs.current[0]?.focus();
+        },
+        onError: (err: any) => {
+          setError(
+            err?.response?.data?.message ||
+              err?.message ||
+              "Couldn't resend the code. Please try again.",
+          );
+        },
+      },
+    );
   }
 
   const filled = digits.every(Boolean);
@@ -92,26 +130,26 @@ function VerifyForm() {
         <img src="/attend-logo.png" alt="Attend" style={{ height: 31 }} />
       </div>
 
-      {/* Header */}
       <div className="text-center">
         <div className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100">
-          <Phone className="h-6 w-6 text-gray-700" />
+          <Mail className="h-6 w-6 text-gray-700" />
         </div>
-        <h1 className="text-2xl font-bold text-foreground">Verify your number</h1>
+        <h1 className="text-2xl font-bold text-foreground">Verify your email</h1>
         <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
           We sent a 6-digit code to
           <br />
-          <span className="font-semibold text-foreground">{displayPhone}</span>
+          <span className="font-semibold text-foreground">{maskEmail(email)}</span>
         </p>
       </div>
 
-      {/* OTP form */}
       <form onSubmit={onSubmit} className="space-y-5" onPaste={handlePaste}>
         <div className="flex justify-between gap-2">
           {digits.map((d, i) => (
             <input
               key={i}
-              ref={(el) => { refs.current[i] = el; }}
+              ref={(el) => {
+                refs.current[i] = el;
+              }}
               inputMode="numeric"
               maxLength={1}
               value={d}
@@ -126,12 +164,15 @@ function VerifyForm() {
           ))}
         </div>
 
-        {error && (
-          <p className="text-center text-xs text-red-500">{error}</p>
+        {error && <p className="text-center text-xs text-red-500">{error}</p>}
+        {success && (
+          <p className="text-center text-xs text-emerald-600">
+            Email verified! Redirecting to sign in…
+          </p>
         )}
 
-        <Button type="submit" fullWidth size="lg" loading={loading} disabled={!filled || loading}>
-          {loading ? "Verifying…" : "Confirm code"}
+        <Button type="submit" fullWidth size="lg" loading={isPending} disabled={!filled || isPending}>
+          {isPending ? "Verifying…" : "Confirm code"}
         </Button>
 
         <p className="text-center text-sm text-muted-foreground">
@@ -144,9 +185,10 @@ function VerifyForm() {
             <button
               type="button"
               onClick={handleResend}
-              className="font-semibold text-foreground hover:underline"
+              disabled={resending}
+              className="font-semibold text-foreground hover:underline disabled:opacity-50"
             >
-              Resend code
+              {resending ? "Sending…" : "Resend code"}
             </button>
           )}
         </p>
@@ -154,7 +196,7 @@ function VerifyForm() {
 
       <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
         <Link href="/register" className="hover:text-foreground hover:underline transition-colors">
-          Wrong number? Go back
+          Wrong details? Go back
         </Link>
         <Link href="/login" className="hover:text-foreground hover:underline transition-colors">
           Already have an account? Sign in

@@ -1,12 +1,44 @@
 "use client";
 import Link from "next/link";
 import { ArrowLeft, ChevronRight } from "lucide-react";
-import { MOCK_EVENTS } from "@/lib/mock-data";
+import { useGetMyEvents } from "@/api/events/hooks";
+import { EventListItem } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 import { formatDate, initialsFor } from "@/lib/utils";
 
+const EVENT_COLOR: Record<string, string> = {
+  AGM: "#1a6b3c",
+  PRODUCT_LAUNCH: "#f97316",
+  LAUNCH: "#f97316",
+  HACKATHON: "#9333ea",
+  INNOVATION_CHALLENGE: "#9333ea",
+  GENERAL_EVENT: "#2563eb",
+  GENERAL: "#2563eb",
+};
+
+interface MyEventRow {
+  id: string;
+  organiser: string;
+  title: string;
+  date: string;
+  format: string;
+  thumbnailColor: string;
+}
+
+const fmtFormat = (f: string) => (f || "").toLowerCase().replace(/_/g, "-");
+
 export default function MyEventsPage() {
-  const events = MOCK_EVENTS.filter((e) => e.rsvpStatus === "confirmed");
+  const { data, isLoading } = useGetMyEvents();
+  const apiEvents = data?.data?.events ?? [];
+
+  const events: MyEventRow[] = apiEvents.map((e: EventListItem) => ({
+    id: e.id,
+    organiser: e.registerName || e.organizerName,
+    title: e.title,
+    date: e.date,
+    format: fmtFormat(e.format),
+    thumbnailColor: EVENT_COLOR[e.eventType?.toUpperCase()] ?? "#2563eb",
+  }));
 
   return (
     <div className="space-y-6">
@@ -21,7 +53,13 @@ export default function MyEventsPage() {
         </p>
       </header>
 
-      {events.length === 0 ? (
+      {isLoading ? (
+        <div className="space-y-2">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="h-20 animate-pulse rounded-2xl border border-border bg-muted" />
+          ))}
+        </div>
+      ) : events.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
           You haven&apos;t RSVP&apos;d to anything yet. Browse events to get started.
         </div>

@@ -11,9 +11,11 @@ import {
   ShieldCheck,
   Radio,
 } from "lucide-react";
-import { MOCK_USER, MOCK_EVENTS } from "@/lib/mock-data";
+import { useGetMe } from "@/api/auth/hooks";
+import { useGetEvents } from "@/api/events/hooks";
+import { EventListItem } from "@/types";
 import { useUserStore } from "@/lib/user-store";
-import { cn, formatDate, greetingByHour, initialsFor } from "@/lib/utils";
+import { cn, formatDate, greetingByHour, initialsFor, formatEventFormat } from "@/lib/utils";
 
 const TILES = [
   {
@@ -40,7 +42,7 @@ const TILES = [
   {
     label: "General",
     description: "Roundtables & conferences",
-    href: "/events",
+    href: "/general",
     icon: CalendarDays,
     gradient: "from-teal-500 to-cyan-600",
   },
@@ -58,13 +60,72 @@ const MODULE_BADGE: Record<string, { label: string; bg: string }> = {
   GENERAL:  { label: "General Event",        bg: "#0891b2" },
 };
 
-const carouselEvents = MOCK_EVENTS.filter(
-  (e) => e.module === "LAUNCH" || e.module === "HACKATHON"
-);
+const EVENT_COLOR: Record<string, string> = {
+  AGM: "#1a6b3c",
+  PRODUCT_LAUNCH: "#f97316",
+  LAUNCH: "#f97316",
+  HACKATHON: "#9333ea",
+  INNOVATION_CHALLENGE: "#9333ea",
+  GENERAL_EVENT: "#2563eb",
+  GENERAL: "#2563eb",
+};
+
+// Normalise an API event into the shape the design JSX consumes.
+interface HomeEvent {
+  id: string;
+  module: string;
+  organiser: string;
+  title: string;
+  date: string;
+  format: string;
+  startTime: string;
+  rsvpCount: number;
+  thumbnailColor: string;
+  rsvpStatus?: boolean;
+}
+function toHomeEvent(e: EventListItem): HomeEvent {
+  return {
+    id: e.id,
+    module: e.eventType,
+    organiser: e.registerName || e.organizerName,
+    title: e.title,
+    date: e.date,
+    format: e.format,
+    startTime: e.startTime,
+    rsvpCount: e.maximumCapacity || 0,
+    thumbnailColor: EVENT_COLOR[e.eventType?.toUpperCase()] ?? "#2563eb",
+    rsvpStatus: e.registered,
+  };
+}
 
 export default function HomePage() {
+  const { data: meResp } = useGetMe();
+  const me = meResp?.data;
+  const displayName = me?.fullName || "there";
+  const firstName = displayName.split(" ")[0];
+
   const { kycStatus } = useUserStore();
   const verified = kycStatus === "full";
+
+  const { data: evResp } = useGetEvents();
+  const apiEvents = evResp?.data?.events ?? [];
+
+  const liveEvent: HomeEvent | undefined = (() => {
+    const live = apiEvents.find((e) => e.status === "LIVE");
+    return live ? toHomeEvent(live) : undefined;
+  })();
+
+  const upcoming: HomeEvent[] = apiEvents
+    .filter((e) => e.status === "PUBLISHED")
+    .slice(0, 4)
+    .map(toHomeEvent);
+
+  // Featured events come straight from the endpoint (admin marks an event
+  // featured → EventItem.featured === true).
+  const carouselEvents: HomeEvent[] = apiEvents
+    .filter((e) => e.featured)
+    .slice(0, 5)
+    .map(toHomeEvent);
 
   const [activeSlide, setActiveSlide] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -75,31 +136,28 @@ export default function HomePage() {
       setActiveSlide((prev) => (prev + 1) % carouselEvents.length);
     }, 4000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, []);
-
-  const liveEvent = MOCK_EVENTS.find((e) => e.status === "live");
-  const upcoming = MOCK_EVENTS.filter((e) => e.status === "upcoming").slice(0, 4);
+  }, [carouselEvents.length]);
 
   return (
     <div className="space-y-8">
       {/* Hero / user card */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#111827] via-[#1f2937] to-[#374151] p-6 text-white md:p-8">
+      <section className="relative overflow-hidden rounded-3xl bg-linear-to-br from-[#111827] via-[#1f2937] to-[#374151] p-6 text-white md:p-8">
         <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white/10" />
         <div className="absolute -bottom-20 -left-10 h-56 w-56 rounded-full bg-white/5" />
         <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 text-xl font-bold backdrop-blur">
-              {initialsFor(MOCK_USER.fullName)}
+              {me?.initials || initialsFor(displayName)}
             </div>
             <div>
               <p className="text-sm text-white/80">
                 {greetingByHour()},
               </p>
               <h1 className="text-2xl font-bold leading-tight md:text-3xl">
-                {MOCK_USER.fullName.split(" ")[0]}
+                {firstName}
               </h1>
               <p className="mt-0.5 text-xs text-white/70">
-                Member since {formatDate(MOCK_USER.createdAt)} · Shareholder
+                {me?.role || "Member"}
               </p>
             </div>
           </div>
@@ -134,7 +192,7 @@ export default function HomePage() {
       {liveEvent && (
         <section>
           <Link
-            href={liveEvent.module === "AGM" ? "/agm/live" : `/events/${liveEvent.id}`}
+            href={(liveEvent.module === "AGM" || liveEvent.module === "AGM_EGM") ? `/agm/live?eventId=${liveEvent.id}` : `/events/${liveEvent.id}`}
             className="group block overflow-hidden rounded-2xl bg-[#1e293b] p-5 shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl"
           >
             <div className="flex items-start justify-between gap-4">
@@ -144,7 +202,7 @@ export default function HomePage() {
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
                     Live Now
                   </span>
-                  {liveEvent.module === "AGM" && (
+                  {(liveEvent.module === "AGM" || liveEvent.module === "AGM_EGM") && (
                     <span className="text-xs text-white/50">AGM · {liveEvent.organiser}</span>
                   )}
                 </div>
@@ -152,7 +210,7 @@ export default function HomePage() {
                   {liveEvent.title.split("—")[1]?.trim() ?? liveEvent.title}
                 </p>
                 <p className="mt-1 text-xs text-white/50">
-                  {liveEvent.module === "AGM" ? "Voting on Resolution 3 is open · Click to join and vote" : `${liveEvent.rsvpCount.toLocaleString()} watching`}
+                  {(liveEvent.module === "AGM" || liveEvent.module === "AGM_EGM") ? "Voting is open · Click to join and vote" : `${liveEvent.rsvpCount.toLocaleString()} watching`}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur transition-colors group-hover:bg-white/20">
@@ -176,7 +234,7 @@ export default function HomePage() {
                 key={t.label}
                 href={t.href}
                 className={cn(
-                  "group relative overflow-hidden rounded-2xl bg-gradient-to-br p-5 text-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg",
+                  "group relative overflow-hidden rounded-2xl bg-linear-to-br p-5 text-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg",
                   t.gradient,
                 )}
               >
@@ -196,6 +254,7 @@ export default function HomePage() {
       </section>
 
       {/* Featured Events Carousel */}
+      {carouselEvents.length > 0 && (
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -219,7 +278,7 @@ export default function HomePage() {
                 <Link
                   key={event.id}
                   href={href}
-                  className="relative h-full w-full flex-shrink-0"
+                  className="relative h-full w-full shrink-0"
                   style={{ minWidth: "100%" }}
                 >
                   {/* Photo */}
@@ -229,7 +288,7 @@ export default function HomePage() {
                     className="h-full w-full object-cover"
                   />
                   {/* Gradient overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/20 to-black/80" />
+                  <div className="absolute inset-0 bg-linear-to-b from-transparent via-black/20 to-black/80" />
 
                   {/* Module badge */}
                   <div className="absolute left-4 top-4">
@@ -278,6 +337,7 @@ export default function HomePage() {
           </div>
         )}
       </section>
+      )}
 
       {/* Upcoming */}
       <section>
@@ -307,7 +367,7 @@ export default function HomePage() {
                   {e.title}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {formatDate(e.date)} · {e.format} · {e.startTime}
+                  {formatDate(e.date)} · {formatEventFormat(e.format)} · {e.startTime}
                 </p>
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground" />

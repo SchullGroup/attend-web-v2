@@ -1,12 +1,23 @@
 "use client";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { MOCK_EVENTS } from "@/lib/mock-data";
-import { EventCard } from "@/components/attend/EventCard";
+import { useGetSavedEvents } from "@/api/events/hooks";
+import { EventCard, EventCardData } from "@/components/attend/EventCard";
 
 export default function SavedEventsPage() {
-  // pretend saved: pick non-confirmed events
-  const saved = MOCK_EVENTS.filter((e) => e.rsvpStatus !== "confirmed").slice(0, 4);
+  const { data, isLoading } = useGetSavedEvents();
+  const saved: EventCardData[] = (data?.data?.events ?? []).map((e) => ({
+    id: e.id,
+    title: e.title,
+    organiser: e.registerName || e.organizerName,
+    module: e.eventType,
+    status: e.status,
+    date: e.date,
+    startTime: e.startTime,
+    venue: e.venue || undefined,
+    registered: e.registered,
+    format: e.format,
+  }));
 
   return (
     <div className="space-y-6">
@@ -21,7 +32,13 @@ export default function SavedEventsPage() {
         </p>
       </header>
 
-      {saved.length === 0 ? (
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          {[1, 2].map((n) => (
+            <div key={n} className="h-72 animate-pulse rounded-2xl border border-border bg-muted" />
+          ))}
+        </div>
+      ) : saved.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
           Nothing saved yet — tap the bookmark on any event to save it here.
         </div>

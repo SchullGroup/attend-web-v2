@@ -4,17 +4,39 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Fingerprint } from "lucide-react";
+import { useKycStep1 } from "@/api/kyc/hooks";
 
 export default function BvnPage() {
   const router = useRouter();
   const [bvn, setBvn] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const isValid = /^\d{11}$/.test(bvn);
+
+  const { mutate: submitStep1, isPending } = useKycStep1();
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    setTimeout(() => router.push("/chn"), 1200);
+    setErrorMsg(null);
+    submitStep1(
+      { bvn },
+      {
+        onSuccess: () => {
+          // BVN is needed again for the step 3 liveness check.
+          sessionStorage.setItem("kyc_bvn", bvn);
+          router.push("/chn");
+        },
+        onError: (err: any) => {
+          const msg = err?.response?.data?.message || err?.message || "";
+          // BVN already verified on this account — not an error; move on to CHN.
+          if (/already.*verif/i.test(msg)) {
+            sessionStorage.setItem("kyc_bvn", bvn);
+            router.push("/chn");
+            return;
+          }
+          setErrorMsg(msg || "We couldn't verify that BVN. Please check and try again.");
+        },
+      },
+    );
   }
 
   return (
@@ -29,6 +51,12 @@ export default function BvnPage() {
           registered mobile line.
         </p>
       </div>
+
+      {errorMsg && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+          {errorMsg}
+        </div>
+      )}
 
       <Input
         name="bvn"
@@ -46,11 +74,12 @@ export default function BvnPage() {
           variant="outline"
           fullWidth
           onClick={() => router.push("/intro")}
+          disabled={isPending}
         >
           Back
         </Button>
-        <Button type="submit" fullWidth loading={loading} disabled={!isValid}>
-          Continue
+        <Button type="submit" fullWidth loading={isPending} disabled={!isValid}>
+          {isPending ? "Verifying…" : "Continue"}
         </Button>
       </div>
     </form>
