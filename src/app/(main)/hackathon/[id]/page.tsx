@@ -113,35 +113,69 @@ export default function HackathonDetailPage({
         </Link>
       )}
 
-      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-purple-700 to-fuchsia-700 p-6 text-white md:p-8">
-        <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white/10" />
-        <div className="relative space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-white/70">{challenge.organizerName}</p>
-          <h1 className="text-2xl font-bold leading-tight md:text-3xl">{challenge.title}</h1>
-          {challenge.description && <p className="max-w-2xl text-sm text-white/85">{challenge.description}</p>}
-          <div className="flex flex-wrap gap-2 pt-1">
-            {isLive ? (
-              <Link href={`/events/live?eventId=${id}`}>
-                <button className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-purple-700 hover:bg-white/90">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-purple-600" />
-                  Join Live session
-                </button>
-              </Link>
-            ) : (
-              <Link href={`/hackathon/apply?challengeId=${id}`}>
-                <button className="rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-purple-700 hover:bg-white/90">
-                  Apply now
-                </button>
-              </Link>
+      {/* Items I + J — per-challenge banner + brand colors (fallback: platform purple gradient) */}
+      {(() => {
+        const brandPrimary = challenge.brandPrimary || "#7e22ce";
+        const brandAccent = challenge.brandAccent || "#c026d3";
+        const heroStyle: React.CSSProperties = challenge.bannerUrl
+          ? {
+              backgroundImage: `url(${challenge.bannerUrl})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            }
+          : {
+              background: `linear-gradient(135deg, ${brandPrimary} 0%, ${brandAccent} 100%)`,
+            };
+        return (
+          <header
+            className="challenge-scope relative overflow-hidden rounded-3xl p-6 text-white md:p-8"
+            style={{
+              ...heroStyle,
+              "--brand-primary": brandPrimary,
+              "--brand-accent": brandAccent,
+            } as React.CSSProperties}
+          >
+            {challenge.bannerUrl && (
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
             )}
-            <Link href={`/hackathon/resources?challengeId=${id}`}>
-              <button className="rounded-xl border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-semibold backdrop-blur hover:bg-white/20">
-                Resources{challenge.resourceCount > 0 ? ` (${challenge.resourceCount})` : ""}
-              </button>
-            </Link>
-          </div>
-        </div>
-      </header>
+            {!challenge.bannerUrl && (
+              <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white/10" />
+            )}
+            <div className="relative space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-white/70">{challenge.organizerName}</p>
+              <h1 className="text-2xl font-bold leading-tight md:text-3xl">{challenge.title}</h1>
+              {challenge.description && <p className="max-w-2xl text-sm text-white/85">{challenge.description}</p>}
+              <div className="flex flex-wrap gap-2 pt-1">
+                {isLive ? (
+                  <Link href={`/events/live?eventId=${id}`}>
+                    <button
+                      className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold hover:bg-white/90"
+                      style={{ color: brandPrimary }}
+                    >
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: brandPrimary }} />
+                      Join Live session
+                    </button>
+                  </Link>
+                ) : (
+                  <Link href={`/hackathon/apply?challengeId=${id}`}>
+                    <button
+                      className="rounded-xl bg-white px-5 py-2.5 text-sm font-semibold hover:bg-white/90"
+                      style={{ color: brandPrimary }}
+                    >
+                      Apply now
+                    </button>
+                  </Link>
+                )}
+                <Link href={`/hackathon/resources?challengeId=${id}`}>
+                  <button className="rounded-xl border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-semibold backdrop-blur hover:bg-white/20">
+                    Resources{challenge.resourceCount > 0 ? ` (${challenge.resourceCount})` : ""}
+                  </button>
+                </Link>
+              </div>
+            </div>
+          </header>
+        );
+      })()}
 
       {/* Problem statement */}
       {challenge.problemStatement && (

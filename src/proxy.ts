@@ -3,7 +3,8 @@ import type { NextRequest } from "next/server";
 
 // Define the paths that do NOT require authentication
 // Item L — /bvn-recover: shareholders without email/phone use BVN to sign in.
-const publicRoutes = ["/login", "/register", "/verify", "/forgot-password", "/reset-password", "/bvn-recover"];
+// Item B — /join/... : guest redemption before session issuance; /e/... : deep-link shim
+const publicRoutes = ["/login", "/register", "/verify", "/forgot-password", "/reset-password", "/bvn-recover", "/join", "/e"];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

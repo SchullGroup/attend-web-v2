@@ -108,6 +108,10 @@ export interface ChallengeDetailData {
   prizeTiers?: PrizeTierItem[];
   submissionRequirements?: SubmissionRequirements;
   myTeam: ChallengeMyTeamSummary | null;
+  // Items I + J — per-challenge branding
+  bannerUrl?: string | null;
+  brandPrimary?: string | null;
+  brandAccent?: string | null;
 }
 
 export interface ChallengeResource {

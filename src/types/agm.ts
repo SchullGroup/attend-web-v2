@@ -133,6 +133,11 @@ export interface VoteReceiptItem {
   resolutionTitle: string;
   choice: string;
   votedAt: string;
+  // Item G — populated when the vote was cast against a specific nominee within the resolution.
+  nomineeId?: string;
+  nomineeName?: string;
+  // Item D — set when this vote was pre-directed via a proxy assignment.
+  viaProxy?: boolean;
 }
 
 export interface VoteReceiptData {

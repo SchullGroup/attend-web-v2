@@ -74,6 +74,10 @@ function ReceiptInner() {
         title: v.resolutionTitle,
         vote: voteLabel(v.choice),
         isPre,
+        // Item G — nominee metadata (populated when the resolution had nominees)
+        nomineeName: v.nomineeName as string | undefined,
+        // Item D — proxy pre-directed indicator
+        viaProxy: !!v.viaProxy,
       };
     }),
   };
@@ -131,10 +135,17 @@ function ReceiptInner() {
       view.resolutions.forEach((r) => {
         doc.setFontSize(11);
         doc.setFont("helvetica", "bold");
-        const title = doc.splitTextToSize(`Resolution ${r.num}: ${r.title}`, pageW - margin * 2 - 100);
+        const headText = r.nomineeName
+          ? `Resolution ${r.num}: ${r.title} — ${r.nomineeName}`
+          : `Resolution ${r.num}: ${r.title}`;
+        const title = doc.splitTextToSize(headText, pageW - margin * 2 - 100);
         doc.text(title, margin, y);
         doc.setFont("helvetica", "normal");
-        const textLabel = r.isPre ? `${r.vote} (Pre-vote)` : r.vote;
+        const suffix = [
+          r.isPre ? "Pre-vote" : null,
+          r.viaProxy ? "via proxy" : null,
+        ].filter(Boolean).join(", ");
+        const textLabel = suffix ? `${r.vote} (${suffix})` : r.vote;
         doc.text(textLabel, pageW - margin, y, { align: "right" });
         y += title.length * 15 + 8;
       });
@@ -226,23 +237,37 @@ function ReceiptInner() {
                 </div>
               ) : (
                 <ul className="divide-y divide-border rounded-xl border border-border">
-                  {view.resolutions.map((r) => (
-                    <li key={r.num} className="flex items-center justify-between p-3 text-sm">
+                  {view.resolutions.map((r, i) => (
+                    <li key={`${r.num}-${i}`} className="flex items-center justify-between p-3 text-sm">
                       <div>
-                        <p className="text-xs text-muted-foreground">Resolution {r.num}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Resolution {r.num}{r.nomineeName ? ` — ${r.nomineeName}` : ""}
+                        </p>
                         <p className="font-medium text-foreground">{r.title}</p>
                       </div>
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          r.vote === "For"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : r.vote === "Against"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-slate-100 text-slate-700"
-                        }`}
-                      >
-                        {r.vote} {r.isPre && "(Pre-vote)"}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            r.vote === "For"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : r.vote === "Against"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {r.vote}
+                        </span>
+                        {r.isPre && (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                            Pre-vote
+                          </span>
+                        )}
+                        {r.viaProxy && (
+                          <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
+                            via proxy
+                          </span>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>

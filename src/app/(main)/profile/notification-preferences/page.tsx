@@ -8,6 +8,7 @@ import {
   useSaveNotificationPreferences,
 } from "@/api/notifications/hooks";
 import { NotificationPreferences } from "@/types";
+import { ensurePushSubscription, getPushState, unsubscribePush } from "@/lib/push-notifications";
 
 interface PrefRow {
   key: string;
@@ -43,6 +44,38 @@ export default function NotificationPreferencesPage() {
   useEffect(() => {
     if (data?.data) setPrefs(data.data);
   }, [data]);
+
+  // Item K — sync Web Push subscription state with local UI
+  const [pushBrowserSubscribed, setPushBrowserSubscribed] = useState(false);
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
+  useEffect(() => {
+    (async () => {
+      const state = await getPushState();
+      if (state.supported) {
+        setPushSupported(true);
+        setPushBrowserSubscribed(state.subscribed);
+      } else {
+        setPushSupported(false);
+      }
+    })();
+  }, []);
+
+  async function togglePushBrowser() {
+    setPushError(null);
+    try {
+      if (pushBrowserSubscribed) {
+        await unsubscribePush();
+        setPushBrowserSubscribed(false);
+      } else {
+        const sub = await ensurePushSubscription();
+        if (sub) setPushBrowserSubscribed(true);
+        else setPushError("Enable notifications in your browser settings to receive updates.");
+      }
+    } catch (e: any) {
+      setPushError(e?.message || "Could not update push notification settings.");
+    }
+  }
 
   const emailOn =
     prefs.emailRsvpConfirmation && prefs.emailEventReminder && prefs.emailNewDocument;
@@ -89,6 +122,45 @@ export default function NotificationPreferencesPage() {
       ) : (
         <Section title="Delivery channels" rows={CHANNELS} prefs={channelState} toggle={toggle} />
       )}
+
+      {/* Item K — Web Push browser subscription */}
+      <section>
+        <h3 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Browser notifications
+        </h3>
+        <div className="rounded-2xl border border-border bg-white p-4">
+          {pushSupported ? (
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  {pushBrowserSubscribed ? "Push enabled in this browser" : "Enable browser push"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Get real-time alerts even when Attend is not open. You can turn this off in your browser settings.
+                </p>
+                {pushError && (
+                  <p className="mt-2 text-xs text-red-600">{pushError}</p>
+                )}
+              </div>
+              <button
+                onClick={togglePushBrowser}
+                className={cn(
+                  "shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition",
+                  pushBrowserSubscribed
+                    ? "border border-border bg-white text-foreground hover:bg-muted"
+                    : "bg-primary text-primary-foreground hover:opacity-90",
+                )}
+              >
+                {pushBrowserSubscribed ? "Disable" : "Enable"}
+              </button>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Push notifications aren&apos;t supported in this browser. Try the mobile app for real-time alerts.
+            </p>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
