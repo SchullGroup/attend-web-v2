@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import { Mail } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useVerifyEmail, useResendEmailOtp } from "@/api/auth/hooks";
 
 function maskEmail(email: string): string {
@@ -125,25 +125,27 @@ function VerifyForm() {
   const filled = digits.every(Boolean);
 
   return (
-    <div className="space-y-6">
-      <div className="md:hidden mb-2">
-        <img src="/attend-logo.png" alt="Attend" style={{ height: 31 }} />
-      </div>
+    <div className="flex flex-col items-center gap-8 text-center">
+      <Link
+        href="/register"
+        aria-label="Go back"
+        className="self-start rounded-full bg-white p-2 text-foreground shadow-[0px_1px_4px_0px_rgba(0,0,0,0.1)]"
+      >
+        <ArrowLeft className="h-5 w-5" />
+      </Link>
 
-      <div className="text-center">
-        <div className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100">
-          <Mail className="h-6 w-6 text-gray-700" />
-        </div>
-        <h1 className="text-2xl font-bold text-foreground">Verify your email</h1>
-        <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-          We sent a 6-digit code to
-          <br />
-          <span className="font-semibold text-foreground">{maskEmail(email)}</span>
+      <div className="-mt-6 flex flex-col gap-1">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">
+          Verify email
+        </h1>
+        <p className="text-sm leading-relaxed tracking-[-0.14px] text-foreground/70">
+          We sent a 6-digit code to {maskEmail(email)}. Enter it below to
+          verify your account.
         </p>
       </div>
 
-      <form onSubmit={onSubmit} className="space-y-5" onPaste={handlePaste}>
-        <div className="flex justify-between gap-2">
+      <form onSubmit={onSubmit} className="flex w-full flex-col items-center gap-6" onPaste={handlePaste}>
+        <div className="flex justify-between gap-2.5">
           {digits.map((d, i) => (
             <input
               key={i}
@@ -157,8 +159,8 @@ function VerifyForm() {
               onKeyDown={(e) => handleKey(i, e)}
               className={cn(
                 "h-12 w-12 rounded-xl border text-center text-lg font-semibold transition-all",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                d ? "border-foreground bg-foreground/5" : "border-input bg-white",
+                "focus-visible:outline-none focus-visible:border-primary",
+                d ? "border-primary bg-primary/5 text-primary" : "border-transparent bg-foreground/[0.04] text-foreground",
               )}
             />
           ))}
@@ -171,16 +173,10 @@ function VerifyForm() {
           </p>
         )}
 
-        <Button type="submit" fullWidth size="lg" loading={isPending} disabled={!filled || isPending}>
-          {isPending ? "Verifying…" : "Confirm code"}
-        </Button>
-
-        <p className="text-center text-sm text-muted-foreground">
-          Didn&apos;t receive a code?{" "}
+        <p className="text-sm text-foreground/60">
+          Didn&apos;t receive it?{" "}
           {resendCooldown > 0 ? (
-            <span className="font-semibold text-muted-foreground">
-              Resend in {resendCooldown}s
-            </span>
+            <span className="font-semibold">Resend in {resendCooldown}s</span>
           ) : (
             <button
               type="button"
@@ -192,16 +188,15 @@ function VerifyForm() {
             </button>
           )}
         </p>
+
+        <Button type="submit" fullWidth size="lg" loading={isPending} disabled={!filled || isPending}>
+          {isPending ? "Verifying…" : "Verify"}
+        </Button>
       </form>
 
-      <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
-        <Link href="/register" className="hover:text-foreground hover:underline transition-colors">
-          Wrong details? Go back
-        </Link>
-        <Link href="/login" className="hover:text-foreground hover:underline transition-colors">
-          Already have an account? Sign in
-        </Link>
-      </div>
+      <Link href="/login" className="text-sm text-foreground/60 hover:text-foreground hover:underline transition-colors">
+        Already have an account? Sign in
+      </Link>
     </div>
   );
 }

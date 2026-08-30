@@ -1,21 +1,20 @@
 "use client";
 import { useState, useEffect, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, UserCheck, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { AgmBackButton } from "@/components/attend/AgmSubNav";
 import { cn } from "@/lib/utils";
 import { useAssignProxy, useGetProxy, useGetResolutions } from "@/api/agm/hooks";
 import { useGetEvent } from "@/api/events/hooks";
 import type { ProxyDirection } from "@/types/agm";
 
 // Item D — pre-directed proxy votes; auto-cast when resolution opens.
-const DIRECTION_OPTIONS: Array<{ value: ProxyDirection; label: string; color: string }> = [
-  { value: "FOR",              label: "For",              color: "text-green-700 border-green-300 bg-green-50" },
-  { value: "AGAINST",          label: "Against",          color: "text-red-700 border-red-300 bg-red-50" },
-  { value: "ABSTAIN",          label: "Abstain",          color: "text-amber-700 border-amber-300 bg-amber-50" },
-  { value: "LET_PROXY_DECIDE", label: "Let proxy decide", color: "text-muted-foreground border-border bg-muted/30" },
+const DIRECTION_OPTIONS: Array<{ value: ProxyDirection; label: string }> = [
+  { value: "FOR", label: "For" },
+  { value: "AGAINST", label: "Against" },
+  { value: "ABSTAIN", label: "Abstain" },
+  { value: "LET_PROXY_DECIDE", label: "Let proxy decide" },
 ];
 
 type ProxyType = "chairman" | "named";
@@ -93,150 +92,155 @@ function ProxyPageInner() {
   }
 
   return (
-    <div className="space-y-6">
-      <Link href="/agm" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to AGMs
-      </Link>
+    <div className="flex flex-col gap-6">
+      <AgmBackButton href="/agm" label="Back to AGMs" />
 
-      <header>
-        <h1 className="mt-1 text-2xl font-bold text-foreground">Appoint a proxy</h1>
-        <p className="text-sm text-muted-foreground">
-          If you can&apos;t attend the meeting, appoint someone to vote on your behalf.
-        </p>
-        {existingProxy?.data && (
-          <p className="mt-2 text-xs font-medium text-primary">
-            Current proxy: {existingProxy.data.proxyName}
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Appoint a proxy</h1>
+          <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
+            If you can&apos;t attend the meeting, appoint someone to vote on your behalf.
           </p>
-        )}
-      </header>
-
-      <form onSubmit={submit} className="space-y-5 rounded-2xl border border-border bg-white p-5 shadow-sm">
-        {errorMsg && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
-            {errorMsg}
-          </div>
-        )}
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <Choice
-            active={type === "chairman"}
-            onClick={() => setType("chairman")}
-            icon={UserCheck}
-            title="Chairman of the meeting"
-            body="Standard option — your vote follows your pre-vote choices."
-          />
-          <Choice
-            active={type === "named"}
-            onClick={() => setType("named")}
-            icon={UserPlus}
-            title="Named proxy"
-            body="Nominate a specific verified shareholder."
-          />
+          {existingProxy?.data && (
+            <p className="mt-2 text-xs font-medium text-primary">
+              Current proxy: {existingProxy.data.proxyName}
+            </p>
+          )}
         </div>
 
-        {type === "named" && (
-          <div className="grid gap-4 md:grid-cols-2">
-            <Input
-              name="name"
-              label="Proxy full name"
-              placeholder="e.g. Adekunle Bello"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+        <form onSubmit={submit} className="flex flex-col gap-5">
+          {errorMsg && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+              {errorMsg}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3">
+            <Choice
+              active={type === "chairman"}
+              onClick={() => setType("chairman")}
+              title="Appoint Chairman of the meeting"
+              body="Your vote follows your pre-vote choices."
             />
-            <Input
-              name="email"
-              label="Proxy email"
-              type="email"
-              placeholder="proxy@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <Input
-              name="phone"
-              label="Proxy phone (optional)"
-              type="tel"
-              placeholder="+234 800 000 0000"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+            <div className="flex items-center gap-3 py-1">
+              <div className="h-px flex-1 bg-foreground/10" />
+              <span className="text-xs text-foreground/50">or</span>
+              <div className="h-px flex-1 bg-foreground/10" />
+            </div>
+            <Choice
+              active={type === "named"}
+              onClick={() => setType("named")}
+              title="Named proxy"
+              body="Nominate a specific verified shareholder"
             />
           </div>
-        )}
 
-        {resolutions.length > 0 && (
-          <div className="space-y-3 rounded-2xl border border-border bg-muted/20 p-4">
-            <div>
-              <h3 className="text-sm font-semibold text-foreground">Direct your votes (optional)</h3>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Choose your position on each resolution. Selections auto-cast when voting opens.
-                Choose &quot;Let proxy decide&quot; to leave it to your proxy.
+          {type === "named" && (
+            <div className="flex flex-col gap-4">
+              <Input
+                name="name"
+                placeholder="Proxy full name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <Input
+                name="email"
+                type="email"
+                placeholder="Proxy email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <Input
+                name="phone"
+                type="tel"
+                placeholder="Proxy phone (optional)"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            </div>
+          )}
+
+          {resolutions.length > 0 && (
+            <div className="flex flex-col gap-3 rounded-xl bg-foreground/[0.03] p-4">
+              <div>
+                <h3 className="text-sm font-medium tracking-[-0.14px] text-foreground">Direct your votes (optional)</h3>
+                <p className="mt-1 text-xs text-foreground/60">
+                  Choose your position on each resolution. Selections auto-cast when voting opens.
+                  Choose &quot;Let proxy decide&quot; to leave it to your proxy.
+                </p>
+              </div>
+              {resolutions.map((r) => (
+                <div key={r.id} className="rounded-xl border border-foreground/[0.06] bg-white p-4">
+                  <p className="text-sm font-medium tracking-[-0.14px] text-foreground">
+                    {r.order ? `${r.order}. ` : ""}{r.title}
+                  </p>
+                  {r.description && (
+                    <p className="mt-0.5 line-clamp-2 text-xs text-foreground/60">
+                      {r.description}
+                    </p>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {DIRECTION_OPTIONS.map((opt) => {
+                      const active = directions[r.id] === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() =>
+                            setDirections((d) => ({ ...d, [r.id]: opt.value }))
+                          }
+                          className={cn(
+                            "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                            active
+                              ? "border-foreground bg-foreground text-background"
+                              : "border-foreground/15 bg-white text-foreground/60 hover:border-foreground/30",
+                          )}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              <p className="text-xs text-foreground/50">
+                {directedCount > 0
+                  ? `Pre-directing votes on ${directedCount} of ${resolutions.length} resolution${resolutions.length === 1 ? "" : "s"}.`
+                  : "All resolutions left to your proxy."}
               </p>
             </div>
-            {resolutions.map((r) => (
-              <div key={r.id} className="rounded-xl border border-border bg-white p-4">
-                <p className="text-sm font-medium text-foreground">
-                  {r.order ? `${r.order}. ` : ""}{r.title}
-                </p>
-                {r.description && (
-                  <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
-                    {r.description}
-                  </p>
-                )}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {DIRECTION_OPTIONS.map((opt) => {
-                    const active = directions[r.id] === opt.value;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() =>
-                          setDirections((d) => ({ ...d, [r.id]: opt.value }))
-                        }
-                        className={cn(
-                          "rounded-full border px-3 py-1.5 text-xs font-medium transition",
-                          active
-                            ? opt.color
-                            : "border-border bg-white text-muted-foreground hover:border-primary/40",
-                        )}
-                      >
-                        {opt.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-            <p className="text-xs text-muted-foreground">
-              {directedCount > 0
-                ? `Pre-directing votes on ${directedCount} of ${resolutions.length} resolution${resolutions.length === 1 ? "" : "s"}.`
-                : "All resolutions left to your proxy."}
-            </p>
+          )}
+
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            Proxy appointments must be submitted at least 48 hours before the meeting.
+            You can revoke this anytime before voting opens.
           </div>
-        )}
 
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-          Proxy appointments must be submitted at least 48 hours before the meeting.
-          You can revoke this anytime before voting opens.
-        </div>
-
-        <div className="flex justify-end gap-3">
-          <Button type="button" variant="outline" onClick={() => router.push("/agm")}>
-            Cancel
-          </Button>
-          <Button type="submit" loading={isPending} disabled={!valid || !eventId}>
-            Submit proxy
-          </Button>
-        </div>
-      </form>
+          <div className="flex flex-col gap-3">
+            <Button type="submit" size="lg" fullWidth loading={isPending} disabled={!valid || !eventId}>
+              Submit Proxy
+            </Button>
+            <Button
+              type="button"
+              size="lg"
+              fullWidth
+              className="bg-foreground/[0.04] text-foreground/60 shadow-none hover:bg-foreground/[0.08]"
+              onClick={() => router.push("/agm")}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
 
 function Choice({
-  active, onClick, icon: Icon, title, body,
+  active, onClick, title, body,
 }: {
   active: boolean;
   onClick: () => void;
-  icon: typeof UserCheck;
   title: string;
   body: string;
 }) {
@@ -245,22 +249,22 @@ function Choice({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex items-start gap-3 rounded-2xl border-2 p-4 text-left transition-colors",
-        active ? "border-primary bg-primary/5" : "border-border bg-white hover:border-primary/40",
+        "flex w-full items-center justify-between gap-4 rounded-xl border p-4 text-left transition-colors",
+        active ? "border-primary bg-primary/5" : "border-foreground/10 bg-white hover:border-foreground/20",
       )}
     >
-      <div
+      <div>
+        <p className="text-sm font-medium tracking-[-0.14px] text-foreground">{title}</p>
+        <p className="mt-0.5 text-xs text-foreground/60">{body}</p>
+      </div>
+      <span
         className={cn(
-          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-          active ? "bg-primary text-white" : "bg-muted text-muted-foreground",
+          "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2",
+          active ? "border-primary" : "border-foreground/25",
         )}
       >
-        <Icon className="h-5 w-5" />
-      </div>
-      <div>
-        <p className="text-sm font-semibold text-foreground">{title}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">{body}</p>
-      </div>
+        {active && <span className="h-2.5 w-2.5 rounded-full bg-primary" />}
+      </span>
     </button>
   );
 }

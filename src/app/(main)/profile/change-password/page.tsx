@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Lock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -9,7 +8,6 @@ import { useChangePassword } from "@/api/auth/hooks";
 import Cookies from "js-cookie";
 
 export default function ChangePasswordPage() {
-  const router = useRouter();
   const { mutate: changePassword, isPending } = useChangePassword();
   const [form, setForm] = useState({ current: "", next: "", confirm: "" });
   const [success, setSuccess] = useState(false);
@@ -49,39 +47,43 @@ export default function ChangePasswordPage() {
 
   return (
     <div className="space-y-6">
-      <Link href="/profile" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back
-      </Link>
+      <div className="flex items-center gap-4">
+        <Link
+          href="/profile"
+          aria-label="Back to settings"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-foreground/10 bg-white text-foreground shadow-[0px_1px_4px_0px_rgba(0,0,0,0.08)] transition-colors hover:bg-foreground/[0.04]"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Change Password</h1>
+          <p className="text-sm tracking-[-0.14px] text-foreground/60">
+            Enter your current password and proceed to creating a new one
+          </p>
+        </div>
+      </div>
 
-      <header>
-        <h1 className="text-2xl font-bold text-foreground">Change password</h1>
-        <p className="text-sm text-muted-foreground">
-          Use a strong password you don&apos;t use anywhere else.
-        </p>
-      </header>
-
-      <form
-        onSubmit={submit}
-        className="mx-auto max-w-lg space-y-5 rounded-2xl border border-border bg-white p-6 shadow-sm"
-      >
+      <form onSubmit={submit} className="max-w-md space-y-5">
         {errorMsg && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+          <div className="rounded-[10px] border border-red-200 bg-red-50 p-3 text-sm text-red-600">
             {errorMsg}
           </div>
         )}
 
         <Input
           name="current"
-          label="Current password"
+          label="Current Password"
           type="password"
+          placeholder="Password"
           leftIcon={<Lock className="h-4 w-4" />}
           value={form.current}
           onChange={(e) => update("current", e.target.value)}
         />
         <Input
           name="next"
-          label="New password"
+          label="New Password"
           type="password"
+          placeholder="Password"
           leftIcon={<Lock className="h-4 w-4" />}
           value={form.next}
           onChange={(e) => update("next", e.target.value)}
@@ -89,8 +91,9 @@ export default function ChangePasswordPage() {
         />
         <Input
           name="confirm"
-          label="Confirm new password"
+          label="Confirm New Password"
           type="password"
+          placeholder="Password"
           leftIcon={<Lock className="h-4 w-4" />}
           value={form.confirm}
           onChange={(e) => update("confirm", e.target.value)}
@@ -98,24 +101,14 @@ export default function ChangePasswordPage() {
         />
 
         {success && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+          <div className="rounded-[10px] border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
             Password updated. Please sign in again…
           </div>
         )}
 
-        <div className="flex justify-end gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.back()}
-            disabled={isPending || success}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" loading={isPending} disabled={!valid || success}>
-            Update password
-          </Button>
-        </div>
+        <Button type="submit" size="lg" fullWidth loading={isPending} disabled={!valid || success}>
+          Update Password
+        </Button>
       </form>
     </div>
   );

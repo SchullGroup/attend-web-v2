@@ -1,18 +1,28 @@
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
 
+/*
+ * Palette lifted directly from the Figma "Web - Redesign" page
+ * (7B0U0fGXTJGggQEKL0p08X, node 777:3136), matching the same tokens already
+ * shipped in the mobile app's lib/theme.ts:
+ *   - ink  #1f1f1f -> hsl(0 0% 12%)   — Figma expresses every secondary/
+ *     muted/border tone as this same ink at some opacity (rgba(31,31,31,X)),
+ *     not a separate blue-tinted gray scale, hence the neutral (0% sat) hues
+ *     below instead of the old slate palette.
+ *   - brand green #057a46 -> hsl(153 92% 25%)
+ */
 :root {
-  --primary: 222 39% 11%;
+  --primary: 153 92% 25%;
   --primary-foreground: 0 0% 100%;
   --background: 0 0% 100%;
-  --foreground: 222 47% 11%;
+  --foreground: 0 0% 12%;
   --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --muted: 210 20% 96%;
-  --muted-foreground: 215 14% 47%;
-  --border: 220 13% 91%;
-  --input: 220 13% 91%;
-  --ring: 222 39% 11%;
+  --card-foreground: 0 0% 12%;
+  --muted: 0 0% 96%;
+  --muted-foreground: 0 0% 47%;
+  --border: 0 0% 91%;
+  --input: 0 0% 91%;
+  --ring: 153 92% 25%;
   --destructive: 0 72% 51%;
   --radius: 0.5rem;
 }
@@ -23,6 +33,7 @@
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
   --color-border: hsl(var(--border));

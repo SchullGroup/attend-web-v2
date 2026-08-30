@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Mail, Lock } from "lucide-react";
+import { CircleUserRound, Lock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useLogin } from "@/api/auth/hooks";
@@ -41,21 +41,19 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="md:hidden mb-2">
-        <img src="/attend-logo.png" alt="Attend" style={{ height: 44 }} />
-      </div>
-
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Sign in to view your upcoming events and votes.
+    <div className="flex flex-col items-center gap-8 text-center">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">
+          Welcome back
+        </h1>
+        <p className="text-sm tracking-[-0.14px] text-foreground/70">
+          Enter your details to continue
         </p>
       </div>
 
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form onSubmit={onSubmit} className="flex w-full flex-col items-center gap-6">
         {errorMsg && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+          <div className="w-full rounded-lg border border-red-200 bg-red-50 p-3 text-left text-sm text-red-600">
             {errorMsg}
             {needsVerify && (
               <button
@@ -68,46 +66,62 @@ export default function LoginPage() {
             )}
           </div>
         )}
-        <Input
-          name="email"
-          label="Email"
-          type="email"
-          autoComplete="email"
-          leftIcon={<Mail className="h-4 w-4" />}
-          placeholder="you@email.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <Input
-          name="password"
-          label="Password"
-          type="password"
-          autoComplete="current-password"
-          leftIcon={<Lock className="h-4 w-4" />}
-          placeholder="Your password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <div className="flex justify-end">
-          <Link
-            href="/forgot-password"
-            className="text-sm font-medium text-foreground hover:underline"
-          >
-            Forgot password?
-          </Link>
+
+        <div className="flex w-full flex-col gap-4">
+          <Input
+            name="email"
+            type="email"
+            autoComplete="email"
+            leftIcon={<CircleUserRound className="h-5 w-5" />}
+            placeholder="Email address"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <Input
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            leftIcon={<Lock className="h-5 w-5" />}
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
         </div>
+
         <Button type="submit" fullWidth size="lg" loading={isPending}>
-          {isPending ? "Signing in…" : "Sign in"}
+          {isPending ? "Signing in…" : "Login"}
         </Button>
+
+        <Link
+          href="/forgot-password"
+          className="text-sm font-medium tracking-[-0.14px] text-foreground underline"
+        >
+          Forgot password?
+        </Link>
       </form>
 
-      <p className="text-center text-sm text-muted-foreground">
-        New to Attend?{" "}
-        <Link href="/register" className="font-semibold text-foreground hover:underline">
+      <div className="flex w-full flex-col items-center gap-5">
+        <div className="flex w-full items-center gap-4">
+          <div className="h-px flex-1 bg-foreground/15" />
+          <span className="text-sm tracking-[-0.28px] text-foreground/60">or</span>
+          <div className="h-px flex-1 bg-foreground/15" />
+        </div>
+
+        <Link
+          href="/join"
+          className="flex h-[50px] w-full items-center justify-center rounded-xl bg-foreground/[0.05] text-sm font-medium tracking-[-0.14px] text-foreground transition-colors hover:bg-foreground/[0.08]"
+        >
+          Join as a Guest/Regulator
+        </Link>
+        <Link
+          href="/register"
+          className="flex h-[50px] w-full items-center justify-center rounded-xl bg-foreground/[0.05] text-sm font-medium tracking-[-0.14px] text-foreground transition-colors hover:bg-foreground/[0.08]"
+        >
           Create an account
         </Link>
-      </p>
-      <p className="text-center text-sm text-muted-foreground">
+      </div>
+
+      <p className="text-sm text-muted-foreground">
         No email or phone on file?{" "}
         <Link href="/bvn-recover" className="font-semibold text-foreground hover:underline">
           Sign in with BVN

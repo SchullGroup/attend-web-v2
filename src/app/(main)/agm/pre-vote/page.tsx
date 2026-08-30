@@ -1,15 +1,19 @@
 "use client";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { ArrowLeft, Check, X, Minus } from "lucide-react";
+import { AgmBackButton } from "@/components/attend/AgmSubNav";
+import { Check, X, Minus, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetResolutions, useCastVote } from "@/api/agm/hooks";
 import { Resolution } from "@/types";
 
 type VoteChoice = "FOR" | "AGAINST" | "ABSTAIN";
+const CHOICES: { value: VoteChoice; label: string; icon: typeof Check }[] = [
+  { value: "FOR", label: "For", icon: Check },
+  { value: "AGAINST", label: "Against", icon: X },
+  { value: "ABSTAIN", label: "Abstain", icon: Minus },
+];
 
 function PreVotePageInner() {
   const router = useRouter();
@@ -28,6 +32,8 @@ function PreVotePageInner() {
   const hasProxy = !!data?.data?.hasProxy;
   const open = resolutions.filter((r) => !r.myVote);
   const voted = resolutions.filter((r) => r.myVote);
+  const answered = voted.length + Object.keys(pendingVotes).length;
+  const progressPct = resolutions.length ? Math.round((answered / resolutions.length) * 100) : 0;
 
   useEffect(() => {
     if (!eventId) router.replace("/agm");
@@ -54,9 +60,9 @@ function PreVotePageInner() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         {[1, 2, 3].map((n) => (
-          <div key={n} className="h-40 animate-pulse rounded-2xl border border-border bg-muted" />
+          <div key={n} className="h-40 animate-pulse rounded-xl bg-foreground/[0.04]" />
         ))}
       </div>
     );
@@ -65,54 +71,59 @@ function PreVotePageInner() {
   const allOpenVoted = open.every((r) => pendingVotes[r.id]);
 
   return (
-    <div className="space-y-6">
-      <Link href="/agm" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to AGMs
-      </Link>
+    <div className="flex flex-col gap-6">
+      <AgmBackButton href="/agm" label="Back to AGMs" />
 
-      <header>
-        <h1 className="mt-1 text-2xl font-bold text-foreground">Pre-vote on resolutions</h1>
-        <p className="text-sm text-muted-foreground">
-          Submit your vote on each open resolution before the meeting starts. You
-          can change your vote until voting closes.
-        </p>
-      </header>
-
-      {hasProxy && (
-        <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 text-sm text-purple-800">
-          <p className="font-bold">Voting Managed by Proxy</p>
-          <p className="mt-1 text-xs text-purple-700/80">
-            You have appointed a proxy for this AGM. Early voting and live voting are managed by your proxy.
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Pre-AGM voting</h1>
+          <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
+            Submit your vote on each open resolution before the meeting starts. You
+            can change your vote until voting closes.
           </p>
         </div>
-      )}
 
-      {errorMsg && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
-          {errorMsg}
-        </div>
-      )}
+        {resolutions.length > 0 && (
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-foreground/10">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+        )}
 
-      {successMsg && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-          {successMsg}
-        </div>
-      )}
+        {hasProxy && (
+          <div className="rounded-xl bg-foreground/[0.03] p-4 text-sm text-foreground/70">
+            <p className="font-medium text-foreground">Voting managed by proxy</p>
+            <p className="mt-1 text-xs text-foreground/60">
+              You have appointed a proxy for this AGM. Early voting and live voting are managed by your proxy.
+            </p>
+          </div>
+        )}
 
-      {resolutions.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-          No resolutions available for this AGM yet.
-        </div>
-      ) : (
-        <>
-          {open.length > 0 && (
-            <section className="space-y-3">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Open for voting
-              </h2>
-              {open.map((r) => (
+        {errorMsg && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+            {errorMsg}
+          </div>
+        )}
+
+        {successMsg && (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-primary">
+            {successMsg}
+          </div>
+        )}
+
+        {resolutions.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-foreground/15 p-10 text-center text-sm text-foreground/50">
+            No resolutions available for this AGM yet.
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-col gap-4">
+              {open.map((r, idx) => (
                 <ResolutionCard
                   key={r.id}
+                  index={idx + 1}
                   resolution={r}
                   selected={pendingVotes[r.id] ?? null}
                   onSelect={(choice) => {
@@ -122,130 +133,113 @@ function PreVotePageInner() {
                   disabled={hasProxy}
                 />
               ))}
-            </section>
-          )}
 
-          {voted.length > 0 && (
-            <section className="space-y-3">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Already voted
-              </h2>
-              {voted.map((r) => (
-                <VotedCard key={r.id} resolution={r} />
+              {voted.map((r, idx) => (
+                <ResolutionCard
+                  key={r.id}
+                  index={open.length + idx + 1}
+                  resolution={r}
+                  selected={(r.myVote as VoteChoice) ?? null}
+                  onSelect={() => {}}
+                  disabled
+                  voted
+                />
               ))}
-            </section>
-          )}
-
-          {open.length > 0 && (
-            <div className="sticky bottom-24 z-10 md:bottom-0">
-              <div className="rounded-2xl border border-border bg-white p-4 shadow-lg">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm">
-                    <p className="font-semibold text-foreground">
-                      {Object.keys(pendingVotes).length} of {open.length} selected
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      You can update your vote until voting closes.
-                    </p>
-                  </div>
-                  <Button
-                    onClick={submit}
-                    loading={submitting}
-                    disabled={!allOpenVoted || Object.keys(pendingVotes).length === 0 || hasProxy}
-                  >
-                    Submit votes
-                  </Button>
-                </div>
-              </div>
             </div>
-          )}
-        </>
-      )}
+
+            {open.length > 0 && (
+              <div className="flex flex-col gap-3">
+                <p className="text-center text-xs text-foreground/50">
+                  You can update your vote until voting closes.
+                </p>
+                <Button
+                  size="lg"
+                  fullWidth
+                  onClick={submit}
+                  loading={submitting}
+                  disabled={!allOpenVoted || Object.keys(pendingVotes).length === 0 || hasProxy}
+                >
+                  Submit Vote
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
 function ResolutionCard({
-  resolution: r, selected, onSelect, disabled,
+  index, resolution: r, selected, onSelect, disabled, voted,
 }: {
+  index: number;
   resolution: Resolution;
   selected: VoteChoice | null;
   onSelect: (c: VoteChoice) => void;
   disabled?: boolean;
+  voted?: boolean;
 }) {
-  return (
-    <article className="rounded-2xl border-2 border-primary/30 bg-white p-5 shadow-sm">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">
-            Resolution {r.order + 1}{r.specialResolution ? " (Special)" : ""}
-          </p>
-          <h3 className="mt-0.5 text-lg font-semibold text-foreground">{r.title}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">{r.description}</p>
-        </div>
-        <Badge variant="default">Open</Badge>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        {(["FOR", "AGAINST", "ABSTAIN"] as VoteChoice[]).map((opt) => {
-          const isSelected = selected === opt;
-          const Icon = opt === "FOR" ? Check : opt === "AGAINST" ? X : Minus;
-          const tone =
-            opt === "FOR"
-              ? "border-emerald-200 hover:bg-emerald-50 text-emerald-700"
-              : opt === "AGAINST"
-              ? "border-red-200 hover:bg-red-50 text-red-700"
-              : "border-border hover:bg-muted text-muted-foreground";
-          const selectedTone =
-            opt === "FOR"
-              ? "border-emerald-600 bg-emerald-600 text-white"
-              : opt === "AGAINST"
-              ? "border-red-600 bg-red-600 text-white"
-              : "border-slate-700 bg-slate-700 text-white";
-          return (
-            <button
-              key={opt}
-              onClick={() => onSelect(opt)}
-              disabled={disabled}
-              className={cn(
-                "flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-semibold capitalize transition-colors disabled:opacity-50",
-                isSelected ? selectedTone : tone,
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {opt.charAt(0) + opt.slice(1).toLowerCase()}
-            </button>
-          );
-        })}
-      </div>
-    </article>
-  );
-}
-
-function VotedCard({ resolution: r }: { resolution: Resolution }) {
   const totalCount = r.forCount + r.againstCount + r.abstainCount;
   const totalShares = r.forShares + r.againstShares + r.abstainShares;
-  // AGM votes are weighted by shareholding — use shares when available, else heads.
   const byShares = totalShares > 0;
   const denom = byShares ? totalShares : totalCount;
   const pct = (shares: number, count: number) =>
     denom ? Math.round(((byShares ? shares : count) / denom) * 100) : 0;
 
   return (
-    <article className="rounded-2xl border border-border bg-white p-5">
+    <article className="rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
       <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Resolution {r.order + 1}
-          </p>
-          <h3 className="mt-0.5 text-base font-semibold text-foreground">{r.title}</h3>
-        </div>
-        <Badge variant="success">Voted {r.myVote}</Badge>
+        <p className="text-sm text-foreground/50">
+          Resolution {index}
+          {r.specialResolution ? " (Special)" : ""}
+        </p>
+        <ChevronDown className="h-4 w-4 shrink-0 text-foreground/40" />
       </div>
-      {totalCount > 0 && (
-        <div className="space-y-2">
-          <Bar label="For" value={pct(r.forShares, r.forCount)} color="bg-emerald-500" count={r.forCount} shares={r.forShares} />
+      <h3 className="text-sm font-medium tracking-[-0.14px] text-foreground">{r.title}</h3>
+      {r.description && (
+        <p className="mt-1 text-xs text-foreground/60">{r.description}</p>
+      )}
+
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {CHOICES.map(({ value, label, icon: Icon }) => {
+          const isSelected = selected === value;
+          const tone =
+            value === "FOR"
+              ? "border-primary/30 text-primary hover:bg-primary/5"
+              : value === "AGAINST"
+              ? "border-red-200 text-red-600 hover:bg-red-50"
+              : "border-foreground/15 text-foreground/60 hover:bg-foreground/5";
+          const selectedTone =
+            value === "FOR"
+              ? "border-primary bg-primary text-white"
+              : value === "AGAINST"
+              ? "border-red-600 bg-red-600 text-white"
+              : "border-foreground bg-foreground text-background";
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={() => onSelect(value)}
+              disabled={disabled}
+              className={cn(
+                "flex items-center justify-center gap-1.5 rounded-full border px-3 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed",
+                isSelected ? selectedTone : tone,
+                disabled && !isSelected && "opacity-40",
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {voted && totalCount > 0 && (
+        <div className="mt-4 space-y-2 border-t border-foreground/[0.06] pt-3">
+          <Bar label="For" value={pct(r.forShares, r.forCount)} color="bg-primary" count={r.forCount} shares={r.forShares} />
           <Bar label="Against" value={pct(r.againstShares, r.againstCount)} color="bg-red-500" count={r.againstCount} shares={r.againstShares} />
-          <Bar label="Abstain" value={pct(r.abstainShares, r.abstainCount)} color="bg-slate-400" count={r.abstainCount} shares={r.abstainShares} />
+          <Bar label="Abstain" value={pct(r.abstainShares, r.abstainCount)} color="bg-foreground/30" count={r.abstainCount} shares={r.abstainShares} />
         </div>
       )}
     </article>
@@ -257,11 +251,11 @@ function Bar({ label, value, color, count, shares }: { label: string; value: num
     <div>
       <div className="mb-1 flex items-center justify-between text-xs">
         <span className="font-medium text-foreground">{label}</span>
-        <span className="text-muted-foreground">
+        <span className="text-foreground/60">
           {count.toLocaleString()}{shares > 0 ? ` · ${shares.toLocaleString()} shares` : ""} · {value}%
         </span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-muted">
+      <div className="h-1.5 overflow-hidden rounded-full bg-foreground/10">
         <div className={`${color} h-full rounded-full`} style={{ width: `${value}%` }} />
       </div>
     </div>

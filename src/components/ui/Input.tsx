@@ -37,12 +37,12 @@ export const Input = forwardRef<HTMLInputElement, Props>(function Input(
           id={inputId}
           type={inputType}
           className={cn(
-            "h-11 w-full rounded-xl border border-input bg-white px-3 text-sm text-foreground placeholder:text-muted-foreground/70",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary",
+            "h-[50px] w-full rounded-[10px] border border-transparent bg-foreground/[0.04] px-3.5 text-sm tracking-[-0.14px] text-foreground placeholder:font-light placeholder:text-foreground/40",
+            "focus-visible:outline-none focus-visible:border-primary",
             "disabled:opacity-50 transition-colors",
             leftIcon && "pl-10",
             isPassword && "pr-10",
-            error && "border-destructive focus-visible:ring-destructive",
+            error && "border-destructive",
             className,
           )}
           {...props}

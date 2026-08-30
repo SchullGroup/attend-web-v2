@@ -2,18 +2,24 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Download, Copy, Check, Building2, ChevronRight, UserCheck } from "lucide-react";
+import { BadgeCheck, Download, Copy, Check, Building2, ChevronRight, UserCheck, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { jsPDF } from "jspdf";
 import { useGetVoteReceipt, useGetProxy } from "@/api/agm/hooks";
 import { useGetEvents } from "@/api/events/hooks";
 import { EventListItem } from "@/types";
+import { AgmBackButton, AgmHero, AgmSubNav } from "@/components/attend/AgmSubNav";
 import { formatDate } from "@/lib/utils";
 
 function voteLabel(c: string) {
   const u = (c || "").toUpperCase();
   return u === "FOR" ? "For" : u === "AGAINST" ? "Against" : "Abstain";
 }
+const VOTE_PILL: Record<string, string> = {
+  For: "bg-primary/10 text-primary",
+  Against: "bg-red-50 text-red-600",
+  Abstain: "bg-foreground/[0.06] text-foreground/60",
+};
 
 function ReceiptInner() {
   const searchParams = useSearchParams();
@@ -34,18 +40,16 @@ function ReceiptInner() {
   if (isLoading) {
     return (
       <div className="mx-auto max-w-2xl">
-        <div className="h-72 animate-pulse rounded-3xl border border-border bg-muted" />
+        <div className="h-72 animate-pulse rounded-xl bg-foreground/[0.04]" />
       </div>
     );
   }
 
   if (!receipt) {
     return (
-      <div className="space-y-6">
-        <Link href="/agm/receipt" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> All receipts
-        </Link>
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+      <div className="flex flex-col gap-6">
+        <AgmBackButton href="/agm/receipt" label="All receipts" />
+        <div className="rounded-xl border border-dashed border-foreground/15 p-10 text-center text-sm text-foreground/50">
           No vote receipt found. Cast your votes at an AGM and your receipt will appear here.
         </div>
       </div>
@@ -190,133 +194,109 @@ function ReceiptInner() {
   }
 
   return (
-    <div className="space-y-6">
-      <Link href="/agm" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to AGMs
-      </Link>
+    <div className="flex flex-col gap-6">
+      <AgmBackButton href="/agm/receipt" label="All receipts" />
 
-      <div className="mx-auto max-w-2xl">
-        <div className="overflow-hidden rounded-3xl border border-border bg-white shadow-sm">
-          <div className="border-b border-border bg-gradient-to-br from-emerald-500 to-emerald-700 p-6 text-white">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 backdrop-blur">
-                <CheckCircle2 className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-white/80">
-                  Vote receipt
-                </p>
-                <h1 className="text-lg font-bold">Your votes have been recorded</h1>
-              </div>
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+            <BadgeCheck className="h-8 w-8 text-primary" />
+          </span>
+          <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Vote receipt</h1>
+          <p className="text-sm tracking-[-0.14px] text-foreground/60">Your votes have been recorded</p>
+        </div>
+
+        <div className="rounded-xl border border-foreground/[0.06] bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+          <div className="flex items-start justify-between gap-3 pb-4">
+            <Row label="Meeting" value={view.meeting} />
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-primary/10">
+              <Building2 className="h-5 w-5 text-primary" />
+            </span>
+          </div>
+          <hr className="border-foreground/[0.06]" />
+          <div className="grid grid-cols-2 gap-3 py-4">
+            <Row label="Time of vote" value={view.date} />
+            <div className="text-right">
+              <p className="text-xs text-foreground/60">Cast via</p>
+              <p className="mt-0.5 text-sm font-medium tracking-[-0.14px] text-foreground">Attend app</p>
             </div>
           </div>
-
-          <div className="space-y-5 p-6">
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <Row label="Meeting" value={view.meeting} />
-              <Row label="Cast at" value={view.date} />
-              <div>
-                <p className="text-xs text-muted-foreground">Reference</p>
-                <button
-                  onClick={copy}
-                  className="mt-0.5 inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary"
-                >
-                  {view.reference}
-                  {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
-                </button>
-              </div>
+          <hr className="border-foreground/[0.06]" />
+          <div className="flex items-center justify-between gap-3 pt-4">
+            <div className="min-w-0">
+              <p className="text-xs text-foreground/60">Reference</p>
+              <p className="mt-0.5 truncate text-sm font-medium tracking-[-0.14px] text-foreground">{view.reference}</p>
             </div>
-
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Resolutions
-              </p>
-              {view.resolutions.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                  No votes recorded for this meeting yet.
-                </div>
-              ) : (
-                <ul className="divide-y divide-border rounded-xl border border-border">
-                  {view.resolutions.map((r, i) => (
-                    <li key={`${r.num}-${i}`} className="flex items-center justify-between p-3 text-sm">
-                      <div>
-                        <p className="text-xs text-muted-foreground">
-                          Resolution {r.num}{r.nomineeName ? ` — ${r.nomineeName}` : ""}
-                        </p>
-                        <p className="font-medium text-foreground">{r.title}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                            r.vote === "For"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : r.vote === "Against"
-                              ? "bg-red-100 text-red-700"
-                              : "bg-slate-100 text-slate-700"
-                          }`}
-                        >
-                          {r.vote}
-                        </span>
-                        {r.isPre && (
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                            Pre-vote
-                          </span>
-                        )}
-                        {r.viaProxy && (
-                          <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
-                            via proxy
-                          </span>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {proxy && proxy.proxyName && (
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Proxy
-                </p>
-                <div className="flex items-start gap-3 rounded-xl border border-border p-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-50">
-                    <UserCheck className="h-4.5 w-4.5 text-purple-600" />
-                  </div>
-                  <div className="text-sm">
-                    <p className="font-medium text-foreground">{proxy.proxyName}</p>
-                    {(proxy.proxyEmail || proxy.proxyPhone) && (
-                      <p className="text-xs text-muted-foreground">
-                        {[proxy.proxyEmail, proxy.proxyPhone].filter(Boolean).join(" · ")}
-                      </p>
-                    )}
-                    {proxy.assignedAt && (
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        Appointed {formatDate(proxy.assignedAt)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">
-              This receipt is timestamped and serves as evidence of your
-              participation and votes at the meeting.
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Button fullWidth onClick={downloadPdf}>
-                <Download className="h-4 w-4" /> Download receipt
-              </Button>
-              <Link href="/agm" className="sm:flex-1">
-                <Button variant="outline" fullWidth className="whitespace-nowrap">
-                  Back to AGMs
-                </Button>
-              </Link>
-            </div>
+            <button
+              onClick={copy}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground/50 hover:bg-foreground/[0.04] hover:text-foreground"
+              aria-label="Copy reference"
+            >
+              {copied ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
+            </button>
           </div>
         </div>
+
+        <div className="flex flex-col gap-3">
+          <h2 className="text-xl font-medium tracking-[-0.6px] text-foreground">Resolutions</h2>
+          {view.resolutions.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-foreground/15 p-6 text-center text-sm text-foreground/50">
+              No votes recorded for this meeting yet.
+            </div>
+          ) : (
+            <div className="divide-y divide-foreground/[0.06] rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+              {view.resolutions.map((r, i) => (
+                <div key={`${r.num}-${i}`} className="p-4">
+                  <p className="text-xs text-foreground/60">
+                    Resolution {r.num}{r.nomineeName ? ` — ${r.nomineeName}` : ""}
+                  </p>
+                  <p className="mt-0.5 text-sm font-medium tracking-[-0.14px] text-foreground">{r.title}</p>
+                  <div className="mt-2 flex items-center gap-2 text-xs">
+                    <span className="text-foreground/60">Voted:</span>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${VOTE_PILL[r.vote]}`}>
+                      {r.vote}
+                    </span>
+                    {r.isPre && <span className="text-foreground/40">Pre-vote</span>}
+                    {r.viaProxy && <span className="text-foreground/40">via proxy</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {proxy && proxy.proxyName && (
+          <div className="flex flex-col gap-3">
+            <h2 className="text-xl font-medium tracking-[-0.6px] text-foreground">Proxy</h2>
+            <div className="flex items-start gap-3 rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                <UserCheck className="h-4.5 w-4.5 text-primary" />
+              </span>
+              <div className="text-sm">
+                <p className="font-medium tracking-[-0.14px] text-foreground">{proxy.proxyName}</p>
+                {(proxy.proxyEmail || proxy.proxyPhone) && (
+                  <p className="text-xs text-foreground/60">
+                    {[proxy.proxyEmail, proxy.proxyPhone].filter(Boolean).join(" · ")}
+                  </p>
+                )}
+                {proxy.assignedAt && (
+                  <p className="mt-0.5 text-[11px] text-foreground/50">
+                    Appointed {formatDate(proxy.assignedAt)}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <p className="rounded-xl bg-foreground/[0.03] p-3 text-xs text-foreground/60">
+          This receipt is timestamped and serves as evidence of your
+          participation and votes at the meeting.
+        </p>
+
+        <Button size="lg" fullWidth onClick={downloadPdf}>
+          <Download className="h-4 w-4" /> Download receipt
+        </Button>
       </div>
     </div>
   );
@@ -329,50 +309,54 @@ function ReceiptPicker() {
   );
 
   return (
-    <div className="space-y-6">
-      <Link href="/agm" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to AGMs
-      </Link>
-      <header>
-        <h1 className="text-2xl font-bold text-foreground">My receipts</h1>
-        <p className="text-sm text-muted-foreground">
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center gap-1 text-sm font-medium tracking-[-0.14px]">
+        <span className="text-foreground">AGM</span>
+        <ChevronRight className="h-3 w-3 -rotate-90 text-foreground/40" />
+        <span className="text-foreground/40">My receipts</span>
+      </div>
+
+      <AgmHero />
+      <AgmSubNav active="receipts" />
+
+      <div className="flex flex-col gap-1">
+        <h2 className="text-xl font-medium tracking-[-0.6px] text-foreground">My receipts</h2>
+        <p className="text-sm tracking-[-0.14px] text-foreground/60">
           Select an AGM to view your vote receipt.
         </p>
-      </header>
+      </div>
 
       {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2].map((n) => (
-            <div key={n} className="h-20 animate-pulse rounded-2xl border border-border bg-muted" />
-          ))}
-        </div>
+        <p className="py-8 text-center text-sm text-foreground/50">Loading…</p>
       ) : agms.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-foreground/15 p-10 text-center text-sm text-foreground/50">
           You don&apos;t have any AGM receipts yet. Once you vote at an AGM you&apos;re
           registered for, your receipt will appear here.
         </div>
       ) : (
-        <ul className="space-y-3">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {agms.map((e) => (
-            <li key={e.id}>
-              <Link
-                href={`/agm/receipt?eventId=${e.id}`}
-                className="flex items-center gap-3 rounded-2xl border border-border bg-white p-4 hover:bg-muted/30"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50">
-                  <Building2 className="h-5 w-5 text-emerald-600" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-foreground">{e.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDate(e.date)}{e.startTime ? ` · ${e.startTime}` : ""}
-                  </p>
-                </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-              </Link>
-            </li>
+            <Link
+              key={e.id}
+              href={`/agm/receipt?eventId=${e.id}`}
+              className="flex items-center gap-2.5 rounded-xl border border-foreground/[0.06] bg-white p-1.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+            >
+              <span className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-[10px] bg-primary/10">
+                <Building2 className="h-6 w-6 text-primary" strokeWidth={1.75} />
+              </span>
+              <div className="min-w-0 flex-1 py-1">
+                <p className="truncate text-sm font-medium tracking-[-0.14px] text-foreground">{e.title}</p>
+                <p className="flex items-center gap-1 text-xs text-foreground/80">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  {formatDate(e.date)}
+                </p>
+              </div>
+              <span className="mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-foreground/10 text-foreground/60">
+                <ChevronRight className="h-4 w-4" />
+              </span>
+            </Link>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );
@@ -380,9 +364,9 @@ function ReceiptPicker() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-sm font-medium text-foreground">{value}</p>
+    <div className="min-w-0">
+      <p className="text-xs text-foreground/60">{label}</p>
+      <p className="mt-0.5 truncate text-sm font-medium tracking-[-0.14px] text-foreground">{value}</p>
     </div>
   );
 }

@@ -1,19 +1,30 @@
 "use client";
-import Link from "next/link";
 import { useState } from "react";
-import { Search, CalendarDays, ArrowRight, FolderOpen } from "lucide-react";
+import Link from "next/link";
+import { Search, Lightbulb, Clock } from "lucide-react";
 import { useGetChallenges } from "@/api/hackathon/hooks";
 import { useGetEvents } from "@/api/events/hooks";
 import { EventListItem } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { formatDate } from "@/lib/utils";
 
-const FORMAT_LABELS: Record<string, string> = {
-  IN_PERSON: "In-person",
-  VIRTUAL: "Virtual",
-  HYBRID: "Hybrid",
-};
-const fmtFormat = (f: string) => FORMAT_LABELS[f] ?? (f || "").replace(/_/g, "-");
+// Deterministic pastel tile per organiser — same approach as Home (777:16606
+// has no real per-challenge photo asset from the API yet).
+const TILE_TINTS = ["#f9b6ff", "#8ba6ff", "#c3e1d0", "#dbe1c3", "#f6f6f6", "#e2e2e2"];
+function tileTint(seed: string) {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 997;
+  return TILE_TINTS[h % TILE_TINTS.length];
+}
+
+function fmtTime(startTime?: string) {
+  if (!startTime) return "--";
+  const [h, m] = startTime.split(":").map(Number);
+  if (Number.isNaN(h)) return startTime;
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m ?? 0).padStart(2, "0")} ${period}`;
+}
 
 export default function HackathonPage() {
   const [q, setQ] = useState("");
@@ -34,90 +45,112 @@ export default function HackathonPage() {
   const isLoading = chLoading || evLoading;
 
   return (
-    <div className="space-y-6">
-      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-purple-700 via-purple-800 to-fuchsia-900 p-6 text-white md:p-8">
-        <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white/10" />
-        <div className="absolute -bottom-20 -left-10 h-56 w-56 rounded-full bg-white/5" />
-        <div className="relative flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
-              Build the future
-            </p>
-            <h1 className="mt-1 text-2xl font-bold leading-tight md:text-3xl">
-              Innovation Challenges
-            </h1>
-            <p className="mt-2 max-w-xl text-sm text-white/80">
-              Hackathons, build sprints and open problem statements from Nigeria&apos;s
-              top financial institutions.
-            </p>
-          </div>
-          <Link href="/hackathon/my-applications">
-            <Button variant="outline" className="border-white/40 bg-white/10 text-white hover:bg-white/20">
-              <FolderOpen className="h-4 w-4" /> My applications
-            </Button>
-          </Link>
-        </div>
-      </header>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">
+          Innovation Challenges
+        </h1>
+        <p className="text-sm tracking-[-0.14px] text-foreground/60">
+          Compete, build and win
+        </p>
+      </div>
+
+      {/* Tabs — "My Application" is a real route (hackathon/my-applications), not a
+          local filter, so the tab bar is just links between the two pages. */}
+      <div className="-mx-4 flex gap-2 overflow-x-auto border-b border-foreground/10 px-4 md:-mx-8 md:px-8">
+        <span className="border-b-2 border-foreground px-6 py-2 text-sm font-semibold tracking-[-0.14px] text-foreground">
+          All
+        </span>
+        <Link
+          href="/hackathon/my-applications"
+          className="border-b-2 border-transparent px-6 py-2 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
+        >
+          My Application
+        </Link>
+      </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/40" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search innovation challenges or organisers"
-          className="h-11 w-full rounded-xl border border-input bg-white pl-10 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary"
+          className="h-[50px] w-full rounded-[10px] border border-transparent bg-foreground/[0.04] pl-10 pr-3.5 text-sm tracking-[-0.14px] text-foreground placeholder:font-light placeholder:text-foreground/40 transition-colors focus-visible:border-primary focus-visible:outline-none"
         />
       </div>
 
-      {isLoading ? (
-        <div className="space-y-4">
-          {[1, 2, 3].map((n) => (
-            <div key={n} className="h-32 animate-pulse rounded-2xl border border-border bg-muted" />
-          ))}
-        </div>
-      ) : apiChallenges.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+      {isLoading && (
+        <p className="py-8 text-center text-sm text-foreground/50">Loading challenges…</p>
+      )}
+
+      {!isLoading && apiChallenges.length === 0 && (
+        <p className="py-8 text-center text-sm text-foreground/50">
           No innovation challenges available right now. Check back soon.
-        </div>
-      ) : (
-        <ul className="space-y-4">
-          {apiChallenges.map((c: EventListItem) => (
-            <li key={c.id} className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
-              <div className="grid gap-4 p-5 md:grid-cols-[1fr_auto] md:items-center">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">
-                      {c.registerName || c.organizerName}
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        {apiChallenges.map((c: EventListItem) => {
+          const organiser = c.registerName || c.organizerName;
+          const isLive = (c.status || "").toUpperCase() === "LIVE";
+          return (
+            <div
+              key={c.id}
+              className="flex flex-col gap-3 rounded-xl border border-foreground/[0.06] bg-white p-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]"
+            >
+              <div className="flex gap-2.5">
+                <div
+                  className="flex h-[60px] w-[60px] shrink-0 items-center justify-center overflow-hidden rounded-[10px]"
+                  style={{ backgroundColor: tileTint(organiser || c.title) }}
+                >
+                  {c.organizerLogo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={c.organizerLogo} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <Lightbulb className="h-6 w-6 text-foreground/60" strokeWidth={1.75} />
+                  )}
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-1 pr-2">
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-sm font-medium tracking-[-0.14px] text-foreground">
+                      {c.title}
                     </p>
-                    {(c.status || "").toUpperCase() === "LIVE" && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                    {isLive && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-600">
+                        <span className="h-1 w-1 animate-pulse rounded-full bg-red-600" />
                         Live
                       </span>
                     )}
                   </div>
-                  <h2 className="mt-0.5 text-base font-semibold text-foreground md:text-lg">{c.title}</h2>
-                  <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1.5">
-                      <CalendarDays className="h-3.5 w-3.5" /> {formatDate(c.date)} · {c.startTime}
-                    </span>
-                    {c.venue && <span>{c.venue}</span>}
-                    <span>{fmtFormat(c.format)}</span>
-                  </div>
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <Link href={`/hackathon/${c.id}`}>
-                    <Button variant="outline" size="sm">View</Button>
-                  </Link>
-                  <Link href={`/hackathon/apply?challengeId=${c.id}`}>
-                    <Button size="sm">Apply <ArrowRight className="h-3.5 w-3.5" /></Button>
-                  </Link>
+                  <p className="flex items-center gap-1 text-xs text-foreground/60">
+                    <span>By:</span>
+                    <span className="text-foreground/80">{organiser}</span>
+                  </p>
+                  <p className="flex items-center gap-1 text-xs text-foreground/80">
+                    <Clock className="h-3.5 w-3.5" />
+                    {formatDate(c.date)}, {fmtTime(c.startTime)}
+                  </p>
                 </div>
               </div>
-            </li>
-          ))}
-        </ul>
-      )}
+              <div className="flex gap-2">
+                <Link href={`/hackathon/apply?challengeId=${c.id}`} className="flex-1">
+                  <Button size="lg" fullWidth>Apply Now</Button>
+                </Link>
+                <Link href={`/hackathon/${c.id}`} className="flex-1">
+                  <Button
+                    size="lg"
+                    variant="ghost"
+                    fullWidth
+                    className="bg-foreground/[0.04] font-medium hover:bg-foreground/[0.08]"
+                  >
+                    View Details
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

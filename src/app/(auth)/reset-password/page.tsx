@@ -58,15 +58,12 @@ export default function ResetPasswordPage() {
   if (done) {
     return (
       <div className="space-y-6 text-center">
-        <div className="md:hidden mb-2 flex justify-start">
-          <img src="/attend-logo.png" alt="Attend" style={{ height: 31 }} />
-        </div>
         <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
           <CheckCircle2 className="h-7 w-7 text-emerald-600" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Password updated</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Password updated</h1>
+          <p className="mt-2 text-sm tracking-[-0.14px] text-foreground/70">
             Your password has been reset. Sign in with your new credentials.
           </p>
         </div>
@@ -79,13 +76,10 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="space-y-6">
-      <div className="md:hidden mb-2">
-        <img src="/attend-logo.png" alt="Attend" style={{ height: 31 }} />
-      </div>
 
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Set a new password</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Set a new password</h1>
+        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/70">
           Enter the code sent to your email and choose a new password.
         </p>
       </div>

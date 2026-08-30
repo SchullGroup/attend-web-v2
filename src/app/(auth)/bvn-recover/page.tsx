@@ -113,13 +113,10 @@ export default function BvnRecoverPage() {
 
   return (
     <div className="space-y-6">
-      <div className="md:hidden mb-2">
-        <img src="/attend-logo.png" alt="Attend" style={{ height: 31 }} />
-      </div>
 
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Sign in with BVN</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Sign in with BVN</h1>
+        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/70">
           {step === "bvn"
             ? "We'll send an OTP to the phone linked to your BVN."
             : step === "otp"

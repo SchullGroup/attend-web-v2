@@ -1,13 +1,12 @@
 "use client";
 import { Suspense, useState } from "react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { ArrowLeft, Download, Award, Star, Check, Clock } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { X, Download, Check, Clock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useGetCertificate } from "@/api/hackathon/hooks";
-import { formatDate } from "@/lib/utils";
 
 function CertificateInner() {
+  const router = useRouter();
   const challengeId = useSearchParams().get("challengeId") ?? "";
   const [shared, setShared] = useState(false);
 
@@ -25,143 +24,114 @@ function CertificateInner() {
     }
   }
 
-  if (challengeId && isLoading) {
-    return (
-      <div className="mx-auto max-w-3xl">
-        <div className="h-96 animate-pulse rounded-3xl border border-border bg-muted" />
-      </div>
-    );
-  }
-
-  if (!challengeId || !cert) {
-    return (
-      <div className="space-y-6">
-        <Link href="/hackathon" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Back
-        </Link>
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-          No certificate found. Open this from a challenge you participated in.
-        </div>
-      </div>
-    );
-  }
-
-  // Not eligible yet → show the backend message instead of a certificate.
-  if (!cert.eligible) {
-    return (
-      <div className="space-y-6">
-        <Link href="/hackathon" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Back
-        </Link>
-        <div className="mx-auto max-w-md rounded-3xl border border-border bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
-            <Clock className="h-8 w-8 text-amber-600" />
-          </div>
-          <h1 className="mt-4 text-xl font-bold text-foreground">Certificate not available yet</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {cert.message || "Your certificate will be available once participation is confirmed."}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const view = {
-    name: cert.participantName,
-    eventTitle: cert.eventTitle,
-    subline: cert.teamName ? `Team ${cert.teamName}` : "",
-    verifyId: data?.referenceId ?? "—",
-  };
-
   return (
-    <div className="space-y-6">
-      <Link href="/hackathon" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back
-      </Link>
-
-      <header className="flex flex-wrap items-center gap-2">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Your certificate</h1>
-          <p className="text-sm text-muted-foreground">
-            Thank you for taking part — share your achievement.
-          </p>
+    <div className="fixed inset-0 z-40 flex justify-end bg-black/50">
+      <div className="flex h-full w-full flex-col gap-5 overflow-y-auto bg-[#f6f6f6] p-6 sm:max-w-[520px]">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-medium tracking-[-0.4px] text-foreground">Attendance Certificate</h1>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            aria-label="Close"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-[0px_1px_4px_0px_rgba(0,0,0,0.08)]"
+          >
+            <X className="h-4 w-4 text-foreground" />
+          </button>
         </div>
-      </header>
 
-      <div className="mx-auto max-w-3xl">
-        <div className="relative overflow-hidden rounded-3xl border-[3px] border-purple-200 bg-gradient-to-br from-white via-purple-50/40 to-white p-8 shadow-lg md:p-12">
-          <Corner className="left-3 top-3" />
-          <Corner className="right-3 top-3 rotate-90" />
-          <Corner className="bottom-3 left-3 -rotate-90" />
-          <Corner className="bottom-3 right-3 rotate-180" />
-
-          <div className="relative space-y-6 text-center">
-            <div className="flex items-center justify-center gap-2 text-purple-700">
-              <div className="text-base font-extrabold tracking-tight">attend</div>
-              <span className="h-1 w-1 rounded-full bg-purple-700" />
-              <p className="text-[10px] uppercase tracking-[0.3em]">Innovation Challenge</p>
-            </div>
-
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                Certificate of Participation
-              </p>
-              <h2 className="mt-3 font-serif text-4xl font-bold text-foreground md:text-5xl">
-                {view.name}
-              </h2>
-              <div className="mx-auto mt-3 h-px w-32 bg-purple-200" />
-              <p className="mt-4 text-sm leading-relaxed text-muted-foreground md:text-base">
-                successfully participated in the
-              </p>
-              <p className="mt-1 text-lg font-semibold text-foreground md:text-xl">
-                {view.eventTitle}
-              </p>
-              {view.subline && (
-                <p className="mt-3 text-sm text-muted-foreground">{view.subline}.</p>
-              )}
-            </div>
-
-            <div className="flex items-center justify-center gap-3 pt-2 text-purple-700">
-              <Star className="h-4 w-4 fill-current" />
-              <Award className="h-8 w-8" />
-              <Star className="h-4 w-4 fill-current" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-6 border-t border-purple-200 pt-6 text-left">
-              <div>
-                <p className="font-serif italic text-foreground">Dr. Yewande Adeyemi</p>
-                <div className="mt-1 border-t border-foreground/40 pt-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Chief Innovation Officer
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground tracking-wider">{view.verifyId}</p>
-                <div className="mt-1 border-t border-foreground/40 pt-1 text-right text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Verification ID
-                </div>
-              </div>
-            </div>
+        {challengeId && isLoading ? (
+          <div className="h-64 animate-pulse rounded-2xl bg-white/60" />
+        ) : !challengeId || !cert ? (
+          <div className="rounded-xl border border-dashed border-foreground/10 bg-white/40 p-10 text-center text-sm text-foreground/50">
+            No certificate found. Open this from a challenge you participated in.
           </div>
-        </div>
+        ) : !cert.eligible ? (
+          <div className="rounded-2xl bg-white p-8 text-center shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+            <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
+              <Clock className="h-7 w-7 text-amber-600" />
+            </div>
+            <h2 className="mt-4 text-lg font-medium text-foreground">Certificate not available yet</h2>
+            <p className="mt-2 text-sm text-foreground/60">
+              {cert.message || "Your certificate will be available once participation is confirmed."}
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="rounded-2xl bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+              <CertificateArt
+                name={cert.participantName}
+                eventTitle={cert.eventTitle}
+                subline={cert.teamName ? `Team ${cert.teamName}` : ""}
+              />
+            </div>
 
-        <div className="mt-4 flex justify-center gap-3">
-          <Button onClick={() => window.print()}>
-            <Download className="h-4 w-4" /> Download PDF
-          </Button>
-          <Button variant="outline" onClick={handleShare}>
-            {shared ? <><Check className="h-4 w-4" /> Copied!</> : "Share"}
-          </Button>
-        </div>
+            <div className="flex flex-col gap-2.5">
+              <Button size="lg" fullWidth onClick={() => window.print()}>
+                <Download className="h-4 w-4" /> Download PDF
+              </Button>
+              <Button size="lg" variant="ghost" fullWidth className="bg-foreground/[0.04] hover:bg-foreground/[0.08]" onClick={handleShare}>
+                {shared ? <><Check className="h-4 w-4" /> Copied!</> : "Share"}
+              </Button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-function Corner({ className }: { className: string }) {
+function CertificateArt({ name, eventTitle, subline }: { name: string; eventTitle: string; subline: string }) {
   return (
-    <div className={`absolute h-12 w-12 ${className}`}>
-      <div className="absolute left-0 top-0 h-1 w-12 bg-purple-300" />
-      <div className="absolute left-0 top-0 h-12 w-1 bg-purple-300" />
+    <div className="relative overflow-hidden rounded-xl bg-[#f7f2e4]">
+      {/* left accent bars */}
+      <div className="absolute inset-y-0 left-0 flex w-2 flex-col">
+        <div className="flex-1 bg-teal-700" />
+        <div className="flex-1 bg-primary" />
+        <div className="flex-1 bg-amber-500" />
+      </div>
+      {/* right decorative pattern */}
+      <div
+        className="absolute inset-y-0 right-0 w-16 opacity-90"
+        style={{
+          backgroundImage:
+            "repeating-linear-gradient(115deg, #0f5c52 0px, #0f5c52 10px, #f7f2e4 10px, #f7f2e4 12px, #057a46 12px, #057a46 22px, #f7f2e4 22px, #f7f2e4 24px, #1f1f2e 24px, #1f1f2e 34px, #f7f2e4 34px, #f7f2e4 36px, #d4a72c 36px, #d4a72c 46px, #f7f2e4 46px, #f7f2e4 48px)",
+        }}
+      />
+
+      <div className="relative flex flex-col items-center gap-4 px-8 py-10 pr-20 text-center sm:px-14 sm:pr-24">
+        <p className="text-lg font-semibold tracking-[-0.36px] text-primary">Attend</p>
+
+        <div>
+          <h2 className="text-3xl font-medium tracking-[-0.9px] text-foreground sm:text-4xl">Certificate</h2>
+          <p className="text-sm text-foreground/60">of attendance</p>
+        </div>
+
+        <div>
+          <p className="text-xs text-foreground/50">This certificate is proudly presented to</p>
+          <p className="mt-2 border-b border-foreground/20 pb-1.5 text-xl font-semibold text-foreground">{name}</p>
+        </div>
+
+        <div>
+          <p className="text-xs text-foreground/50">for attending and participating in</p>
+          <p className="mt-2 border-b border-foreground/20 pb-1.5 text-base font-semibold text-foreground">{eventTitle}</p>
+          {subline && <p className="mt-2 text-xs text-foreground/50">{subline}</p>}
+        </div>
+
+        <div className="mt-4 grid w-full grid-cols-2 gap-6 border-t border-foreground/10 pt-5 text-left">
+          <div>
+            <p className="text-sm italic text-foreground">Sulaiman Adedokun, CFA</p>
+            <div className="mt-1 border-t border-foreground/30 pt-1 text-[9px] uppercase tracking-wide text-foreground/50">
+              Group Managing Director
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-sm italic text-foreground">Dr. Stanley Jacob, PhD</p>
+            <div className="mt-1 border-t border-foreground/30 pt-1 text-right text-[9px] uppercase tracking-wide text-foreground/50">
+              Group Chief Innovation and Technology Officer
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

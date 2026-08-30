@@ -1,7 +1,8 @@
 "use client";
 import { use, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Mail, Phone, User } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, Mail, Phone, User } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
@@ -23,7 +24,9 @@ export default function GuestJoinPage({ params }: { params: Promise<{ code: stri
   const search = useSearchParams();
   const eventIdHint = search.get("eventId") ?? "";
 
-  const [fullName, setFullName] = useState("");
+  // Prefilled from the /join landing page's optional "Your Name" field, if
+  // the guest arrived via that code-entry step rather than a direct link.
+  const [fullName, setFullName] = useState(search.get("name") ?? "");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<string>("DIRECTOR");
@@ -92,62 +95,72 @@ export default function GuestJoinPage({ params }: { params: Promise<{ code: stri
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      <Link
+        href="/join"
+        aria-label="Go back"
+        className="inline-flex rounded-full bg-white p-2 text-foreground shadow-[0px_1px_4px_0px_rgba(0,0,0,0.1)]"
+      >
+        <ArrowLeft className="h-5 w-5" />
+      </Link>
+
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Join as a guest</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">
+          Join as a guest
+        </h1>
+        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/70">
           {inviteInfo?.eventTitle
             ? `You've been invited to ${inviteInfo.eventTitle}. Enter a few details to continue.`
             : "You've been invited to an Attend event. Enter a few details to continue."}
         </p>
         {inviteInfo?.capabilities && (
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="mt-2 text-xs text-foreground/60">
             You will be able to: {inviteInfo.capabilities.join(", ").toLowerCase()}
           </p>
         )}
       </div>
 
-      <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-white p-5 shadow-sm">
+      <form onSubmit={submit} className="space-y-4">
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-left text-sm text-red-600">
             {error}
           </div>
         )}
         <Input
           name="fullName"
-          label="Full name"
           leftIcon={<User className="h-4 w-4" />}
-          placeholder="e.g. Adekunle Bello"
+          placeholder="Full name"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
         />
         <Input
           name="email"
-          label="Email (optional)"
           type="email"
           leftIcon={<Mail className="h-4 w-4" />}
-          placeholder="you@example.com"
+          placeholder="Email (optional)"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
         <Input
           name="phone"
-          label="Phone (optional)"
           type="tel"
           leftIcon={<Phone className="h-4 w-4" />}
-          placeholder="+234 800 000 0000"
+          placeholder="Phone (optional)"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-foreground/60">
           Provide at least one of email or phone so we can contact you if needed.
         </p>
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wide">Role</label>
+        <div className="space-y-1.5">
+          <label htmlFor="role" className="text-sm font-medium text-foreground">
+            Role
+          </label>
           <select
+            id="role"
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+            className="h-[50px] w-full rounded-[10px] border border-transparent bg-foreground/[0.04] px-3.5 text-sm tracking-[-0.14px] text-foreground transition-colors focus-visible:outline-none focus-visible:border-primary"
           >
             {ROLES.map((r) => (
               <option key={r.value} value={r.value}>{r.label}</option>
@@ -159,7 +172,7 @@ export default function GuestJoinPage({ params }: { params: Promise<{ code: stri
         </Button>
       </form>
 
-      <p className="text-center text-xs text-muted-foreground">
+      <p className="text-center text-xs text-foreground/60">
         Guests can view and (if enabled by the organiser) ask questions and vote.
       </p>
     </div>

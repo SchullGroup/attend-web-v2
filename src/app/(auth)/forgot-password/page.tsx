@@ -36,13 +36,10 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="space-y-6">
-      <div className="md:hidden mb-2">
-        <img src="/attend-logo.png" alt="Attend" style={{ height: 31 }} />
-      </div>
 
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Forgot password?</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Forgot password?</h1>
+        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/70">
           Enter your email and we&apos;ll send you a verification code.
         </p>
       </div>
