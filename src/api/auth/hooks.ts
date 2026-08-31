@@ -18,15 +18,8 @@ export const useLogin = () => {
       const token = response.data.token;
       if (token) {
         Cookies.set("accessToken", token, {
-          // Match the 7-day refresh-token window so the cookie survives a browser
-          // restart. Without an `expires` this was a session cookie: closing the
-          // browser dropped it, middleware then saw no token and bounced the user to
-          // /login — a silent "random" logout even though the refresh token was valid.
-          expires: 7,
           secure: process.env.NODE_ENV === "production",
-          // `lax`, not `strict`: strict drops the cookie on top-level navigations INTO
-          // the app (e.g. following an email link), so the entry landed on /login.
-          sameSite: "lax",
+          sameSite: "strict",
         });
       }
       queryClient.invalidateQueries({ queryKey: authKeys.me() });
@@ -54,12 +47,12 @@ export const useLogout = () => {
   });
 };
 
-export const useGetMe = (enabled = true) => {
+export const useGetMe = () => {
   return useQuery({
     queryKey: authKeys.me(),
     queryFn: authClient.getMe,
-    // only fetch if access token exists and enabled is true
-    enabled: enabled && !!Cookies.get("accessToken"),
+    // only fetch if access token exists
+    enabled: !!Cookies.get("accessToken"),
     retry: false,
   });
 };
@@ -97,5 +90,25 @@ export const useResetPassword = () => {
 export const useChangePassword = () => {
   return useMutation({
     mutationFn: authClient.changePassword,
+  });
+};
+
+// Item L — BVN recovery hooks
+export const useBvnRecoverInit = () => useMutation({ mutationFn: authClient.bvnRecoverInit });
+export const useBvnRecoverVerify = () => useMutation({ mutationFn: authClient.bvnRecoverVerify });
+export const useBvnRecoverComplete = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: authClient.bvnRecoverComplete,
+    onSuccess: (response: any) => {
+      const token = response?.data?.token;
+      if (token) {
+        Cookies.set("accessToken", token, {
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "strict",
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: authKeys.me() });
+    },
   });
 };

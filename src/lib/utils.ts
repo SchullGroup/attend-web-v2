@@ -1,8 +1,18 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { useEffect, useState } from "react";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+export function useDebounce<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(t);
+  }, [value, delayMs]);
+  return debounced;
 }
 
 // The backend returns UTC timestamps with no timezone marker (e.g.
@@ -71,35 +81,14 @@ export function formatShortDate(d: string) {
   return parseApiDate(d).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-export function formatMemberSince(d?: string): string {
-  if (!d) return "Member since 2026";
-  try {
-    const dt = parseApiDate(d);
-    if (isNaN(dt.getTime())) return "Member since 2026";
-    const month = dt.toLocaleDateString("en-US", { month: "long" });
-    const year = dt.getFullYear();
-    return `Member since ${month} ${year}`;
-  } catch {
-    return "Member since 2026";
-  }
-}
-
 export function formatRelativeTime(d: string) {
   const now = new Date().getTime();
   const then = parseApiDate(d).getTime();
   const diff = Math.floor((now - then) / 1000);
-  if (diff < 5) return "just now";
-  if (diff < 60) return `${diff} sec${diff === 1 ? "" : "s"} ago`;
-  const mins = Math.floor(diff / 60);
-  if (mins < 60) return `${mins} min${mins === 1 ? "" : "s"} ago`;
-  const hrs = Math.floor(diff / 3600);
-  if (hrs < 24) return `${hrs} hr${hrs === 1 ? "" : "s"} ago`;
-  const days = Math.floor(diff / 86400);
-  if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
-  if (days < 30) {
-    const weeks = Math.floor(days / 7);
-    return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
-  }
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
   return formatDate(d);
 }
 

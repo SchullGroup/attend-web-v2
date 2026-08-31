@@ -1,91 +1,31 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Mail, Phone, Lock, CheckCircle2, AlertCircle } from "lucide-react";
+import { CircleUserRound, Lock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useLogin } from "@/api/auth/hooks";
-import { getDeviceId } from "@/lib/device-id";
-import { apiErrorMessage } from "@/lib/api-error";
-import { DIAL_CODE, stripDialCode, toE164 } from "@/lib/phone";
-import { cn } from "@/lib/utils";
-
-type LoginMode = "email" | "phone";
-
-/**
- * proxy.ts attaches `?callbackUrl=<original path>` when it bounces an unauthenticated
- * visit to a protected page (e.g. an event link from an email reminder) here. Only ever
- * follow it if it's a same-origin relative path — a raw redirect to whatever's in the
- * query string would be an open-redirect vector (`?callbackUrl=https://evil.example`).
- */
-function safeCallbackUrl(raw: string | null): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
-  return raw;
-}
 
 export default function LoginPage() {
   const router = useRouter();
   const { mutate: loginMutation, isPending } = useLogin();
-  const [mode, setMode] = useState<LoginMode>("email");
   const [email, setEmail] = useState("");
-  // Local part only — the "+234" is pinned in the field, not typed.
-  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [needsVerify, setNeedsVerify] = useState(false);
-  const [justVerifiedEmail, setJustVerifiedEmail] = useState<string | null>(null);
-  const [sessionEnded, setSessionEnded] = useState<string | null>(null);
-
-  // A freshly verified account lands here straight from /verify. Read the marker on mount
-  // rather than during render — sessionStorage doesn't exist during SSR — and clear it
-  // immediately so the banner shows once and doesn't reappear on a later visit.
-  useEffect(() => {
-    const verified = sessionStorage.getItem("justVerifiedEmail");
-    if (verified) {
-      setJustVerifiedEmail(verified);
-      setEmail(verified);
-      setMode("email");
-    }
-    sessionStorage.removeItem("justVerifiedEmail");
-
-    // api-client appends ?reason= when it forces a logout, so the user is told why they
-    // ended up back here. Read via window rather than useSearchParams: this page has no
-    // Suspense boundary and that hook would opt the whole route out of static rendering.
-    const reason = new URLSearchParams(window.location.search).get("reason");
-    if (reason === "other-device") {
-      setSessionEnded(
-        "You were signed out because your account was used to sign in on another device.",
-      );
-    } else if (reason === "idle") {
-      setSessionEnded("Your session expired after 2 hours of inactivity. Please sign in again.");
-    }
-  }, []);
-
-  // Whichever tab is showing supplies the credential. Phones go up as E.164
-  // ("+2348012345678"); emails are sent exactly as typed.
-  const cleanId = mode === "phone" ? toE164(phone) : email.trim();
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErrorMsg(null);
     setNeedsVerify(false);
     loginMutation(
+      { email, password },
       {
-        identifier: cleanId,
-        emailOrPhone: cleanId,
-        email: cleanId,
-        password,
-        // Lets the backend invalidate whatever device was signed in before this one.
-        deviceId: getDeviceId(),
-      },
-      {
-        onSuccess: () => {
-          const callbackUrl = new URLSearchParams(window.location.search).get("callbackUrl");
-          router.push(safeCallbackUrl(callbackUrl));
-        },
+        onSuccess: () => router.push("/"),
         onError: (err: any) => {
-          const msg = apiErrorMessage(err, "Invalid credentials");
+          const msg =
+            err?.response?.data?.message || err?.message || "Invalid email or password";
           setErrorMsg(msg);
           // Backend blocks unverified accounts with a "verify your email" message —
           // surface a shortcut to the verification page (carrying the email over).
@@ -96,43 +36,24 @@ export default function LoginPage() {
   }
 
   function goVerify() {
-    // Only pre-fill the verify page if the user signed in with an email.
-    if (mode === "email" && cleanId) {
-      sessionStorage.setItem("pendingVerifyEmail", cleanId);
-    }
+    sessionStorage.setItem("pendingVerifyEmail", email);
     router.push("/verify");
   }
 
   return (
-    <div className="space-y-6">
-      <div className="md:hidden mb-2">
-        <img src="/attend-logo.png" alt="Attend" style={{ height: 44 }} />
-      </div>
-
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Sign in to view your upcoming events and votes.
+    <div className="flex flex-col items-center gap-8 text-center">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">
+          Welcome back
+        </h1>
+        <p className="text-sm tracking-[-0.14px] text-foreground/70">
+          Enter your details to continue
         </p>
       </div>
 
-      <form onSubmit={onSubmit} className="space-y-4">
-        {sessionEnded && !errorMsg && (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-            <span>{sessionEnded}</span>
-          </div>
-        )}
-        {justVerifiedEmail && !errorMsg && (
-          <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
-            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-            <span>
-              Your email is verified. Enter your password to sign in.
-            </span>
-          </div>
-        )}
+      <form onSubmit={onSubmit} className="flex w-full flex-col items-center gap-6">
         {errorMsg && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+          <div className="w-full rounded-lg border border-red-200 bg-red-50 p-3 text-left text-sm text-red-600">
             {errorMsg}
             {needsVerify && (
               <button
@@ -145,102 +66,65 @@ export default function LoginPage() {
             )}
           </div>
         )}
-        {/* Which credential the user is signing in with. An explicit choice rather than
-            sniffing what they typed: it lets the phone field pin "+234" from the first
-            keystroke, and the label above each field says what is expected. */}
-        <div role="tablist" aria-label="Sign in with" className="flex gap-1 rounded-xl bg-muted p-1">
-          {(["email", "phone"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="tab"
-              aria-selected={mode === m}
-              onClick={() => {
-                setMode(m);
-                setErrorMsg(null);
-                setNeedsVerify(false);
-              }}
-              className={cn(
-                "flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors",
-                mode === m
-                  ? "bg-white text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {m === "email" ? "Email" : "Phone"}
-            </button>
-          ))}
-        </div>
 
-        {mode === "email" ? (
+        <div className="flex w-full flex-col gap-4">
           <Input
-            key="email"
             name="email"
-            label="Email address"
             type="email"
-            inputMode="email"
-            autoComplete="username"
-            leftIcon={<Mail className="h-4 w-4" />}
-            placeholder="Enter email address"
+            autoComplete="email"
+            leftIcon={<CircleUserRound className="h-5 w-5" />}
+            placeholder="Email address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-        ) : (
           <Input
-            key="phone"
-            name="phone"
-            label="Phone number"
-            type="tel"
-            inputMode="tel"
-            autoComplete="username"
-            leftIcon={<Phone className="h-4 w-4" />}
-            prefix={DIAL_CODE}
-            placeholder="803 123 4567"
-            value={phone}
-            // Drop anything duplicating the pinned code so the field never reads "+234 0801…".
-            onChange={(e) => setPhone(stripDialCode(e.target.value))}
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            leftIcon={<Lock className="h-5 w-5" />}
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
           />
-        )}
-        <Input
-          name="password"
-          label="Password"
-          type="password"
-          autoComplete="current-password"
-          leftIcon={<Lock className="h-4 w-4" />}
-          placeholder="Enter your password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <div className="flex justify-end">
-          <Link
-            href="/forgot-password"
-            className="text-sm font-medium text-foreground hover:underline"
-          >
-            Forgot password?
-          </Link>
         </div>
+
         <Button type="submit" fullWidth size="lg" loading={isPending}>
-          {isPending ? "Signing in…" : "Sign in"}
+          {isPending ? "Signing in…" : "Login"}
         </Button>
+
+        <Link
+          href="/forgot-password"
+          className="text-sm font-medium tracking-[-0.14px] text-foreground underline"
+        >
+          Forgot password?
+        </Link>
       </form>
 
-      <p className="text-center text-sm text-muted-foreground">
-        New to Attend?{" "}
-        <Link href="/register" className="font-semibold text-foreground hover:underline">
+      <div className="flex w-full flex-col items-center gap-5">
+        <div className="flex w-full items-center gap-4">
+          <div className="h-px flex-1 bg-foreground/15" />
+          <span className="text-sm tracking-[-0.28px] text-foreground/60">or</span>
+          <div className="h-px flex-1 bg-foreground/15" />
+        </div>
+
+        <Link
+          href="/join"
+          className="flex h-[50px] w-full items-center justify-center rounded-xl bg-foreground/[0.05] text-sm font-medium tracking-[-0.14px] text-foreground transition-colors hover:bg-foreground/[0.08]"
+        >
+          Join as a Guest/Regulator
+        </Link>
+        <Link
+          href="/register"
+          className="flex h-[50px] w-full items-center justify-center rounded-xl bg-foreground/[0.05] text-sm font-medium tracking-[-0.14px] text-foreground transition-colors hover:bg-foreground/[0.08]"
+        >
           Create an account
         </Link>
-      </p>
-
-      <div className="flex items-center gap-3">
-        <span className="h-px flex-1 bg-border" />
-        <span className="text-xs text-muted-foreground">or</span>
-        <span className="h-px flex-1 bg-border" />
       </div>
 
-      <p className="text-center text-sm text-muted-foreground">
-        Invited to a single event?{" "}
-        <Link href="/guest" className="font-semibold text-foreground hover:underline">
-          Continue as guest
+      <p className="text-sm text-muted-foreground">
+        No email or phone on file?{" "}
+        <Link href="/bvn-recover" className="font-semibold text-foreground hover:underline">
+          Sign in with BVN
         </Link>
       </p>
     </div>

@@ -43,12 +43,4 @@ export const notificationsClient = {
     );
     return response.data;
   },
- 
-  subscribeDevice: async (subscription: PushSubscription) => {
-    const response = await apiClient.post<ApiResponse>(
-      "/api/v1/devices/subscribe",
-      subscription,
-    );
-    return response.data;
-  },
 };

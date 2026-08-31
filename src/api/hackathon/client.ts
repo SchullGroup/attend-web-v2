@@ -41,17 +41,6 @@ export const hackathonClient = {
     return response.data;
   },
 
-  /**
-   * Streams the canonical server-rendered certificate PDF (rendered onto the
-   * organiser's artwork where they uploaded one). `downloadPath` comes straight
-   * off the certificate response — a public `/api/v1/public/certificates/{id}/download`
-   * route, so no auth is needed, but routing through apiClient is harmless.
-   */
-  downloadCertificatePdf: async (downloadPath: string) => {
-    const response = await apiClient.get(downloadPath, { responseType: "blob" });
-    return response.data as Blob;
-  },
-
   getMyTeams: async () => {
     const response = await apiClient.get<MyTeamsResponse>(
       "/api/v1/participant/teams/mine",

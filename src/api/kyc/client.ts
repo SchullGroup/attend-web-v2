@@ -4,8 +4,6 @@ import {
   KycStep1Request,
   KycStep2Request,
   KycStep3Request,
-  BvnSelfieRequest,
-  BvnSelfieResponse,
   ApiResponse,
 } from "@/types";
 
@@ -17,21 +15,10 @@ export const kycClient = {
     return response.data;
   },
 
-  // Step 1 — BVN verification (v1: record BVN)
+  // Step 1 — BVN verification
   step1: async (data: KycStep1Request) => {
     const response = await apiClient.post<ApiResponse>(
       "/api/v1/participant/kyc/step1",
-      data,
-    );
-    return response.data;
-  },
-
-  // Standalone BVN + selfie re-check via Dojah. Read-only — saves nothing and changes
-  // no KYC state, so it is deliberately NOT named step1: it runs after step 3 (liveness)
-  // purely to confirm the fresh selfie matches the BVN on file.
-  bvnSelfieCheck: async (data: BvnSelfieRequest) => {
-    const response = await apiClient.post<BvnSelfieResponse>(
-      "/api/v1/participant/kyc/bvn-selfie/v2",
       data,
     );
     return response.data;

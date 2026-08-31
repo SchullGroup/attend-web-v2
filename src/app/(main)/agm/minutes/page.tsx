@@ -1,30 +1,22 @@
 "use client";
-import { Suspense, useRef, useState } from "react";
+import { Suspense } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, FileText, Download, Building2, ChevronRight, Clock } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { FileText, Download, Building2, ChevronRight, Clock, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { jsPDF } from "jspdf";
 import { useGetMinutes } from "@/api/agm/hooks";
-import { useGetEvents, useGetEvent } from "@/api/events/hooks";
+import { useGetEvents } from "@/api/events/hooks";
 import { EventListItem } from "@/types";
+import { AgmBackButton, AgmHero, AgmSubNav } from "@/components/attend/AgmSubNav";
 import { formatDate, parseApiDate } from "@/lib/utils";
-import { sanitizeMinutesHtml, normalizeMinutesContent } from "@/lib/rich-content";
-import { downloadNodeAsPdf } from "@/lib/dom-to-pdf";
 
 function MinutesInner() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const eventId = searchParams.get("eventId") ?? "";
 
   const { data, isLoading, error } = useGetMinutes(eventId);
   const minutes = data?.data ?? null;
-  const [downloading, setDownloading] = useState(false);
-  const docRef = useRef<HTMLDivElement>(null);
-  // The minutes payload itself has no organiser field; the event detail already does
-  // (same registerName-over-organizerName precedence used on /agm and /events/[id]).
-  const { data: eventResp } = useGetEvent(eventId);
-  const event = eventResp?.data;
-  const organiser = event?.registerName || event?.organizerName || "";
 
   // No event selected → let the user pick which AGM's minutes to read.
   if (!eventId) return <MinutesPicker />;
@@ -32,7 +24,7 @@ function MinutesInner() {
   if (isLoading) {
     return (
       <div className="mx-auto max-w-2xl">
-        <div className="h-72 animate-pulse rounded-3xl border border-border bg-muted" />
+        <div className="h-72 animate-pulse rounded-xl bg-foreground/[0.04]" />
       </div>
     );
   }
@@ -42,7 +34,7 @@ function MinutesInner() {
   if (status === 403) {
     return (
       <Shell>
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-foreground/15 p-10 text-center text-sm text-foreground/50">
           You must be registered for this AGM to view its minutes.
         </div>
       </Shell>
@@ -53,12 +45,12 @@ function MinutesInner() {
   if (!minutes) {
     return (
       <Shell>
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border p-10 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted">
-            <Clock className="h-6 w-6 text-muted-foreground" />
-          </div>
-          <p className="text-sm font-semibold text-foreground">Minutes not published yet</p>
-          <p className="max-w-sm text-sm text-muted-foreground">
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-foreground/15 p-10 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-foreground/[0.04]">
+            <Clock className="h-6 w-6 text-foreground/50" />
+          </span>
+          <p className="text-sm font-medium tracking-[-0.14px] text-foreground">Minutes not published yet</p>
+          <p className="max-w-sm text-sm text-foreground/60">
             {data?.message ||
               "The minutes for this meeting will appear here once the organiser has finalised them."}
           </p>
@@ -71,171 +63,126 @@ function MinutesInner() {
     ? formatDate(parseApiDate(minutes.finalisedAt).toISOString())
     : "—";
 
-  async function downloadPdf() {
-    if (!minutes || !docRef.current) return;
-    setDownloading(true);
-    try {
-      await downloadNodeAsPdf(
-        docRef.current,
-        `agm-minutes-${minutes.eventId || eventId}.pdf`,
-      );
-    } finally {
-      setDownloading(false);
-    }
+  function downloadPdf() {
+    if (!minutes) return;
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 48;
+    let y = 64;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("AGM Minutes", margin, y);
+    y += 20;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text(`Finalised ${finalised}`, margin, y);
+    doc.setTextColor(20);
+    y += 28;
+
+    doc.setFontSize(11);
+    const lines = doc.splitTextToSize(minutes.content || "", pageW - margin * 2);
+    lines.forEach((line: string) => {
+      if (y > pageH - margin) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.text(line, margin, y);
+      y += 16;
+    });
+
+    doc.save(`agm-minutes-${minutes.eventId || eventId}.pdf`);
   }
 
   return (
     <Shell>
-      <div ref={docRef} className="overflow-hidden rounded-3xl border border-border bg-white shadow-sm">
-        <div className="border-b border-border bg-linear-to-br from-emerald-500 to-emerald-700 p-6 text-white">
-          <div className="flex items-center gap-3">
-            {/* Company's own logo (branding.logoUrl) when set — falls back to the generic
-                document icon rather than showing a broken image. Distinct from the
-                registrar's logo credited below the content (see organizerLogo there). */}
-            {event?.branding?.logoUrl ? (
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white p-1.5">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={event.branding.logoUrl}
-                  alt=""
-                  className="h-full w-full object-contain"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = "none";
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/20 backdrop-blur">
-                <FileText className="h-6 w-6" />
-              </div>
-            )}
-            <div>
-              <p className="text-xs uppercase tracking-wide text-white/80">AGM minutes</p>
-              <h1 className="text-lg font-bold">{organiser || "Finalised " + finalised}</h1>
-              {organiser && <p className="text-xs text-white/80">Finalised {finalised}</p>}
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-5 p-6">
-          {/* Finalised minutes now carry a "Resolutions" section as HTML (2026-08-18) —
-              sanitized before render since this is backend-supplied markup, not a plain
-              string, going into dangerouslySetInnerHTML. The [&_x] rules give the common
-              report elements (headings/lists/tables) real spacing without pulling in the
-              Tailwind typography plugin for one page. */}
-          <div
-            className="space-y-2 text-sm leading-relaxed text-foreground/90 [&_h1]:mt-4 [&_h1]:text-base [&_h1]:font-bold [&_h1]:text-foreground [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-bold [&_h2]:text-foreground [&_h3]:mt-4 [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:uppercase [&_h3]:tracking-wide [&_h3]:text-muted-foreground [&_p]:mb-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_strong]:font-semibold [&_table]:mt-2 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-border [&_td]:p-1.5 [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:p-1.5 [&_hr]:my-3 [&_hr]:border-border"
-            dangerouslySetInnerHTML={{ __html: sanitizeMinutesHtml(normalizeMinutesContent(minutes.content || "")) }}
-          />
-
-          {/* Registrar credit — small and quiet on purpose, so it reads as an attribution
-              line rather than competing with the company's own branding in the header. */}
-          {event?.organizerName && (
-            <div className="flex items-center gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
-              {event.organizerLogo && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={event.organizerLogo}
-                  alt=""
-                  className="h-4 w-4 shrink-0 rounded object-contain"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = "none";
-                  }}
-                />
-              )}
-              <span>Registered by {event.organizerName}</span>
-            </div>
-          )}
-
-          <div data-pdf-hide className="flex flex-col gap-3 sm:flex-row">
-            <Button fullWidth onClick={downloadPdf} loading={downloading} disabled={downloading}>
-              <Download className="h-4 w-4" /> Download minutes
-            </Button>
-            <Link href="/agm/minutes" className="sm:flex-1">
-              <Button variant="outline" fullWidth className="whitespace-nowrap">
-                Back to Minutes List
-              </Button>
-            </Link>
-          </div>
-        </div>
+      <div className="flex flex-col items-center gap-2 pb-2 text-center">
+        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+          <FileText className="h-8 w-8 text-primary" />
+        </span>
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">AGM minutes</h1>
+        <p className="text-sm tracking-[-0.14px] text-foreground/60">Finalised {finalised}</p>
       </div>
+
+      <div className="rounded-xl border border-foreground/[0.06] bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
+          {minutes.content}
+        </p>
+      </div>
+
+      <Button size="lg" fullWidth onClick={downloadPdf}>
+        <Download className="h-4 w-4" /> Download minutes
+      </Button>
     </Shell>
   );
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="space-y-6">
-      <Link
-        href="/agm/minutes"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> All minutes
-      </Link>
-      <div className="mx-auto max-w-2xl">{children}</div>
+    <div className="flex flex-col gap-6">
+      <AgmBackButton href="/agm/minutes" label="All minutes" />
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">{children}</div>
     </div>
   );
 }
 
 function MinutesPicker() {
-  const router = useRouter();
   const { data, isLoading } = useGetEvents({ eventType: "AGM_EGM", size: 50 });
-  // Minutes access itself gates on a real RSVP (backend confirmed, 2026-08-17), so the
-  // picker should match — `registered` alone includes shareholders who never actually
-  // RSVP'd. Falls back to `registered` only until backend's `hasRsvped` field is live.
   const agms = (data?.data?.events ?? []).filter(
-    (e: EventListItem) => e.eventType === "AGM_EGM" && (e.hasRsvped ?? e.registered),
+    (e: EventListItem) => e.eventType === "AGM_EGM" && e.registered,
   );
 
   return (
-    <div className="space-y-6">
-      <button
-        onClick={() => router.back()}
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back
-      </button>
-      <header>
-        <h1 className="text-2xl font-bold text-foreground">Minutes</h1>
-        <p className="text-sm text-muted-foreground">
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center gap-1 text-sm font-medium tracking-[-0.14px]">
+        <span className="text-foreground">AGM</span>
+        <ChevronRight className="h-3 w-3 -rotate-90 text-foreground/40" />
+        <span className="text-foreground/40">Minutes</span>
+      </div>
+
+      <AgmHero />
+      <AgmSubNav active="minutes" />
+
+      <div className="flex flex-col gap-1">
+        <h2 className="text-xl font-medium tracking-[-0.6px] text-foreground">Minutes</h2>
+        <p className="text-sm tracking-[-0.14px] text-foreground/60">
           Select an AGM to read its finalised minutes.
         </p>
-      </header>
+      </div>
 
       {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2].map((n) => (
-            <div key={n} className="h-20 animate-pulse rounded-2xl border border-border bg-muted" />
-          ))}
-        </div>
+        <p className="py-8 text-center text-sm text-foreground/50">Loading…</p>
       ) : agms.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-foreground/15 p-10 text-center text-sm text-foreground/50">
           You aren&apos;t registered for any AGMs yet. Minutes appear here once an AGM
           you attended has been finalised.
         </div>
       ) : (
-        <ul className="space-y-3">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {agms.map((e) => (
-            <li key={e.id}>
-              <Link
-                href={`/agm/minutes?eventId=${e.id}`}
-                className="flex items-center gap-3 rounded-2xl border border-border bg-white p-4 hover:bg-muted/30"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50">
-                  <Building2 className="h-5 w-5 text-emerald-600" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-foreground">{e.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDate(e.date)}
-                    {e.startTime ? ` · ${e.startTime}` : ""}
-                  </p>
-                </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-              </Link>
-            </li>
+            <Link
+              key={e.id}
+              href={`/agm/minutes?eventId=${e.id}`}
+              className="flex items-center gap-2.5 rounded-xl border border-foreground/[0.06] bg-white p-1.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+            >
+              <span className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-[10px] bg-primary/10">
+                <Building2 className="h-6 w-6 text-primary" strokeWidth={1.75} />
+              </span>
+              <div className="min-w-0 flex-1 py-1">
+                <p className="truncate text-sm font-medium tracking-[-0.14px] text-foreground">{e.title}</p>
+                <p className="flex items-center gap-1 text-xs text-foreground/80">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  {formatDate(e.date)}
+                </p>
+              </div>
+              <span className="mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-foreground/10 text-foreground/60">
+                <ChevronRight className="h-4 w-4" />
+              </span>
+            </Link>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );

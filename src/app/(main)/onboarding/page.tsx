@@ -48,7 +48,7 @@ export default function OnboardingPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-8 py-4">
       {/* Welcome hero */}
-      <div className="rounded-3xl border border-border bg-linear-to-br from-gray-900 to-gray-700 p-8 text-white text-center">
+      <div className="rounded-3xl border border-border bg-gradient-to-br from-gray-900 to-gray-700 p-8 text-white text-center">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-2xl font-bold">
           {initialsFor(fullName)}
         </div>

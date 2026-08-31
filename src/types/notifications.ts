@@ -33,10 +33,6 @@ export interface NotificationPreferences {
   inAppRsvpConfirmation: boolean;
   inAppEventReminder: boolean;
   inAppNewDocument: boolean;
-  // Seventh flag, added backend-side 2026-08-08. Persists the push choice against the user
-  // rather than the browser, so it survives a device change. Nothing sends push yet — that
-  // is blocked on the Firebase project existing — but the value is stored either way.
-  pushEnabled: boolean;
 }
 
 export type NotificationPreferencesResponse = ApiResponse<NotificationPreferences>;

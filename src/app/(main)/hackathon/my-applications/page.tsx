@@ -1,186 +1,250 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronRight, CheckCircle2, Award } from "lucide-react";
-import { useGetMyApplications } from "@/api/innovation/hooks";
-import { Badge } from "@/components/ui/Badge";
-import { formatDate } from "@/lib/utils";
+import { useSearchParams } from "next/navigation";
+import { Lightbulb, X, ChevronRight } from "lucide-react";
+import { useGetMyApplications, useGetApplication, useWithdrawApplication } from "@/api/innovation/hooks";
 
-type Tone = "info" | "warning" | "success" | "muted";
-
-const STATUS_TONE: Record<string, Tone> = {
-  submitted: "info",
-  under_review: "warning",
-  shortlisted: "success",
-  selected: "success",
-  not_progressed: "muted",
-  rejected: "muted",
-  withdrawn: "muted",
+const STATUS_STYLE: Record<string, { label: string; className: string; plain?: boolean }> = {
+  submitted: { label: "Submitted", className: "bg-indigo-50 text-indigo-600" },
+  under_review: { label: "Under review", className: "bg-amber-50 text-amber-700" },
+  shortlisted: { label: "Shortlisted", className: "bg-primary/10 text-primary" },
+  selected: { label: "Winner", className: "bg-amber-100 text-amber-800" },
+  not_progressed: { label: "Not progressed", className: "text-foreground/50", plain: true },
+  rejected: { label: "Rejected", className: "text-red-500", plain: true },
+  withdrawn: { label: "Withdrawn", className: "text-foreground/40", plain: true },
 };
-const STATUS_LABEL: Record<string, string> = {
-  submitted: "Submitted",
-  under_review: "Under review",
-  shortlisted: "Shortlisted",
-  selected: "Selected",
-  not_progressed: "Not progressed",
-  rejected: "Not progressed",
-  withdrawn: "Withdrawn",
-};
+const styleFor = (k: string) => STATUS_STYLE[k] ?? { label: k ? k.replace(/_/g, " ") : "—", className: "text-foreground/50", plain: true };
 
-const labelFor = (k: string) => STATUS_LABEL[k] ?? (k ? k.replace(/_/g, " ") : "—");
-const toneFor = (k: string): Tone => STATUS_TONE[k] ?? "muted";
+function MyApplicationsInner() {
+  const searchParams = useSearchParams();
+  // The challenge brief page ("My Application" row) only knows the challengeId;
+  // a direct deep link (e.g. a notification) can pass applicationId directly.
+  const applicationIdParam = searchParams.get("applicationId") ?? "";
+  const challengeIdParam = searchParams.get("challengeId") ?? "";
 
-// A certificate (participation or winner) can only exist for an application that
-// actually took part — the withdrawn/rejected entrants never get one. The
-// certificate page itself resolves the precise not-yet / being-prepared / issued
-// state, so this gate can be a little optimistic.
-const CERT_EXCLUDED = new Set(["withdrawn", "rejected"]);
-const mayHaveCertificate = (statusKey: string) => !CERT_EXCLUDED.has(statusKey);
-
-export default function MyApplicationsPage() {
-  const router = useRouter();
   const { data, isLoading } = useGetMyApplications();
-  const [justSubmitted, setJustSubmitted] = useState<string | null>(null);
-
-  // Set on the apply page right before it navigates here. Read once on mount and cleared
-  // immediately so the banner doesn't reappear on a later visit or refresh.
-  useEffect(() => {
-    const team = sessionStorage.getItem("justSubmittedApplication");
-    if (team) setJustSubmitted(team);
-    sessionStorage.removeItem("justSubmittedApplication");
-  }, []);
   const apps = (data?.data ?? []).map((a) => ({
-    id: a.id,
-    challengeId: a.challengeId,
-    challengeName: a.challengeName,
-    applicationCode: a.applicationCode,
-    teamName: a.teamName,
-    track: a.track,
-    submittedAt: a.submittedAt ? formatDate(a.submittedAt) : "—",
+    ...a,
     statusKey: (a.status || "").toLowerCase().replace(/[\s-]+/g, "_"),
-    // Backend flags whether you're the team lead or just a member of this application.
-    roleLabel: a.lead ? "Lead" : a.memberRole ? "Member" : null,
   }));
 
+  const resolvedId = applicationIdParam || apps.find((a) => a.challengeId === challengeIdParam)?.id || "";
+  const showDrawer = !!(applicationIdParam || challengeIdParam);
+  const fromList = useMemo(() => apps.find((a) => a.id === resolvedId), [apps, resolvedId]);
+
+  // Fall back to a direct fetch only when the list hasn't surfaced this application
+  // yet (e.g. a fresh deep link) — puts the previously-unused single-application
+  // endpoint to work instead of duplicating a call the list already satisfies.
+  const { data: singleResp, isLoading: singleLoading } = useGetApplication(!fromList ? resolvedId : "");
+  const single = singleResp?.data;
+
+  const { mutate: withdraw, isPending: withdrawing } = useWithdrawApplication();
+
   return (
-    <div className="space-y-6">
-      <button onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back
-      </button>
-
-      <header>
-        <h1 className="text-2xl font-bold text-foreground">My applications</h1>
-        <p className="text-sm text-muted-foreground">
-          Track the status of every challenge you&apos;ve applied to.
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">
+          Innovation Challenges
+        </h1>
+        <p className="text-sm tracking-[-0.14px] text-foreground/60">
+          Compete, build and win
         </p>
-      </header>
+      </div>
 
-      {justSubmitted && (
-        <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
-          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-          <span>
-            Application submitted{justSubmitted ? ` for ${justSubmitted}` : ""}. You can track its status here.
-          </span>
+      <div className="-mx-4 flex gap-2 overflow-x-auto border-b border-foreground/10 px-4 md:-mx-8 md:px-8">
+        <Link
+          href="/hackathon"
+          className="border-b-2 border-transparent px-6 py-2 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
+        >
+          All
+        </Link>
+        <span className="border-b-2 border-foreground px-6 py-2 text-sm font-semibold tracking-[-0.14px] text-foreground">
+          My Application
+        </span>
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          {[1, 2].map((n) => (
+            <div key={n} className="h-20 animate-pulse rounded-xl bg-foreground/5" />
+          ))}
+        </div>
+      ) : apps.length === 0 ? (
+        <p className="py-8 text-center text-sm text-foreground/50">
+          You haven&apos;t applied to any challenges yet.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          {apps.map((a) => {
+            const style = styleFor(a.statusKey);
+            return (
+              <Link
+                key={a.id}
+                href={`/hackathon/my-applications?applicationId=${a.id}`}
+                className="flex items-center gap-3 rounded-xl border border-foreground/[0.06] bg-white p-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+              >
+                <div className="flex h-[60px] w-[60px] shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-foreground/[0.04]">
+                  <Lightbulb className="h-6 w-6 text-foreground/60" strokeWidth={1.75} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium tracking-[-0.14px] text-foreground">
+                    {a.challengeName}
+                  </p>
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    {style.plain ? (
+                      <span className={`text-xs font-medium ${style.className}`}>{style.label}</span>
+                    ) : (
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${style.className}`}>
+                        {style.label}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-foreground/10">
+                  <ChevronRight className="h-4 w-4 text-foreground" />
+                </span>
+              </Link>
+            );
+          })}
         </div>
       )}
 
-      {isLoading ? (
-        <div className="h-40 animate-pulse rounded-2xl border border-border bg-muted" />
-      ) : apps.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-          You haven&apos;t applied to any challenges yet.
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-2xl border border-border bg-white">
-          {/* desktop table */}
-          <table className="hidden w-full text-sm md:table">
-            <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold">Challenge</th>
-                <th className="px-4 py-3 text-left font-semibold">Team</th>
-                <th className="px-4 py-3 text-left font-semibold">Pathway</th>
-                <th className="px-4 py-3 text-left font-semibold">Submitted</th>
-                <th className="px-4 py-3 text-left font-semibold">Status</th>
-                <th className="px-4 py-3 text-right font-semibold" aria-label="Certificate" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {apps.map((a) => (
-                <tr key={a.id} className="hover:bg-muted/30">
-                  <td className="px-4 py-3 font-medium text-foreground">
-                    <Link href={`/hackathon/${a.challengeId}`} className="hover:text-primary">
-                      {a.challengeName}
-                    </Link>
-                    {a.applicationCode && (
-                      <span className="block text-xs font-normal text-muted-foreground">{a.applicationCode}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    <span className="inline-flex items-center gap-2">
-                      {a.teamName}
-                      {a.roleLabel && (
-                        <Badge variant={a.roleLabel === "Lead" ? "info" : "muted"}>{a.roleLabel}</Badge>
-                      )}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{a.track}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{a.submittedAt}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant={toneFor(a.statusKey)}>{labelFor(a.statusKey)}</Badge>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {mayHaveCertificate(a.statusKey) && (
-                      <Link
-                        href={`/hackathon/certificate?challengeId=${a.challengeId}`}
-                        className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                      >
-                        <Award className="h-3.5 w-3.5" /> Certificate
-                      </Link>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {showDrawer && (
+        <div className="fixed inset-0 z-40 flex justify-end bg-black/50">
+          <div className="flex h-full w-full flex-col gap-4 overflow-y-auto bg-[#f6f6f6] p-6 sm:max-w-[460px]">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-medium tracking-[-0.4px] text-foreground">My application details</h2>
+              <Link
+                href="/hackathon/my-applications"
+                aria-label="Close"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-[0px_1px_4px_0px_rgba(0,0,0,0.08)]"
+              >
+                <X className="h-4 w-4 text-foreground" />
+              </Link>
+            </div>
 
-          {/* mobile list */}
-          <ul className="divide-y divide-border md:hidden">
-            {apps.map((a) => (
-              <li key={a.id}>
-                <Link href={`/hackathon/${a.challengeId}`} className="flex items-start gap-3 p-4 hover:bg-muted/30">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-foreground">{a.challengeName}</p>
-                      {a.roleLabel && (
-                        <Badge variant={a.roleLabel === "Lead" ? "info" : "muted"}>{a.roleLabel}</Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {a.teamName} · {a.track}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {a.submittedAt}{a.applicationCode ? ` · ${a.applicationCode}` : ""}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <Badge variant={toneFor(a.statusKey)}>{labelFor(a.statusKey)}</Badge>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                </Link>
-                {mayHaveCertificate(a.statusKey) && (
-                  <Link
-                    href={`/hackathon/certificate?challengeId=${a.challengeId}`}
-                    className="flex items-center gap-1 border-t border-border px-4 py-2.5 text-xs font-medium text-primary hover:bg-muted/30"
-                  >
-                    <Award className="h-3.5 w-3.5" /> View certificate
-                  </Link>
-                )}
-              </li>
-            ))}
-          </ul>
+            {!fromList && singleLoading ? (
+              <>
+                <div className="h-16 animate-pulse rounded-xl bg-white/60" />
+                <div className="h-16 animate-pulse rounded-xl bg-white/60" />
+                <div className="h-32 animate-pulse rounded-xl bg-white/60" />
+              </>
+            ) : fromList ? (
+              <ApplicationDetails
+                teamName={fromList.teamName}
+                ideaTitle={fromList.ideaTitle || "—"}
+                description={fromList.ideaDescription || ""}
+                members={(fromList.teamMembers ?? []).map((m) => ({ name: m.name, role: m.role, email: m.email, isLead: m.lead }))}
+                statusKey={fromList.statusKey}
+                onWithdraw={() => {
+                  if (window.confirm("Withdraw this application? You can re-apply afterwards.")) {
+                    withdraw(fromList.id);
+                  }
+                }}
+                withdrawing={withdrawing}
+              />
+            ) : single ? (
+              <ApplicationDetails
+                teamName={single.teamName}
+                ideaTitle={single.ideaTitle || "—"}
+                description={single.ideaDescription || ""}
+                members={single.members.map((m) => ({ name: m.fullName, role: m.role }))}
+                statusKey={(single.status || "").toLowerCase().replace(/[\s-]+/g, "_")}
+                onWithdraw={() => {
+                  if (window.confirm("Withdraw this application? You can re-apply afterwards.")) {
+                    withdraw(single.id);
+                  }
+                }}
+                withdrawing={withdrawing}
+              />
+            ) : (
+              <p className="py-8 text-center text-sm text-foreground/50">
+                This application could not be found.
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+function ApplicationDetails({
+  teamName,
+  ideaTitle,
+  description,
+  members,
+  statusKey,
+  onWithdraw,
+  withdrawing,
+}: {
+  teamName: string;
+  ideaTitle: string;
+  description: string;
+  members: { name: string; role: string; email?: string; isLead?: boolean }[];
+  statusKey: string;
+  onWithdraw: () => void;
+  withdrawing: boolean;
+}) {
+  return (
+    <>
+      <Field label="Team name" value={teamName} />
+      <Field label="Idea title" value={ideaTitle} />
+
+      {members.length > 0 && (
+        <div className="rounded-xl bg-white p-4">
+          <p className="mb-3 text-xs text-foreground/40">Team members</p>
+          <div className="flex flex-col">
+            {members.map((m, i) => (
+              <div key={`${m.name}-${i}`} className={i > 0 ? "mt-3 border-t border-foreground/[0.06] pt-3" : ""}>
+                <p className="text-sm font-medium text-foreground">
+                  {m.name} {m.isLead && <span className="font-normal text-foreground/40">(You)</span>}
+                </p>
+                <p className="text-xs text-foreground/50">
+                  {m.role}
+                  {m.email && <> <span className="mx-1 inline-block h-1 w-1 rounded-full bg-foreground/20 align-middle" /> {m.email}</>}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {description && (
+        <div className="rounded-xl bg-white p-4">
+          <p className="mb-1.5 text-xs text-foreground/40">Description</p>
+          <p className="text-sm leading-relaxed text-foreground/80">{description}</p>
+        </div>
+      )}
+
+      {statusKey !== "withdrawn" && (
+        <button
+          type="button"
+          onClick={onWithdraw}
+          disabled={withdrawing}
+          className="mt-2 self-start text-sm font-medium text-red-500 hover:underline disabled:opacity-50"
+        >
+          {withdrawing ? "Withdrawing…" : "Withdraw application"}
+        </button>
+      )}
+    </>
+  );
+}
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-white p-4">
+      <p className="mb-1 text-xs text-foreground/40">{label}</p>
+      <p className="text-sm font-medium text-foreground">{value}</p>
+    </div>
+  );
+}
+
+export default function MyApplicationsPage() {
+  return (
+    <Suspense>
+      <MyApplicationsInner />
+    </Suspense>
   );
 }

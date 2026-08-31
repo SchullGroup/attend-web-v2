@@ -1,56 +1,66 @@
 "use client";
 import { Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, FileText, PlayCircle, ExternalLink } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { ArrowLeft, FileText, PlayCircle } from "lucide-react";
 import { useGetResources } from "@/api/hackathon/hooks";
 
 interface ResourceRow {
   id: string;
   isVideo: boolean;
+  isFile: boolean;
   title: string;
   description: string;
   url: string;
+  meta: string;
 }
 
 function ResourcesInner() {
-  const router = useRouter();
   const challengeId = useSearchParams().get("challengeId") ?? "";
   const { data, isLoading } = useGetResources(challengeId);
   const apiResources = data?.data ?? [];
 
-  const resources: ResourceRow[] = apiResources.map((r) => ({
-    id: r.id,
-    isVideo: `${r.resourceType} ${r.fileType}`.toLowerCase().includes("video"),
-    title: r.title,
-    description: r.description,
-    url: r.url,
-  }));
+  const resources: ResourceRow[] = apiResources.map((r) => {
+    const isVideo = `${r.resourceType} ${r.fileType}`.toLowerCase().includes("video");
+    const isFile = r.resourceType === "FILE";
+    const sizeLabel = isFile && r.sizeBytes > 0 ? `${(r.sizeBytes / 1024 / 1024).toFixed(1)} MB` : "";
+    const typeLabel = r.category || r.fileType || (isFile ? "File" : "Link");
+    return {
+      id: r.id,
+      isVideo,
+      isFile,
+      title: r.title,
+      description: r.description,
+      url: r.url,
+      meta: [typeLabel, sizeLabel].filter(Boolean).join(" · "),
+    };
+  });
 
   return (
-    <div className="space-y-6">
-      <button onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back
-      </button>
+    <div className="flex flex-col gap-6">
+      <Link href="/hackathon" className="inline-flex w-fit items-center gap-1 text-sm text-foreground/60 hover:text-foreground">
+        <ArrowLeft className="h-4 w-4" /> Back to Innovation
+      </Link>
 
-      <header>
-        <h1 className="text-2xl font-bold text-foreground">Hackathon resources</h1>
-        <p className="text-sm text-muted-foreground">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Challenge Resources</h1>
+        <p className="text-sm tracking-[-0.14px] text-foreground/60">
           Documentation, sample code, mentor sessions and submission templates.
         </p>
-      </header>
+      </div>
 
       {isLoading ? (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <div className="flex flex-col gap-3">
           {[1, 2, 3].map((n) => (
-            <div key={n} className="h-40 animate-pulse rounded-2xl border border-border bg-muted" />
+            <div key={n} className="h-20 animate-pulse rounded-xl bg-foreground/5" />
           ))}
         </div>
       ) : resources.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        <p className="py-8 text-center text-sm text-foreground/50">
           No resources have been shared for this challenge yet.
-        </div>
+        </p>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <div className="flex flex-col gap-3">
           {resources.map((r) => {
             const Icon = r.isVideo ? PlayCircle : FileText;
             return (
@@ -59,22 +69,17 @@ function ResourcesInner() {
                 href={r.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group flex flex-col gap-3 rounded-2xl border border-border bg-white p-5 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                className="flex items-center gap-3.5 rounded-xl border border-foreground/[0.06] bg-white p-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
               >
-                <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${r.isVideo ? "bg-rose-50 text-rose-600" : "bg-purple-50 text-purple-600"}`}>
-                  <Icon className="h-5 w-5" />
+                <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[10px] bg-foreground/[0.04]">
+                  <Icon className="h-5 w-5 text-foreground/60" strokeWidth={1.75} />
                 </div>
-                <div className="flex-1">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {r.isVideo ? "Video" : "Document"}
-                  </p>
-                  <h3 className="mt-0.5 text-sm font-semibold text-foreground group-hover:text-primary">
-                    {r.title}
-                  </h3>
-                  {r.description && <p className="mt-1 text-xs text-muted-foreground">{r.description}</p>}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium tracking-[-0.14px] text-foreground">{r.title}</p>
+                  <p className="truncate text-xs text-foreground/60">{r.description || r.meta}</p>
                 </div>
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
-                  Open <ExternalLink className="h-3 w-3" />
+                <span className="shrink-0 rounded-lg bg-foreground/[0.04] px-4 py-2 text-xs font-semibold text-foreground">
+                  {r.isFile ? "Download" : "Open"}
                 </span>
               </a>
             );

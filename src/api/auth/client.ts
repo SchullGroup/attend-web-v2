@@ -10,6 +10,11 @@ import {
   ChangePasswordRequest,
   ApiResponse,
 } from "@/types";
+import type {
+  BvnRecoverInitRequest,
+  BvnRecoverVerifyRequest,
+  BvnRecoverCompleteRequest,
+} from "@/types/auth/requests";
 import axios from "axios";
 import Cookies from "js-cookie";
 
@@ -59,6 +64,28 @@ export const authClient = {
 
   changePassword: async (data: ChangePasswordRequest) => {
     const response = await apiClient.post<ApiResponse>("/api/v1/auth/change-password", data);
+    return response.data;
+  },
+
+  // Item L — BVN-OTP recovery for shareholders without email/phone.
+  bvnRecoverInit: async (data: BvnRecoverInitRequest) => {
+    const response = await apiClient.post<ApiResponse<{ sessionId: string; maskedPhone: string }>>(
+      "/api/v1/auth/bvn-recover/init",
+      data,
+    );
+    return response.data;
+  },
+  bvnRecoverVerify: async (data: BvnRecoverVerifyRequest) => {
+    const response = await apiClient.post<
+      ApiResponse<{ authToken: string; matchedShareholderId: string; firstName: string; lastName: string }>
+    >("/api/v1/auth/bvn-recover/verify", data);
+    return response.data;
+  },
+  bvnRecoverComplete: async (data: BvnRecoverCompleteRequest) => {
+    const response = await apiClient.post<AuthApiResponse>(
+      "/api/v1/auth/bvn-recover/complete",
+      data,
+    );
     return response.data;
   },
 };

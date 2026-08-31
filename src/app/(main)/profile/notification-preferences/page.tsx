@@ -1,304 +1,202 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Bell, Mail, Smartphone, Save } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   useGetNotificationPreferences,
   useSaveNotificationPreferences,
 } from "@/api/notifications/hooks";
-import { usePushSubscription } from "@/hooks/usePushSubscription";
+import { NotificationPreferences } from "@/types";
+import { ensurePushSubscription, getPushState, unsubscribePush } from "@/lib/push-notifications";
+
+interface ToggleRow {
+  key: string;
+  label: string;
+  description: string;
+  on: boolean;
+}
+
+const DEFAULT_PREFS: NotificationPreferences = {
+  emailRsvpConfirmation: true,
+  emailEventReminder: true,
+  emailNewDocument: true,
+  inAppRsvpConfirmation: true,
+  inAppEventReminder: true,
+  inAppNewDocument: true,
+};
+
+function Toggle({ on, onChange, label }: { on: boolean; onChange: () => void; label: string }) {
+  return (
+    <button
+      onClick={onChange}
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      className={cn(
+        "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+        on ? "bg-primary" : "bg-foreground/10",
+      )}
+    >
+      <span
+        className={cn(
+          "absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+          on ? "translate-x-5" : "translate-x-0",
+        )}
+      />
+    </button>
+  );
+}
 
 export default function NotificationPreferencesPage() {
-  const router = useRouter();
-  const { data: prefResp, isLoading } = useGetNotificationPreferences();
-  const { mutate: savePreferences, isPending: savingPrefs } = useSaveNotificationPreferences();
-
-  const [emailRsvp, setEmailRsvp] = useState(false);
-  const [emailReminder, setEmailReminder] = useState(false);
-  const [emailDoc, setEmailDoc] = useState(false);
-
-  const [inAppRsvp, setInAppRsvp] = useState(false);
-  const [inAppReminder, setInAppReminder] = useState(false);
-  const [inAppDoc, setInAppDoc] = useState(false);
-
-  const {
-    enabled: pushSubscribed,
-    busy: submittingPush,
-    message: pushMsg,
-    toggle: handleTogglePush,
-  } = usePushSubscription();
-
-  // Backend stores a pushEnabled flag per user; the hook above only knows whether *this
-  // browser* holds a subscription. Track the saved value separately so the switch shows the
-  // user's stored intent on a device that has never subscribed.
-  const [pushPref, setPushPref] = useState(false);
-  const pushOn = pushPref || pushSubscribed;
-
-  // The toggles are local state until Save is pressed. Without a baseline to compare against
-  // there was no way to tell the user their flips weren't persisted yet — they read the
-  // switch position as the saved value and navigated away.
-  const [baseline, setBaseline] = useState<string | null>(null);
-  const [saveMsg, setSaveMsg] = useState<string | null>(null);
-
-  const snapshot = JSON.stringify([
-    emailRsvp, emailReminder, emailDoc, inAppRsvp, inAppReminder, inAppDoc, pushPref,
-  ]);
-  const isDirty = baseline !== null && baseline !== snapshot;
+  const { data, isLoading } = useGetNotificationPreferences();
+  const { mutate: savePreferences, isPending: saving } = useSaveNotificationPreferences();
+  const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULT_PREFS);
 
   useEffect(() => {
-    if (prefResp?.data) {
-      const p = prefResp.data;
-      setEmailRsvp(p.emailRsvpConfirmation);
-      setEmailReminder(p.emailEventReminder);
-      setEmailDoc(p.emailNewDocument);
-      setInAppRsvp(p.inAppRsvpConfirmation);
-      setInAppReminder(p.inAppEventReminder);
-      setInAppDoc(p.inAppNewDocument);
-      setPushPref(p.pushEnabled);
-      setBaseline(JSON.stringify([
-        p.emailRsvpConfirmation, p.emailEventReminder, p.emailNewDocument,
-        p.inAppRsvpConfirmation, p.inAppEventReminder, p.inAppNewDocument, p.pushEnabled,
-      ]));
+    if (data?.data) setPrefs(data.data);
+  }, [data]);
+
+  // Item K — sync Web Push subscription state with local UI
+  const [pushBrowserSubscribed, setPushBrowserSubscribed] = useState(false);
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
+  useEffect(() => {
+    (async () => {
+      const state = await getPushState();
+      if (state.supported) {
+        setPushSupported(true);
+        setPushBrowserSubscribed(state.subscribed);
+      } else {
+        setPushSupported(false);
+      }
+    })();
+  }, []);
+
+  async function togglePushBrowser() {
+    setPushError(null);
+    try {
+      if (pushBrowserSubscribed) {
+        await unsubscribePush();
+        setPushBrowserSubscribed(false);
+      } else {
+        const sub = await ensurePushSubscription();
+        if (sub) setPushBrowserSubscribed(true);
+        else setPushError("Enable notifications in your browser settings to receive updates.");
+      }
+    } catch (e: any) {
+      setPushError(e?.message || "Could not update push notification settings.");
     }
-  }, [prefResp]);
-
-  // A stale "Preferences saved." next to a freshly flipped switch would claim the new value
-  // was persisted, so the confirmation clears the moment anything changes again.
-  useEffect(() => {
-    setSaveMsg(null);
-  }, [snapshot]);
-
-  // Closing the tab mid-edit silently discarded the changes. The browser prompt is the only
-  // reliable warning available here.
-  useEffect(() => {
-    if (!isDirty) return;
-    const warn = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [isDirty]);
-
-  function handleSave() {
-    setSaveMsg(null);
-    savePreferences(
-      {
-        emailRsvpConfirmation: emailRsvp,
-        emailEventReminder: emailReminder,
-        emailNewDocument: emailDoc,
-        inAppRsvpConfirmation: inAppRsvp,
-        inAppEventReminder: inAppReminder,
-        inAppNewDocument: inAppDoc,
-        pushEnabled: pushPref,
-      },
-      {
-        onSuccess: () => {
-          setBaseline(snapshot);
-          setSaveMsg("Preferences saved.");
-        },
-        onError: (err: any) => {
-          // Backend now returns a stable `code` on every failure. Branch on that, not on
-          // the message wording, which is display copy and can change.
-          const code = err?.response?.data?.code;
-          setSaveMsg(
-            code === "UNAUTHORIZED"
-              ? "Your session expired. Sign in again to save your preferences."
-              : err?.response?.data?.message ||
-                  "We couldn't save your preferences. Please try again.",
-          );
-        },
-      },
-    );
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <p className="text-sm text-muted-foreground animate-pulse">Loading preferences...</p>
-      </div>
-    );
+  const emailOn =
+    prefs.emailRsvpConfirmation && prefs.emailEventReminder && prefs.emailNewDocument;
+
+  // Figma groups by notification type (RSVP / Event Reminder / New Document) as
+  // in-app toggles, plus one Email Notification master switch — same three pairs
+  // of backend booleans as before, just regrouped to match the real design instead
+  // of the channel-based guess the page previously shipped with.
+  const rows: ToggleRow[] = [
+    {
+      key: "rsvp",
+      label: "RSVP",
+      description: "When your RSVP is confirmed",
+      on: prefs.inAppRsvpConfirmation,
+    },
+    {
+      key: "reminder",
+      label: "Event Reminder",
+      description: "Before an event starts",
+      on: prefs.inAppEventReminder,
+    },
+    {
+      key: "document",
+      label: "New Document",
+      description: "When a new document is added",
+      on: prefs.inAppNewDocument,
+    },
+    {
+      key: "email",
+      label: "Email Notification",
+      description: "Get notified via mail when you have updates",
+      on: emailOn,
+    },
+  ];
+
+  function toggle(key: string) {
+    let next = prefs;
+    if (key === "rsvp") next = { ...prefs, inAppRsvpConfirmation: !prefs.inAppRsvpConfirmation };
+    else if (key === "reminder") next = { ...prefs, inAppEventReminder: !prefs.inAppEventReminder };
+    else if (key === "document") next = { ...prefs, inAppNewDocument: !prefs.inAppNewDocument };
+    else if (key === "email") {
+      const v = !emailOn;
+      next = { ...prefs, emailRsvpConfirmation: v, emailEventReminder: v, emailNewDocument: v };
+    }
+    setPrefs(next);
+    savePreferences(next);
   }
 
   return (
     <div className="space-y-6">
-      <button
-        onClick={() => router.back()}
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to Profile
-      </button>
-
-      <header>
-        <h1 className="text-2xl font-bold text-foreground">Notification Preferences</h1>
-        <p className="text-sm text-muted-foreground">
-          Choose how you would like to be notified about meeting updates and documents.
-        </p>
-      </header>
-
-      {/* Web Push Segment */}
-      <section className="rounded-2xl border border-border bg-white p-5 shadow-sm space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="space-y-0.5">
-            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Smartphone className="h-4 w-4 text-primary" /> Web Push Notifications
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              Receive instant alerts on your desktop or device when a vote opens or a meeting starts.
-            </p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={pushOn}
-            disabled={submittingPush}
-            onClick={() => {
-              // Two things have to happen: record the preference for saving, and ask the
-              // browser for a subscription. The preference is the part that persists —
-              // the browser half is a no-op until push is configured.
-              setPushPref(!pushOn);
-              handleTogglePush(!pushOn);
-            }}
-            className={cn(
-              "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50",
-              pushOn ? "bg-primary" : "bg-muted"
-            )}
-          >
-            <span
-              className={cn(
-                "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                pushOn ? "translate-x-5" : "translate-x-0"
-              )}
-            />
-          </button>
-        </div>
-
-        {pushMsg && (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-            {pushMsg}
-          </p>
-        )}
-      </section>
-
-      {/* Email Preferences */}
-      <section className="rounded-2xl border border-border bg-white p-5 shadow-sm space-y-4">
-        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 border-b border-slate-100 pb-3">
-          <Mail className="h-4 w-4 text-primary" /> Email Notifications
-        </h3>
-        <div className="space-y-3.5">
-          <PreferenceToggle
-            label="RSVP Confirmations"
-            description="Receive an email receipt when you confirm your attendance at an event."
-            checked={emailRsvp}
-            onChange={setEmailRsvp}
-          />
-          <PreferenceToggle
-            label="Event Reminders"
-            description="Receive email alerts leading up to events you are registered for."
-            checked={emailReminder}
-            onChange={setEmailReminder}
-          />
-          <PreferenceToggle
-            label="New Document Uploads"
-            description="Receive an email when new brochures or materials are published."
-            checked={emailDoc}
-            onChange={setEmailDoc}
-          />
-        </div>
-      </section>
-
-      {/* In-App Notifications */}
-      <section className="rounded-2xl border border-border bg-white p-5 shadow-sm space-y-4">
-        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 border-b border-slate-100 pb-3">
-          <Bell className="h-4 w-4 text-primary" /> In-App Notifications
-        </h3>
-        <div className="space-y-3.5">
-          <PreferenceToggle
-            label="RSVP Confirmations"
-            description="Display a notification in the app when your RSVP is successful."
-            checked={inAppRsvp}
-            onChange={setInAppRsvp}
-          />
-          <PreferenceToggle
-            label="Event Reminders"
-            description="Display inside the app reminders when a meeting is about to go live."
-            checked={inAppReminder}
-            onChange={setInAppReminder}
-          />
-          <PreferenceToggle
-            label="New Document Uploads"
-            description="Display a badge when new meeting materials are uploaded."
-            checked={inAppDoc}
-            onChange={setInAppDoc}
-          />
-        </div>
-      </section>
-
-      <div className="flex items-center justify-end gap-4">
-        {saveMsg && (
-          <p
-            className={cn(
-              "text-xs font-medium",
-              saveMsg === "Preferences saved." ? "text-emerald-700" : "text-red-600",
-            )}
-          >
-            {saveMsg}
-          </p>
-        )}
-        {isDirty && !saveMsg && (
-          <p className="text-xs font-medium text-amber-700">
-            You have unsaved changes.
-          </p>
-        )}
-        <Button
-          onClick={handleSave}
-          loading={savingPrefs}
-          disabled={!isDirty || savingPrefs}
-          className="flex items-center gap-2 px-6"
+      <div className="flex items-center gap-4">
+        <Link
+          href="/profile"
+          aria-label="Back to settings"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-foreground/10 bg-white text-foreground shadow-[0px_1px_4px_0px_rgba(0,0,0,0.08)] transition-colors hover:bg-foreground/[0.04]"
         >
-          <Save className="h-4 w-4" /> {savingPrefs ? "Saving…" : "Save Preferences"}
-        </Button>
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Notification Preference</h1>
+        {saving && <span className="text-xs text-foreground/50">Saving…</span>}
       </div>
-    </div>
-  );
-}
 
-function PreferenceToggle({
-  label,
-  description,
-  checked,
-  onChange,
-}: {
-  label: string;
-  description: string;
-  checked: boolean;
-  onChange: (c: boolean) => void;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <div className="space-y-0.5 max-w-[80%]">
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-xs text-muted-foreground leading-normal">{description}</p>
-      </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={cn(
-          "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
-          checked ? "bg-primary" : "bg-muted"
+      {isLoading ? (
+        <div className="h-40 animate-pulse rounded-xl bg-foreground/[0.04]" />
+      ) : (
+        <div className="divide-y divide-foreground/[0.06] rounded-xl border border-foreground/[0.06] bg-white px-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+          {rows.map((r) => (
+            <div key={r.key} className="flex items-center justify-between gap-4 py-4">
+              <div className="min-w-0">
+                <p className="text-sm font-medium tracking-[-0.14px] text-foreground">{r.label}</p>
+                <p className="mt-0.5 text-xs text-foreground/60">{r.description}</p>
+              </div>
+              <Toggle on={r.on} onChange={() => toggle(r.key)} label={r.label} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Item K — Web Push browser subscription (no Figma equivalent; styled to match) */}
+      <section className="rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+        {pushSupported ? (
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium tracking-[-0.14px] text-foreground">
+                {pushBrowserSubscribed ? "Push enabled in this browser" : "Enable browser push"}
+              </p>
+              <p className="text-xs text-foreground/60">
+                Get real-time alerts even when Attend is not open. You can turn this off in your browser settings.
+              </p>
+              {pushError && <p className="mt-2 text-xs text-red-600">{pushError}</p>}
+            </div>
+            <button
+              onClick={togglePushBrowser}
+              className={cn(
+                "shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                pushBrowserSubscribed
+                  ? "bg-foreground/[0.04] text-foreground hover:bg-foreground/[0.08]"
+                  : "bg-foreground text-background hover:bg-foreground/90",
+              )}
+            >
+              {pushBrowserSubscribed ? "Disable" : "Enable"}
+            </button>
+          </div>
+        ) : (
+          <p className="text-sm text-foreground/60">
+            Push notifications aren&apos;t supported in this browser. Try the mobile app for real-time alerts.
+          </p>
         )}
-      >
-        <span
-          className={cn(
-            "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-            checked ? "translate-x-5" : "translate-x-0"
-          )}
-        />
-      </button>
+      </section>
     </div>
   );
 }

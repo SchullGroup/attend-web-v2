@@ -1,46 +1,40 @@
-self.addEventListener("push", function (event) {
-  if (event.data) {
-    try {
-      const data = event.data.json();
-      const options = {
-        body: data.body || "New notification",
-        icon: data.icon || "/favicon.ico",
-        badge: data.badge || "/favicon.ico",
-        data: {
-          url: data.url || "/",
-        },
-      };
-      event.waitUntil(
-        self.registration.showNotification(data.title || "Attend", options)
-      );
-    } catch (e) {
-      // Fallback text if data is not JSON
-      const text = event.data.text();
-      event.waitUntil(
-        self.registration.showNotification("Attend Notification", {
-          body: text,
-          icon: "/favicon.ico",
-          badge: "/favicon.ico",
-        })
-      );
-    }
+// Attend service worker — Item K (Web Push notifications).
+// Registered by src/lib/push-notifications.ts on user opt-in.
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (_e) {
+    data = { title: "Attend", body: event.data ? event.data.text() : "" };
   }
+  const title = data.title || "Attend";
+  const opts = {
+    body: data.body || "",
+    icon: data.icon || "/attend-logo.png",
+    badge: data.badge || "/attend-logo.png",
+    data: data.data || {},
+    tag: data.tag,
+  };
+  event.waitUntil(self.registration.showNotification(title, opts));
 });
 
-self.addEventListener("notificationclick", function (event) {
+self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const urlToOpen = event.notification.data?.url || "/";
+  const url = (event.notification.data && event.notification.data.deepLink) || "/";
   event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (windowClients) {
-      for (let i = 0; i < windowClients.length; i++) {
-        const client = windowClients[i];
-        if (client.url === urlToOpen && "focus" in client) {
-          return client.focus();
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+      for (const w of wins) {
+        if ("focus" in w) {
+          w.focus();
+          if ("navigate" in w) w.navigate(url);
+          return;
         }
       }
-      if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
-      }
-    })
+      if (self.clients.openWindow) return self.clients.openWindow(url);
+    }),
   );
 });
+
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));

@@ -53,9 +53,3 @@ export const useMarkAllRead = () => {
     },
   });
 };
-
-export const useSubscribeDevice = () => {
-  return useMutation({
-    mutationFn: (subscription: PushSubscription) => notificationsClient.subscribeDevice(subscription),
-  });
-};

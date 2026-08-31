@@ -19,20 +19,20 @@ export const useGetMinutes = (eventId: string) => {
   });
 };
 
-export const useGetVoteReceipt = (eventId: string, enabled = true) => {
+export const useGetVoteReceipt = (eventId: string) => {
   return useQuery({
     queryKey: agmKeys.voteReceipt(eventId),
     queryFn: () => agmClient.getVoteReceipt(eventId),
-    enabled: !!eventId && enabled,
+    enabled: !!eventId,
     retry: false,
   });
 };
 
-export const useGetQuestions = (eventId: string, refetchInterval?: number, enabled = true) => {
+export const useGetQuestions = (eventId: string, refetchInterval?: number) => {
   return useQuery({
     queryKey: agmKeys.questions(eventId),
     queryFn: () => agmClient.getQuestions(eventId),
-    enabled: !!eventId && enabled,
+    enabled: !!eventId,
     // During a live session we poll so new questions, answers and upvote counts
     // from other attendees show up without a reload.
     refetchInterval: refetchInterval ?? false,
@@ -129,40 +129,6 @@ export const useAssignProxy = (eventId: string) => {
     mutationFn: (data: AssignProxyRequest) => agmClient.assignProxy(eventId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: agmKeys.proxy(eventId) });
-      queryClient.invalidateQueries({ queryKey: agmKeys.resolutions(eventId) });
-    },
-  });
-};
-
-export const useAssignProxyDirections = (eventId: string) => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: {
-      directions: {
-        resolutionId: string;
-        direction: "FOR" | "AGAINST" | "ABSTAIN" | "LET_PROXY_DECIDE";
-      }[];
-    }) => agmClient.assignProxyDirections(eventId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: agmKeys.proxy(eventId) });
-    },
-  });
-};
-
-export const useRevokeProxy = (eventId?: string) => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (overrideEventId?: string) => agmClient.revokeProxy(overrideEventId || eventId || ""),
-    onSuccess: (_, variables) => {
-      const targetId = variables || eventId;
-      if (targetId) {
-        queryClient.removeQueries({ queryKey: agmKeys.proxy(targetId) });
-        queryClient.invalidateQueries({ queryKey: agmKeys.proxy(targetId) });
-        queryClient.invalidateQueries({ queryKey: agmKeys.resolutions(targetId) });
-        queryClient.invalidateQueries({ queryKey: agmKeys.voteReceipt(targetId) });
-      }
-      queryClient.invalidateQueries({ queryKey: ["agm"] });
-      queryClient.invalidateQueries({ queryKey: ["events"] });
     },
   });
 };

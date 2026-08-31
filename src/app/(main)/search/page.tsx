@@ -13,7 +13,7 @@ const isInnovation = (t?: string) => t === "HACKATHON" || t === "INNOVATION_CHAL
 function SearchInner() {
   const q = useSearchParams().get("q") ?? "";
 
-  const { data: evData, isLoading: evLoading } = useGetEvents({ search: q || undefined, size: 100 });
+  const { data: evData, isLoading: evLoading } = useGetEvents({ search: q || undefined });
   const { data: chData, isLoading: chLoading } = useGetChallenges({ search: q || undefined });
 
   const isLoading = !!q && (evLoading || chLoading);

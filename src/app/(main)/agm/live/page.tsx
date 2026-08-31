@@ -6,7 +6,7 @@ import { LiveRoom } from "@/components/attend/LiveRoom";
 function LivePageInner() {
   const searchParams = useSearchParams();
   const eventId = searchParams.get("eventId") ?? "";
-  return <LiveRoom eventId={eventId} showBallot backHref={eventId ? `/events/${eventId}` : "/events"} backLabel="Leave meeting" />;
+  return <LiveRoom eventId={eventId} showBallot backHref="/agm" backLabel="Leave meeting" />;
 }
 
 export default function LivePage() {

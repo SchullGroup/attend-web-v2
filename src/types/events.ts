@@ -1,10 +1,5 @@
 import { ApiResponse } from "./api";
 
-export interface EventBranding {
-  logoUrl?: string | null;
-  brandColor?: string | null;
-}
-
 export interface EventListItem {
   id: string;
   title: string;
@@ -14,33 +9,17 @@ export interface EventListItem {
   date: string;
   startTime: string;
   venue: string;
-  /**
-   * Null until the organiser sets a link. Since Zoom links are no longer created
-   * at event-creation time, a VIRTUAL/HYBRID event can legitimately have no join
-   * link right up to (and past) its start time — gate "Join" on this being set.
-   */
-  streamUrl: string | null;
+  streamUrl: string;
   organizerName: string;
   organizerLogo: string;
   registerId?: string;
   registerName?: string;
   maximumCapacity: number;
   rsvpEnabled?: boolean;
+  /** Minutes after live start during which shareholders can still RSVP (0..120). Null = 30 default. */
+  lateRsvpMinutes?: number | null;
   featured?: boolean;
-  /**
-   * Eligible via the shareholder register (AGMs) or invited — not necessarily an actual
-   * RSVP. Use `hasRsvped` to gate RSVP/Cancel-RSVP-style actions; this alone isn't enough
-   * for that (confirmed 2026-08-17, after it drove a "confirmed" badge + a Cancel RSVP
-   * button that failed with "not registered" for someone who was only on the register).
-   */
   registered: boolean;
-  /** True only once a real RSVP (`EventRegistration` row) exists. */
-  hasRsvped?: boolean;
-  branding?: EventBranding;
-  flyerUrl?: string | null;
-  bannerUrl?: string | null;
-  brandPrimary?: string | null;
-  brandAccent?: string | null;
 }
 
 export interface SpeakerItem {
@@ -69,8 +48,7 @@ export interface EventDetail {
   date: string;
   startTime: string;
   venue: string;
-  /** Null until the organiser sets a link — see the note on `EventListItem.streamUrl`. */
-  streamUrl: string | null;
+  streamUrl: string;
   organizerName: string;
   organizerLogo: string;
   organizerPrimaryColor: string;
@@ -79,11 +57,10 @@ export interface EventDetail {
   maximumCapacity: number;
   registeredCount: number;
   rsvpEnabled?: boolean;
+  /** Minutes after live start during which shareholders can still RSVP (0..120). Null = 30 default. */
+  lateRsvpMinutes?: number | null;
   featured?: boolean;
-  /** See the note on `EventListItem.registered` — eligibility, not necessarily an RSVP. */
   registered: boolean;
-  /** True only once a real RSVP (`EventRegistration` row) exists. */
-  hasRsvped?: boolean;
   agmProxyEnabled: boolean;
   speakers?: SpeakerItem[];
   agenda?: AgendaItemDetail[];
@@ -91,35 +68,7 @@ export interface EventDetail {
   tags?: string[];
   waitlisted?: boolean;
   pressKitReleased?: boolean;
-  branding?: EventBranding;
-  flyerUrl?: string | null;
-  bannerUrl?: string | null;
-  brandPrimary?: string | null;
-  brandAccent?: string | null;
 }
-
-// Public guest browse (`GET /guest/events`) returns a deliberately slim event — no
-// module, capacity or registration state, since the caller isn't authenticated yet.
-export interface GuestEventListItem {
-  id: string;
-  title: string;
-  date: string;
-  startTime: string;
-  branding?: EventBranding;
-  eventType?: string;
-  status?: string;
-  flyerUrl?: string | null;
-  bannerUrl?: string | null;
-}
-
-export interface GuestEventsListData {
-  events: GuestEventListItem[];
-  page: number;
-  size: number;
-  totalCount: number;
-}
-
-export type GuestEventsListResponse = ApiResponse<GuestEventsListData>;
 
 export interface MyTicket {
   registrationId: string;

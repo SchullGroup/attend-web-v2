@@ -27,10 +27,6 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-# `npm run dev` is redirected here, so it is rewritten on every run. Tracking it put a
-# meaningless diff in front of every commit and made real changes harder to see.
-dev.log
-*.log
 
 # env files
 .env

@@ -1,0 +1,90 @@
+
+> attend-web@1.0.0 dev
+> next dev
+
+▲ Next.js 16.2.7 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.123:3000
+- Environments: .env.local, .env
+✓ Ready in 6.3s
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of C:\Users\HP\package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles: 
+   * C:\Users\HP\Desktop\Attend-Project\attend-web\package-lock.json
+
+
+○ Compiling /login ...
+ GET /login 200 in 20.5s (next.js: 19.3s, proxy.ts: 6ms, application-code: 1184ms)
+○ Compiling /agm/live ...
+ GET /agm/live?eventId=a2b4cc1f-4918-4ce8-8ec4-bb713a89293e&coi=1 200 in 7.8s (next.js: 6.9s, proxy.ts: 30ms, application-code: 799ms)
+ POST /api/auth/refresh 200 in 1835ms (next.js: 914ms, application-code: 921ms)
+ GET / 200 in 1461ms (next.js: 1332ms, proxy.ts: 12ms, application-code: 117ms)
+ GET /hackathon 200 in 1497ms (next.js: 1403ms, proxy.ts: 11ms, application-code: 83ms)
+ GET /hackathon/fc79621a-0742-41e5-84c1-9efcae320da7 200 in 4.3s (next.js: 4.1s, proxy.ts: 10ms, application-code: 180ms)
+○ Compiling /hackathon/resources ...
+ GET /hackathon/resources?challengeId=fc79621a-0742-41e5-84c1-9efcae320da7 200 in 7.2s (next.js: 6.3s, proxy.ts: 543ms, application-code: 379ms)
+ POST /api/auth/refresh 200 in 959ms (next.js: 19ms, application-code: 940ms)
+ GET / 200 in 211ms (next.js: 38ms, proxy.ts: 46ms, application-code: 127ms)
+ POST /api/auth/refresh 200 in 922ms (next.js: 13ms, application-code: 908ms)
+ GET /agm 200 in 2.8s (next.js: 2.7s, proxy.ts: 13ms, application-code: 128ms)
+ POST /api/auth/refresh 200 in 1112ms (next.js: 97ms, application-code: 1015ms)
+Failed to proxy https://attend-api.schulltech.com/api/v1/participant/kyc Error: read ECONNRESET
+    at ignore-listed frames {
+  errno: -4077,
+  code: 'ECONNRESET',
+  syscall: 'read'
+}
+Error: read ECONNRESET
+    at ignore-listed frames {
+  errno: -4077,
+  code: 'ECONNRESET',
+  syscall: 'read'
+}
+Failed to proxy https://attend-api.schulltech.com/api/v1/participant/notifications?size=1 Error: connect ECONNABORTED 54.215.201.4:443
+    at <unknown> (Error: connect ECONNABORTED 54.215.201.4:443) {
+  errno: -4079,
+  code: 'ECONNABORTED',
+  syscall: 'connect',
+  address: '54.215.201.4',
+  port: 443
+}
+Error: connect ECONNABORTED 54.215.201.4:443
+    at <unknown> (Error: connect ECONNABORTED 54.215.201.4:443) {
+  errno: -4079,
+  code: 'ECONNABORTED',
+  syscall: 'connect',
+  address: '54.215.201.4',
+  port: 443
+}
+Failed to proxy https://attend-api.schulltech.com/api/v1/participant/events?eventType=AGM_EGM&size=50 Error: connect ECONNABORTED 54.215.201.4:443
+    at <unknown> (Error: connect ECONNABORTED 54.215.201.4:443) {
+  errno: -4079,
+  code: 'ECONNABORTED',
+  syscall: 'connect',
+  address: '54.215.201.4',
+  port: 443
+}
+Error: connect ECONNABORTED 54.215.201.4:443
+    at <unknown> (Error: connect ECONNABORTED 54.215.201.4:443) {
+  errno: -4079,
+  code: 'ECONNABORTED',
+  syscall: 'connect',
+  address: '54.215.201.4',
+  port: 443
+}
+Failed to proxy https://attend-api.schulltech.com/api/v1/auth/me Error: read ECONNRESET
+    at ignore-listed frames {
+  errno: -4077,
+  code: 'ECONNRESET',
+  syscall: 'read'
+}
+Error: read ECONNRESET
+    at ignore-listed frames {
+  errno: -4077,
+  code: 'ECONNRESET',
+  syscall: 'read'
+}
+○ Compiling /_error ...
+ POST /api/auth/refresh 200 in 1243ms (next.js: 134ms, application-code: 1109ms)

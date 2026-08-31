@@ -6,7 +6,6 @@ import { Mail, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useForgotPassword } from "@/api/auth/hooks";
-import { apiErrorMessage } from "@/lib/api-error";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -26,7 +25,9 @@ export default function ForgotPasswordPage() {
         },
         onError: (err: any) => {
           setErrorMsg(
-            apiErrorMessage(err, "Could not send reset code. Check your email and try again."),
+            err?.response?.data?.message ||
+              err?.message ||
+              "Could not send reset code. Check your email and try again.",
           );
         },
       },
@@ -35,13 +36,10 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="space-y-6">
-      <div className="md:hidden mb-2">
-        <img src="/attend-logo.png" alt="Attend" style={{ height: 31 }} />
-      </div>
 
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Forgot password?</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Forgot password?</h1>
+        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/70">
           Enter your email and we&apos;ll send you a verification code.
         </p>
       </div>

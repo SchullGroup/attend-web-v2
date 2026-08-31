@@ -1,24 +1,30 @@
 "use client";
-import Link from "next/link";
+import { Bell, FileText, Megaphone, CalendarClock, Vote, Sparkles } from "lucide-react";
 import { useGetNotifications, useMarkRead, useMarkAllRead } from "@/api/notifications/hooks";
-import type { Notification } from "@/types";
+import { Notification } from "@/types";
 import { Button } from "@/components/ui/Button";
-import { cn } from "@/lib/utils";
-import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { usePushSubscription } from "@/hooks/usePushSubscription";
-import { notificationStyle } from "@/lib/notification-types";
+import { formatRelativeTime } from "@/lib/utils";
+
+const ICONS: Record<string, typeof Bell> = {
+  vote_open: Vote,
+  event_reminder: CalendarClock,
+  application_update: Sparkles,
+  document: FileText,
+  broadcast: Megaphone,
+};
+
+const TYPE_COLOR: Record<string, string> = {
+  vote_open: "bg-red-50 text-red-600",
+  event_reminder: "bg-amber-50 text-amber-600",
+  application_update: "bg-emerald-50 text-emerald-600",
+  document: "bg-blue-50 text-blue-600",
+  broadcast: "bg-purple-50 text-purple-600",
+};
 
 export default function NotificationsPage() {
   const { data, isLoading } = useGetNotifications({ size: 50 });
   const { mutate: markRead } = useMarkRead();
   const { mutate: markAllRead, isPending: markingAll } = useMarkAllRead();
-
-  const {
-    enabled: pushEnabled,
-    busy: submittingPush,
-    message: pushMsg,
-    toggle: handleTogglePush,
-  } = usePushSubscription();
 
   const notifications = data?.data?.notifications ?? [];
   const unreadCount = data?.data?.unreadCount ?? 0;
@@ -56,49 +62,6 @@ export default function NotificationsPage() {
           Mark all as read
         </Button>
       </header>
-
-      <div className="space-y-3 rounded-2xl border border-border bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5 pr-4">
-            <h3 className="text-sm font-semibold text-foreground">Web Push Notifications</h3>
-            <p className="text-xs text-muted-foreground leading-normal">
-              Receive live meeting alerts, reminders, and vote opening broadcasts instantly.
-            </p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={pushEnabled}
-            disabled={submittingPush}
-            onClick={() => handleTogglePush(!pushEnabled)}
-            className={cn(
-              "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50",
-              pushEnabled ? "bg-primary" : "bg-muted"
-            )}
-          >
-            <span
-              className={cn(
-                "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                pushEnabled ? "translate-x-5" : "translate-x-0"
-              )}
-            />
-          </button>
-        </div>
-
-        {pushMsg && (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-            {pushMsg}
-          </p>
-        )}
-
-        <p className="text-xs text-muted-foreground">
-          Email and in-app alerts are configured separately in{" "}
-          <Link href="/profile/notification-preferences" className="font-medium text-primary hover:underline">
-            Notification Preferences
-          </Link>
-          .
-        </p>
-      </div>
 
       {notifications.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
@@ -144,8 +107,8 @@ function NotificationItem({
   notification: Notification;
   onRead?: () => void;
 }) {
-  const { icon: Icon, color: colorClass } = notificationStyle(n.type);
-  const timeLabel = useRelativeTime(n.createdAt);
+  const Icon = ICONS[n.type] ?? Bell;
+  const colorClass = TYPE_COLOR[n.type] ?? "bg-muted text-muted-foreground";
 
   return (
     <li
@@ -165,7 +128,7 @@ function NotificationItem({
           {!n.read && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />}
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">{n.message}</p>
-        <p className="mt-1 text-[11px] text-muted-foreground">{timeLabel}</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">{formatRelativeTime(n.createdAt)}</p>
       </div>
     </li>
   );

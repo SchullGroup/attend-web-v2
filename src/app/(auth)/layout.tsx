@@ -1,60 +1,67 @@
-import { CalendarCheck2, Vote, Trophy } from "lucide-react";
+import Image from "next/image";
 
+// Figma "Web - Redesign" / ONBOARDING (777:3391) — a persistent split shell:
+// a fixed dark brand panel on the left (headline + phone mockup, identical
+// copy to the mobile app's own onboarding carousel), swappable auth forms on
+// the right. Every auth page (login/register/verify/forgot/reset/bvn-recover)
+// renders inside this same shell.
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen">
-      {/* Left brand panel — hidden on small screens */}
-      <aside className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-zinc-900 p-12 text-white md:flex">
-        {/* Subtle background shapes */}
-        <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-white/3" />
-        <div className="absolute bottom-0 right-0 h-125 w-125 rounded-full bg-white/3" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-64 w-64 rounded-full bg-white/2" />
+    <div className="flex min-h-screen items-stretch bg-white p-2 md:p-3">
+      {/* Left brand panel — hidden below md, matches the mobile-web breakpoint's
+          stacked layout being a separate design (not built from this shell). */}
+      <aside className="relative hidden w-[45%] max-w-[640px] flex-col items-center overflow-hidden rounded-2xl bg-black px-10 pt-16 pb-0 text-center md:flex">
+        {/* Ambient glow, approximating Figma's radial highlight behind the phone */}
+        <div
+          className="pointer-events-none absolute -right-24 -top-24 h-[560px] w-[560px] rounded-full opacity-60"
+          style={{ background: "radial-gradient(circle, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 70%)" }}
+        />
 
-        <div className="relative">
-          <img
-            src="/attend-logo.png"
-            alt="Attend"
-            style={{ height: 44 }}
-            className="brightness-0 invert"
-          />
-          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-white/50">
-            Your events platform
+        {/* Progress dots — decorative, matches every auth-state reference 1:1 */}
+        <div className="relative z-10 flex w-14 items-center gap-1">
+          <div className="h-[5px] flex-1 rounded-full bg-white" />
+          <div className="h-[5px] flex-1 rounded-full bg-white/10" />
+          <div className="h-[5px] flex-1 rounded-full bg-white/10" />
+        </div>
+
+        <div className="relative z-10 mt-14 flex w-full max-w-[342px] flex-col gap-6">
+          <h1
+            className="whitespace-pre-line text-white"
+            style={{
+              fontFamily: "Outfit",
+              fontWeight: 600,
+              fontSize: 80,
+              lineHeight: 0.8,
+              letterSpacing: -3.2,
+            }}
+          >
+            {"Every\nvoice\ncounts."}
+          </h1>
+          <p className="text-sm leading-[1.4] tracking-[-0.28px] text-white/80">
+            Join shareholder meetings, follow proceedings, participate in
+            discussions &amp; vote securely from anywhere.
           </p>
         </div>
 
-        <div className="relative space-y-8">
-          <div>
-            <h2 className="text-3xl font-bold leading-tight">
-              Attend the events that matter to you.
-            </h2>
-            <p className="mt-3 max-w-md text-sm leading-relaxed text-white/60">
-              AGMs, product launches and innovation challenges — join live, vote on resolutions
-              and stay connected to the companies and communities you care about.
-            </p>
-          </div>
-
-          <div className="grid max-w-md grid-cols-3 gap-3">
-            {[
-              { icon: CalendarCheck2, label: "RSVP & join events" },
-              { icon: Vote,           label: "Vote in real time"  },
-              { icon: Trophy,         label: "Enter challenges"   },
-            ].map(({ icon: Icon, label }) => (
-              <div key={label} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <Icon className="h-5 w-5 text-white/70" />
-                <p className="mt-2 text-xs font-medium text-white/80">{label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="relative text-xs text-white/30">
-          © {new Date().getFullYear()} Meristem · Attend
+        {/* Phone mockup — bleeds off the bottom of the card, per Figma's overflow-clip */}
+        <div className="relative z-10 mt-10 w-[295px] max-w-full flex-1">
+          <Image
+            src="/auth/phone-mockup-agm.png"
+            alt=""
+            width={305}
+            height={405}
+            className="w-full object-cover object-top"
+            priority
+          />
         </div>
       </aside>
 
       {/* Right form area */}
-      <main className="flex w-full flex-col items-center justify-center bg-background px-6 py-10 md:w-1/2">
-        <div className="w-full max-w-sm">{children}</div>
+      <main className="flex w-full flex-col items-center justify-center px-6 py-10 md:w-[55%]">
+        <div className="flex w-full max-w-[410px] flex-col items-center gap-10">
+          <Image src="/attend-logo.png" alt="Attend" width={148} height={35} priority />
+          <div className="w-full">{children}</div>
+        </div>
       </main>
     </div>
   );

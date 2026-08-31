@@ -1,150 +1,135 @@
-import React, { useState } from "react";
-import { User, Check } from "lucide-react";
+"use client";
+import { useState } from "react";
+import { Check, X, Minus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import type { CandidateItem, VoteChoiceValue } from "@/types";
+import type { Resolution, ResolutionNominee } from "@/types/agm";
 
-// Ballot for a candidate ("election") resolution — every candidate is voted on
-// independently. Field names mirror the API: `candidates` and `{ candidateId, choice }`.
-export type CandidateVote = { candidateId: string; choice: VoteChoiceValue };
+// Item G — multi-nominee resolutions: render per-nominee For/Against/Abstain grid.
+// Cast payload uses `nomineeVotes: [{ nomineeId, choice }]`.
 
-interface NomineeBallotProps {
-  candidates: CandidateItem[];
-  title: string;
-  onVoteCast?: (votes: CandidateVote[]) => void;
-  isPending: boolean;
-  showSubmitButton?: boolean;
-  onChange?: (votes: CandidateVote[]) => void;
-}
+type Choice = "FOR" | "AGAINST" | "ABSTAIN";
 
 export function NomineeBallot({
-  candidates,
-  title,
-  onVoteCast,
-  isPending,
-  showSubmitButton = true,
-  onChange,
-}: NomineeBallotProps) {
-  const [choices, setChoices] = useState<Record<string, VoteChoiceValue>>({});
+  resolution,
+  disabled,
+  onCast,
+  submitting,
+}: {
+  resolution: Resolution;
+  disabled?: boolean;
+  onCast: (nomineeVotes: Array<{ nomineeId: string; choice: Choice }>) => void;
+  submitting?: boolean;
+}) {
+  const nominees = resolution.nominees ?? [];
+  const [choices, setChoices] = useState<Record<string, Choice>>({});
 
-  const handleSelect = (candidateId: string, choice: VoteChoiceValue) => {
-    const nextChoices = { ...choices, [candidateId]: choice };
-    setChoices(nextChoices);
-    if (onChange) {
-      const payload = candidates
-        .map((c) => ({ candidateId: c.id, choice: nextChoices[c.id] }))
-        .filter((v) => !!v.choice) as CandidateVote[];
-      onChange(payload);
+  function setChoice(id: string, c: Choice) {
+    setChoices((prev) => ({ ...prev, [id]: c }));
+  }
+
+  function confirmAndCast() {
+    const votes: Array<{ nomineeId: string; choice: Choice }> = [];
+    for (const n of nominees) {
+      const c = choices[n.id];
+      if (c) votes.push({ nomineeId: n.id, choice: c });
     }
-  };
+    const missing = nominees.length - votes.length;
+    if (missing > 0) {
+      const ok = window.confirm(
+        `You have not voted on ${missing} nominee${missing === 1 ? "" : "s"}. ` +
+        "They will be recorded as Abstain. Continue?",
+      );
+      if (!ok) return;
+      // Fill missing as ABSTAIN so backend never sees a partial payload.
+      for (const n of nominees) if (!choices[n.id]) votes.push({ nomineeId: n.id, choice: "ABSTAIN" });
+    }
+    onCast(votes);
+  }
 
-  const allSelected = candidates.every((c) => !!choices[c.id]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!allSelected || !onVoteCast) return;
-
-    const payload = candidates.map((c) => ({
-      candidateId: c.id,
-      choice: choices[c.id],
-    }));
-
-    onVoteCast(payload);
-  };
+  const filledCount = Object.keys(choices).length;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-border bg-white p-5 shadow-sm">
-      <div>
-        <h3 className="text-sm font-bold text-foreground">Candidate ballot</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Please select your vote for each candidate below to complete your ballot.
-        </p>
-      </div>
-
-      <div className="space-y-3.5 divide-y divide-slate-100 max-h-[300px] overflow-y-auto pr-1">
-        {candidates.map((candidate, idx) => {
-          const choice = choices[candidate.id];
-          return (
-            <div key={candidate.id} className={cn("flex flex-col gap-2.5 pt-3 first:pt-0 border-t border-slate-100 first:border-t-0")}>
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
-                  <User className="h-5 w-5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground leading-snug">{candidate.name}</p>
-                  {candidate.bio && <p className="text-xs text-muted-foreground mt-0.5">{candidate.bio}</p>}
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                {[
-                  { key: "FOR", label: "For", activeClass: "bg-emerald-600 border-emerald-600 text-white shadow-sm hover:bg-emerald-700" },
-                  { key: "AGAINST", label: "Against", activeClass: "bg-rose-600 border-rose-600 text-white shadow-sm hover:bg-rose-750" },
-                  { key: "ABSTAIN", label: "Abstain", activeClass: "bg-slate-700 border-slate-700 text-white shadow-sm hover:bg-slate-800" }
-                ].map((btn) => {
-                  const active = choice === btn.key;
-                  return (
-                    <button
-                      key={btn.key}
-                      type="button"
-                      disabled={isPending}
-                      onClick={() => handleSelect(candidate.id, btn.key as any)}
-                      className={cn(
-                        "flex-1 rounded-xl py-2 text-xs font-semibold border transition-all duration-200",
-                        active
-                          ? btn.activeClass
-                          : "bg-slate-50/50 border-slate-200 text-slate-700 hover:bg-slate-100/70"
-                      )}
-                    >
-                      {btn.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <CandidateTally candidate={candidate} />
-            </div>
-          );
-        })}
-      </div>
-
-      {showSubmitButton && (
-        <Button
-          type="submit"
-          fullWidth
-          disabled={!allSelected || isPending}
-          loading={isPending}
-          className="mt-2 bg-slate-900 hover:bg-slate-800 text-white font-bold"
-        >
-          Cast Ballot Vote
-        </Button>
-      )}
-    </form>
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Cast a vote For, Against, or Abstain for each nominee independently.
+      </p>
+      {nominees.map((n, i) => (
+        <NomineeRow
+          key={n.id}
+          index={i + 1}
+          nominee={n}
+          current={choices[n.id]}
+          onSelect={(c) => setChoice(n.id, c)}
+          disabled={disabled || submitting}
+        />
+      ))}
+      <Button
+        fullWidth
+        loading={submitting}
+        disabled={disabled || submitting}
+        onClick={confirmAndCast}
+      >
+        Cast {filledCount} vote{filledCount === 1 ? "" : "s"} across {nominees.length} nominee{nominees.length === 1 ? "" : "s"}
+      </Button>
+    </div>
   );
 }
 
-// Compact per-candidate running tally, mirroring the standard resolution's live tally.
-// Head counts only (the candidate payload's share fields are all 0 unless the register is
-// share-weighted). Hidden until at least one vote exists, so it stays clean pre-voting.
-export function CandidateTally({ candidate }: { candidate: CandidateItem }) {
-  const f = candidate.forCount ?? 0;
-  const a = candidate.againstCount ?? 0;
-  const ab = candidate.abstainCount ?? 0;
-  const total = f + a + ab;
-  if (total === 0) return null;
-  const pct = (n: number) => `${(n / total) * 100}%`;
+function NomineeRow({
+  index,
+  nominee,
+  current,
+  onSelect,
+  disabled,
+}: {
+  index: number;
+  nominee: ResolutionNominee;
+  current?: Choice;
+  onSelect: (c: Choice) => void;
+  disabled?: boolean;
+}) {
+  const options: Array<{ v: Choice; label: string; Icon: typeof Check; sel: string; base: string }> = [
+    { v: "FOR",     label: "For",     Icon: Check, sel: "bg-emerald-600 text-white border-emerald-600", base: "border-emerald-200 text-emerald-700 hover:bg-emerald-50" },
+    { v: "AGAINST", label: "Against", Icon: X,     sel: "bg-red-600 text-white border-red-600",         base: "border-red-200 text-red-700 hover:bg-red-50" },
+    { v: "ABSTAIN", label: "Abstain", Icon: Minus, sel: "bg-slate-700 text-white border-slate-700",     base: "border-border text-muted-foreground hover:bg-muted" },
+  ];
   return (
-    <div className="mt-1">
-      <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-        <div className="bg-emerald-500" style={{ width: pct(f) }} />
-        <div className="bg-rose-500" style={{ width: pct(a) }} />
-        <div className="bg-slate-400" style={{ width: pct(ab) }} />
+    <div className="rounded-xl border border-border bg-white p-3">
+      <div className="mb-2">
+        <p className="text-sm font-semibold text-foreground">{index}. {nominee.name}</p>
+        {nominee.bio && (
+          <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{nominee.bio}</p>
+        )}
       </div>
-      <p className="mt-1 flex gap-3 text-[10px] font-medium text-muted-foreground">
-        <span className="text-emerald-600">For {f}</span>
-        <span className="text-rose-600">Against {a}</span>
-        <span>Abstain {ab}</span>
-      </p>
+      <div className="grid grid-cols-3 gap-2">
+        {options.map((o) => {
+          const selected = current === o.v;
+          const Icon = o.Icon;
+          return (
+            <button
+              key={o.v}
+              type="button"
+              onClick={() => onSelect(o.v)}
+              disabled={disabled}
+              className={cn(
+                "flex items-center justify-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-semibold transition disabled:opacity-50",
+                selected ? o.sel : o.base,
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+      {(nominee.forCount + nominee.againstCount + nominee.abstainCount) > 0 && (
+        <div className="mt-2 flex gap-3 text-[11px] text-muted-foreground">
+          <span>For: {nominee.forCount}</span>
+          <span>Against: {nominee.againstCount}</span>
+          <span>Abstain: {nominee.abstainCount}</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -41,12 +41,6 @@ export const useGetCertificate = (id: string) => {
     queryFn: () => hackathonClient.getCertificate(id),
     enabled: !!id,
     retry: false,
-    // The certificate row can exist before its PDF is rendered — poll until the
-    // backend reports downloadReady, then stop.
-    refetchInterval: (query) => {
-      const cert = query.state.data?.data;
-      return cert?.issued && cert.downloadReady === false ? 4000 : false;
-    },
   });
 };
 

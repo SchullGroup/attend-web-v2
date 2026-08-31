@@ -1,30 +1,22 @@
 "use client";
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, CalendarDays, Clock, MapPin, Users, Bookmark, Share2,
+  ArrowLeft, Clock, MapPin, Users, Bookmark, Share2,
   QrCode, CheckCircle2, Check, Monitor, Wifi, Vote, FileText,
-  BookOpen, ShieldAlert, ChevronRight, Radio, DownloadCloud, FileBox,
+  BookOpen, ShieldAlert, ChevronRight, Radio, Play, DownloadCloud, FileBox
 } from "lucide-react";
 import {
   useGetEvent, useRsvp, useCancelRsvp, useJoinWaitlist,
-  useGetSavedEvents, useSaveEvent, useUnsaveEvent, useGetPressKit,
+  useGetSavedEvents, useSaveEvent, useUnsaveEvent, useGetPressKit, useGetQuorum
 } from "@/api/events/hooks";
 import { useGetResolutions } from "@/api/agm/hooks";
-import { useGetMyTeam } from "@/api/hackathon/hooks";
-import { ModuleBadge } from "@/components/attend/ModuleBadge";
-import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { cn, formatDate, initialsFor, fileDisplayName, parseApiDate } from "@/lib/utils";
-import { useEffect } from "react";
-import {
-  getRsvpEligibility,
-  rsvpBlockedMessage,
-  parseEventStart,
-  formatWindowTime,
-} from "@/lib/rsvp";
+import { Button } from "@/components/ui/Button";
+import { cn, formatDate, initialsFor, fileDisplayName } from "@/lib/utils";
 import { useUserStore } from "@/lib/user-store";
+import { rsvpWindow } from "@/lib/rsvp";
 
 // Backend formats are upper-case (VIRTUAL/HYBRID/IN_PERSON).
 const FORMAT_LABEL: Record<string, string> = {
@@ -68,26 +60,6 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const event = data?.data;
 
   const [rsvpError, setRsvpError] = useState<string | null>(null);
-  const [currentTime, setCurrentTime] = useState(new Date());
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const startsAt = event ? parseEventStart(event.date, event.startTime) : null;
-
-  // Late registration: a LIVE event keeps accepting RSVPs for LATE_RSVP_MINUTES past its
-  // start, per the PM decision. Everything else is decided by status and rsvpEnabled rather
-  // than by the clock, so an event still PUBLISHED after its nominal start keeps accepting
-  // registrations — which is what the backend does, and what the old clock-only gate wrongly
-  // blocked. See docs/RSVP_LATE_REGISTRATION.md.
-  const rsvpEligibility = getRsvpEligibility(event);
-  const rsvpBlocked = rsvpBlockedMessage(rsvpEligibility.reason);
-  const lateWindow = rsvpEligibility.lateWindowClosesAt;
-
   const [shared, setShared] = useState(false);
   const { mutate: rsvp, isPending: rsvping } = useRsvp(id);
   const { mutate: cancelRsvp, isPending: cancelling } = useCancelRsvp(id);
@@ -105,15 +77,19 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   // Resolutions are a separate array from the agenda — only AGMs have them.
   const { data: resData } = useGetResolutions(id, undefined, event?.eventType === "AGM_EGM");
   const resolutions = resData?.data?.resolutions ?? [];
-  // Same signal agm/proxy/page.tsx uses to decide whether a proxy already exists — so the
-  // entry point into that page can say "Change proxy" instead of promising a fresh
-  // appointment it won't actually offer once you get there.
-  const hasProxy = resData?.data?.hasProxy === true;
 
-  // Only meaningful for HACKATHON — useGetMyTeam no-ops (enabled: !!challengeId) otherwise.
-  const { data: myTeamResp } = useGetMyTeam(mod === "HACKATHON" ? id : "");
-  const teamSubmissionStatus = myTeamResp?.data?.submission?.status;
-  const submitted = !!teamSubmissionStatus && teamSubmissionStatus !== "NOT_SUBMITTED";
+  // Quorum — AGM-only, same loosely-typed endpoint/field-guessing LiveRoom uses
+  // for its in-session ballot header (the backend doesn't publish a fixed schema).
+  const { data: quorumResp } = useGetQuorum(id, mod === "AGM");
+  const quorum = (() => {
+    const m = (quorumResp?.data ?? {}) as Record<string, unknown>;
+    const pctRaw =
+      m.quorumPercentage ?? m.percentage ?? m.currentPercentage ?? m.presentPercentage ?? m.attendancePercentage;
+    const totalRaw = m.totalShareholders ?? m.totalEligible ?? m.eligibleCount ?? m.totalShares ?? m.totalAttendees;
+    const pct = typeof pctRaw === "number" ? Math.round(pctRaw) : null;
+    const total = typeof totalRaw === "number" ? totalRaw : null;
+    return pct === null ? null : { pct, total };
+  })();
 
   function toggleSave() {
     if (saved) unsaveEvent();
@@ -158,10 +134,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="h-6 w-24 animate-pulse rounded-lg bg-muted" />
-        <div className="h-64 animate-pulse rounded-3xl bg-muted" />
-        <div className="h-4 w-full animate-pulse rounded bg-muted" />
-        <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
+        <div className="h-6 w-24 animate-pulse rounded-lg bg-foreground/[0.06]" />
+        <div className="aspect-[649/301] w-full animate-pulse rounded-2xl bg-foreground/[0.06]" />
+        <div className="h-4 w-full animate-pulse rounded bg-foreground/[0.06]" />
+        <div className="h-4 w-3/4 animate-pulse rounded bg-foreground/[0.06]" />
       </div>
     );
   }
@@ -169,119 +145,186 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   if (error || !event) {
     return (
       <div className="flex h-[50vh] flex-col items-center justify-center gap-4 text-center">
-        <p className="text-sm text-muted-foreground">Could not load event details.</p>
+        <p className="text-sm text-foreground/60">Could not load event details.</p>
         <Button variant="outline" size="sm" onClick={() => router.back()}>Go back</Button>
       </div>
     );
   }
 
-  const color = event.brandPrimary || event.branding?.brandColor || event.organizerPrimaryColor || MODULE_COLOR[mod] || "#0B5CFF";
+  const color = event.organizerPrimaryColor || MODULE_COLOR[mod] || "#2563eb";
   const organiser = event.registerName || event.organizerName;
-  // `registered` means "eligible" for an AGM shareholder (register membership), not
-  // necessarily an actual RSVP — that's what broke Cancel RSVP/Appoint Proxy for someone
-  // who was only added to the register. `hasRsvped` is the real signal; fall back to
-  // `registered` only while backend hasn't deployed that field yet, so this doesn't regress
-  // already-registered users into seeing the RSVP button again in the meantime.
-  const hasRsvped = event.hasRsvped ?? event.registered;
   const isLive = event.status === "LIVE";
   const isEnded = event.status === "ENDED";
   const isUpcoming = !isLive && !isEnded;
   const isVirtual = event.format === "VIRTUAL";
-  // A VIRTUAL/HYBRID event can now be LIVE with no join link yet — Zoom links are no
-  // longer minted at creation time. Show an unavailable state rather than a dead button.
-  const needsStreamLink = event.format === "VIRTUAL" || event.format === "HYBRID";
-  const missingStreamLink = needsStreamLink && !event.streamUrl;
   const FormatIcon = FORMAT_ICON[event.format] ?? MapPin;
+
+  function goLive() {
+    if (mod === "AGM") router.push(`/agm/live?eventId=${id}`);
+    else router.push(`/events/live?eventId=${id}`);
+  }
+
+  // Item A — late-RSVP window; tick every 30s
+  const [rsvpTick, setRsvpTick] = useState(0);
+  useEffect(() => {
+    if (!event?.startTime) return;
+    const iv = setInterval(() => setRsvpTick(n => n + 1), 30_000);
+    return () => clearInterval(iv);
+  }, [event?.startTime]);
+  void rsvpTick;
+  const rsvpState = event
+    ? rsvpWindow({ startTime: event.startTime, lateRsvpMinutes: event.lateRsvpMinutes ?? null })
+    : null;
+  const rsvpClosedByCutoff = !!(rsvpState && !rsvpState.isOpen && !isEnded);
   const fill = event.maximumCapacity
     ? Math.round((event.registeredCount / event.maximumCapacity) * 100)
     : 0;
   const isFull = event.maximumCapacity > 0 && event.registeredCount >= event.maximumCapacity;
 
   return (
-    <div
-      className={cn("pb-28 space-y-6", mod === "HACKATHON" && "challenge-scope")}
-      style={
-        mod === "HACKATHON"
-          ? ({
-              "--brand-primary": event.brandPrimary || "#9333ea",
-              "--brand-accent": event.brandAccent || "#c084fc",
-            } as React.CSSProperties)
-          : undefined
-      }
-    >
+    <div className="space-y-6 pb-28">
       <button
         onClick={() => router.back()}
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Back
       </button>
 
-      {/* Hero header */}
-      <header
-        className="relative overflow-hidden rounded-3xl p-6 text-white md:p-8 flex flex-col justify-end"
-        style={{ background: color }}
-      >
-        {/* The flyer moved into the body (below); the header is always the brand-colour
-            banner with the organiser's initials as a watermark. */}
-        <div className="absolute -right-10 -bottom-12 select-none text-[180px] font-black leading-none text-white/10">
-          {initialsFor(organiser)}
+      {/* Hero visual — Figma shows a live video preview (LIVE pill + play button)
+          for live/ended events and a plain promo image for upcoming ones. There's
+          no real event image in the API yet, so we fall back to the module/brand
+          colour with a big initials watermark, same as before. */}
+      {isLive ? (
+        <button
+          onClick={goLive}
+          className="group relative block aspect-[649/301] w-full overflow-hidden rounded-2xl text-left"
+          style={{ background: color }}
+        >
+          <div className="absolute -bottom-10 -right-8 select-none text-[160px] font-black leading-none text-white/10">
+            {initialsFor(organiser)}
+          </div>
+          <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+            <span className="h-1.5 w-1.5 rounded-full bg-white" /> Live
+          </span>
+          <span className="absolute inset-0 flex items-center justify-center">
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-sm transition-transform group-hover:scale-105">
+              <Play className="h-6 w-6 fill-white" />
+            </span>
+          </span>
+        </button>
+      ) : (
+        <div
+          className={cn(
+            "relative overflow-hidden rounded-2xl",
+            isEnded ? "aspect-[649/301]" : "aspect-[649/193]",
+          )}
+          style={{ background: color }}
+        >
+          <div className="absolute -bottom-10 -right-8 select-none text-[160px] font-black leading-none text-white/10">
+            {initialsFor(organiser)}
+          </div>
         </div>
-        <div className="relative space-y-4">
-          <div className="flex items-center gap-2">
-            <ModuleBadge module={event.eventType} solid />
-            {isLive && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-600/85 px-3 py-1 text-xs font-semibold">
-                <span className="h-1.5 w-1.5 rounded-full bg-white" /> LIVE
-              </span>
-            )}
+      )}
+
+      {/* Icon tile + title + actions */}
+      <div className="flex gap-3">
+        <div
+          className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl text-sm font-bold text-white"
+          style={{ backgroundColor: color }}
+        >
+          {event.organizerLogo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={event.organizerLogo} alt="" className="h-full w-full object-cover" />
+          ) : (
+            initialsFor(organiser)
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">
+              {event.title}
+            </h1>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                onClick={toggleSave}
+                title={saved ? "Remove from saved" : "Save event"}
+                className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+              >
+                <Bookmark className={cn("h-[18px] w-[18px]", saved && "fill-foreground text-foreground")} />
+              </button>
+              <button
+                onClick={handleShare}
+                title={shared ? "Link copied!" : "Share event"}
+                className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+              >
+                {shared ? <Check className="h-[18px] w-[18px]" /> : <Share2 className="h-[18px] w-[18px]" />}
+              </button>
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-white/80">{organiser}</p>
-            <h1 className="text-2xl font-bold leading-tight md:text-3xl">{event.title}</h1>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Chip icon={CalendarDays}>{formatDate(event.date)}</Chip>
-            {event.startTime && <Chip icon={Clock}>{event.startTime}</Chip>}
+
+          <p className="mt-1 flex items-center gap-1 text-xs tracking-[-0.12px] text-foreground/60">
+            <span>By:</span>
+            <span className="text-foreground/80">{organiser}</span>
+          </p>
+
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs tracking-[-0.12px] text-foreground/70">
+            <span className="inline-flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5" />
+              {formatDate(event.date)}{event.startTime ? `, ${event.startTime}` : ""}
+            </span>
             {event.registeredCount > 0 && (
-              <Chip icon={Users}>{event.registeredCount.toLocaleString()} attending</Chip>
-            )}
-            {event.venue && <Chip icon={MapPin}>{event.venue}</Chip>}
-          </div>
-          <div className="flex flex-wrap items-center gap-2 pt-2">
-            {hasRsvped && (
-              <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/20 px-4 py-2.5 text-sm font-semibold backdrop-blur">
-                <CheckCircle2 className="h-4 w-4" /> You&apos;re confirmed
+              <span className="inline-flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5" />
+                {event.registeredCount.toLocaleString()} Registered
               </span>
             )}
-            {/* QR check-in is only for events with a physical venue (in-person / hybrid). */}
-            {!isVirtual && (
-              <Link href={`/qr-checkin?eventId=${id}`}>
-                <button className="inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-semibold backdrop-blur hover:bg-white/20">
-                  <QrCode className="h-4 w-4" /> QR check-in
-                </button>
-              </Link>
+            <span className="inline-flex items-center gap-1.5">
+              <FormatIcon className="h-3.5 w-3.5" />
+              {FORMAT_LABEL[event.format] ?? event.format}
+            </span>
+            {event.venue && (
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5" />
+                {event.venue}
+              </span>
             )}
-            <button
-              onClick={toggleSave}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/30 bg-white/10 backdrop-blur hover:bg-white/20 transition-colors"
-              title={saved ? "Remove from saved" : "Save event"}
+          </div>
+
+          {event.registered && (
+            <div className="mt-2.5 flex items-center gap-1.5">
+              <CheckCircle2 className="h-[18px] w-[18px] text-primary" />
+              <span className="text-xs font-medium tracking-[-0.12px] text-primary">You&apos;re Confirmed</span>
+            </div>
+          )}
+
+          {/* AGM's QR check-in lives in the 3-tile action grid below instead, matching Figma. */}
+          {mod !== "AGM" && !isVirtual && (
+            <Link
+              href={`/events/qr-checkin?eventId=${id}`}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-foreground/10 px-3 py-1.5 text-xs font-medium tracking-[-0.12px] text-foreground/70 transition-colors hover:bg-foreground/[0.04]"
             >
-              <Bookmark className={cn("h-4 w-4", saved && "fill-white")} />
-            </button>
-            <button
-              onClick={handleShare}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/30 bg-white/10 backdrop-blur hover:bg-white/20 transition-colors"
-              title={shared ? "Link copied!" : "Share event"}
-            >
-              {shared ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
-            </button>
+              <QrCode className="h-3.5 w-3.5" /> QR check-in
+            </Link>
+          )}
+        </div>
+      </div>
+
+      {/* Capacity — only when the event actually has a cap */}
+      {event.maximumCapacity > 0 && (
+        <div className="max-w-sm">
+          <div className="flex items-center justify-between text-xs tracking-[-0.12px] text-foreground/60">
+            <span>{event.registeredCount.toLocaleString()} registered</span>
+            <span>{event.maximumCapacity.toLocaleString()} capacity</span>
+          </div>
+          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-foreground/10">
+            <div className="h-full rounded-full bg-primary" style={{ width: `${fill}%` }} />
           </div>
         </div>
-      </header>
+      )}
 
       {/* RSVP feedback — closed / invite-only events return their message here from the backend */}
       {rsvpError && (
-        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5">
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5">
           <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
           <p className="text-sm text-amber-800">{rsvpError}</p>
         </div>
@@ -291,7 +334,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       {(event.description || (event.tags && event.tags.length > 0)) && (
         <section className="space-y-3">
           {event.description && (
-            <p className="text-sm leading-relaxed text-foreground/80">{event.description}</p>
+            <>
+              <h2 className="text-sm font-medium tracking-[-0.14px] text-foreground">About this event</h2>
+              <p className="text-sm leading-relaxed tracking-[-0.14px] text-foreground/70">{event.description}</p>
+            </>
           )}
           {event.tags && event.tags.length > 0 && (
             <div className="flex flex-wrap gap-2">
@@ -303,55 +349,30 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         </section>
       )}
 
-      {/* Event flyer — shown full and uncropped here in the body. The list cards crop the
-          flyer to fill their header (object-cover); this view uses object-contain + a capped
-          height so the whole poster stays visible whatever its aspect ratio. */}
-      {(event.flyerUrl || event.bannerUrl) && (
-        <section className="overflow-hidden rounded-3xl border border-border bg-muted/40">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={event.flyerUrl || event.bannerUrl || undefined}
-            alt={`${event.title} flyer`}
-            className="mx-auto max-h-[520px] w-full object-contain"
-            onError={(e) => {
-              const sec = (e.currentTarget as HTMLImageElement).closest("section");
-              if (sec) (sec as HTMLElement).style.display = "none";
-            }}
-          />
-        </section>
-      )}
-
-      {/* Details card */}
-      <section className="rounded-2xl bg-muted/50 border border-border p-4 space-y-4">
-        <DetailRow icon={<CalendarDays className="h-4 w-4" style={{ color }} />}>
-          <p className="text-sm font-semibold">{formatDate(event.date)}</p>
-          {event.startTime && <p className="text-xs text-muted-foreground">{event.startTime}</p>}
-        </DetailRow>
-        <hr className="border-border" />
-        <DetailRow icon={<FormatIcon className="h-4 w-4" style={{ color }} />}>
-          <p className="text-sm font-semibold">{FORMAT_LABEL[event.format] ?? event.format}</p>
-          {event.venue && <p className="text-xs text-muted-foreground">{event.venue}</p>}
-        </DetailRow>
-        {event.maximumCapacity > 0 && (
-          <>
-            <hr className="border-border" />
-            <DetailRow icon={<Users className="h-4 w-4" style={{ color }} />}>
-              <p className="text-sm font-semibold">{event.registeredCount.toLocaleString()} registered</p>
-              <p className="text-xs text-muted-foreground">of {event.maximumCapacity.toLocaleString()} capacity</p>
-              <div className="mt-1.5 h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                <div className="h-full rounded-full" style={{ width: `${fill}%`, backgroundColor: color }} />
-              </div>
-            </DetailRow>
-          </>
-        )}
-      </section>
-
       {/* AGM module section */}
-      {mod === "AGM" && !isLive && !isEnded && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-foreground">AGM Actions</h2>
+      {mod === "AGM" && (
+        <section className="space-y-4">
+          {/* Quorum — mirrors the capacity bar above but keyed off the live
+              shareholder-attendance endpoint rather than RSVP capacity. */}
+          {quorum && (
+            <div className="max-w-sm">
+              <div className="flex items-center justify-between text-xs tracking-[-0.12px] text-foreground/60">
+                <span>Quorum ({quorum.pct}%)</span>
+                {quorum.total !== null && (
+                  <span className="inline-flex items-center gap-1">
+                    <Users className="h-3.5 w-3.5" /> {quorum.total.toLocaleString()} Shareholders
+                  </span>
+                )}
+              </div>
+              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-foreground/10">
+                <div className="h-full rounded-full bg-orange-500" style={{ width: `${quorum.pct}%` }} />
+              </div>
+            </div>
+          )}
+
+          <h2 className="text-sm font-medium tracking-[-0.14px] text-foreground">AGM Actions</h2>
           {kycStatus !== "full" ? (
-            <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5">
+            <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5">
               <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm text-amber-800">Identity verification required to access AGM actions</p>
@@ -359,18 +380,22 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               <Link href="/bvn" className="text-xs font-semibold text-amber-600 hover:underline shrink-0">Verify</Link>
             </div>
           ) : (
-            <div className="space-y-2">
-              {event.agmProxyEnabled && (
+            <div className="grid grid-cols-3 gap-2">
+              {event.agmProxyEnabled && !isVirtual && (
                 <Link href={`/agm/proxy?eventId=${id}`}>
-                  <ActionRow
-                    icon={<FileText className="h-5 w-5" style={{ color }} />}
-                    label={hasProxy ? "Change Proxy" : "Appoint a Proxy"}
-                  />
+                  <ActionTile icon={<FileText className="h-5 w-5 text-foreground/70" />} label="Appoint a Proxy" />
                 </Link>
               )}
-              <Link href={`/agm/pre-vote?eventId=${id}`}>
-                <ActionRow icon={<Vote className="h-5 w-5" style={{ color }} />} label="Pre-AGM Voting" />
-              </Link>
+              {!isLive && !isEnded && (
+                <Link href={`/agm/pre-vote?eventId=${id}`}>
+                  <ActionTile icon={<Vote className="h-5 w-5 text-foreground/70" />} label="Pre-AGM Voting" />
+                </Link>
+              )}
+              {!isVirtual && (
+                <Link href={`/events/qr-checkin?eventId=${id}`}>
+                  <ActionTile icon={<QrCode className="h-5 w-5 text-foreground/70" />} label="QR check-in" />
+                </Link>
+              )}
             </div>
           )}
         </section>
@@ -379,22 +404,18 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       {/* Hackathon / Innovation module section */}
       {mod === "HACKATHON" && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-foreground">Challenge Actions</h2>
+          <h2 className="text-sm font-medium tracking-[-0.14px] text-foreground">Challenge Actions</h2>
           <div className="space-y-2">
             <Link href={`/hackathon/${id}`}>
               <ActionRow
-                icon={<BookOpen className="h-5 w-5 text-(--brand-primary)" />}
+                icon={<BookOpen className="h-5 w-5 text-purple-600" />}
                 label="View Challenge Brief"
-                bg="bg-(--brand-primary)/10"
-                labelColor="text-(--brand-primary)"
-                style={{
-                  backgroundColor: `${event.brandPrimary || '#9333ea'}15`,
-                  color: 'var(--brand-primary)',
-                }}
+                bg="bg-purple-50"
+                labelColor="text-purple-800"
               />
             </Link>
             <Link href="/hackathon/my-applications">
-              <ActionRow icon={<Users className="h-5 w-5" style={{ color }} />} label="My Application" />
+              <ActionRow icon={<Users className="h-5 w-5 text-foreground/70" />} label="My Application" />
             </Link>
           </div>
         </section>
@@ -404,7 +425,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       {mod === "LAUNCH" && (
         <section className="space-y-3">
           {isUpcoming && (
-            <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
+            <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
               <p className="text-[10px] font-bold uppercase tracking-wider text-orange-700 mb-1">Launching soon</p>
               <p className="text-2xl font-bold text-orange-900 mb-0.5">
                 {(() => {
@@ -418,19 +439,19 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               </p>
             </div>
           )}
-          <h2 className="text-sm font-semibold text-foreground">Audience Access</h2>
+          <h2 className="text-sm font-medium tracking-[-0.14px] text-foreground">Audience Access</h2>
           <div className="grid grid-cols-3 gap-2">
             {[
               { label: "Press / Media", color: "text-purple-700", bg: "bg-purple-50" },
               { label: "VIP Guests", color: "text-amber-700", bg: "bg-amber-50" },
-              { label: "Public", color: "text-gray-700", bg: "bg-gray-100" },
+              { label: "Public", color: "text-foreground/70", bg: "bg-foreground/[0.04]" },
             ].map(({ label, color: c, bg }) => (
               <div key={label} className={cn("rounded-xl py-3 px-2 flex items-center justify-center text-center", bg)}>
                 <span className={cn("text-xs font-semibold", c)}>{label}</span>
               </div>
             ))}
           </div>
-          <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
+          <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
             <p className="text-sm font-semibold text-orange-900 mb-1">Press Kit</p>
             <p className="text-sm text-orange-700 leading-relaxed">
               {event.pressKitReleased
@@ -444,12 +465,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       {/* Speakers / Key participants (from backend) */}
       {event.speakers && event.speakers.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-foreground">
+          <h2 className="text-sm font-medium tracking-[-0.14px] text-foreground">
             {mod === "AGM" ? "Key Participants" : "Speakers"}
           </h2>
           <div className="space-y-2">
             {event.speakers.map((spk) => (
-              <div key={spk.id} className="flex items-center gap-3 rounded-2xl border border-border bg-muted/30 px-4 py-3">
+              <div key={spk.id} className="flex items-center gap-3 rounded-xl border border-foreground/[0.06] bg-foreground/[0.02] px-4 py-3">
                 <div
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
                   style={{ backgroundColor: color }}
@@ -457,8 +478,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   {initialsFor(spk.name)}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground">{spk.name}</p>
-                  {spk.roleTitle && <p className="text-xs text-muted-foreground">{spk.roleTitle}</p>}
+                  <p className="text-sm font-medium text-foreground">{spk.name}</p>
+                  {spk.roleTitle && <p className="text-xs text-foreground/60">{spk.roleTitle}</p>}
                 </div>
               </div>
             ))}
@@ -469,7 +490,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       {/* Resolutions & Agenda — one combined dot timeline (resolutions carry a badge) */}
       {((event.agenda && event.agenda.length > 0) || (mod === "AGM" && resolutions.length > 0)) && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-foreground">
+          <h2 className="text-sm font-medium tracking-[-0.14px] text-foreground">
             {mod === "AGM" ? "Resolutions & Agenda" : "Agenda"}
           </h2>
           <div className="space-y-4">
@@ -477,10 +498,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               .sort((a, b) => a.orderIndex - b.orderIndex)
               .map((item) => (
                 <div key={`agenda-${item.id}`} className="flex gap-3">
-                  <div className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+                  <div className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-foreground/20" />
                   <div>
                     <p className="text-sm text-foreground/90">{item.title}</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-foreground/60">
                       {[item.time, item.durationMinutes ? `${item.durationMinutes} min` : null, item.speaker]
                         .filter(Boolean)
                         .join(" · ")}
@@ -492,7 +513,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             {mod === "AGM" &&
               [...resolutions]
                 .sort((a, b) => a.order - b.order)
-                .map((r, i) => {
+                .map((r) => {
                   const v = (r.myVote || "").toUpperCase();
                   const s = (r.status || "").toUpperCase();
                   const badge = v ? (
@@ -508,20 +529,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   );
                   return (
                     <div key={`res-${r.id}`} className="flex gap-3">
-                      <div className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+                      <div className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-foreground/20" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <p className="text-sm text-foreground/90">
-                            {/* 1-based by position, not by r.order — order isn't reliably
-                                0-based on the backend (same fix already applied in
-                                LiveRoom.tsx), so trusting it here skipped "Resolution 1"
-                                whenever the first resolution's order was already 1. */}
-                            Resolution {i + 1}{r.specialResolution ? " · Special" : ""}: {r.title}
+                            Resolution {r.order + 1}{r.specialResolution ? " · Special" : ""}: {r.title}
                           </p>
                           <div className="shrink-0">{badge}</div>
                         </div>
                         {(r.description || fmtWindow(r.defaultDurationSeconds)) && (
-                          <p className="mt-0.5 text-xs text-muted-foreground">
+                          <p className="mt-0.5 text-xs text-foreground/60">
                             {[
                               r.description,
                               fmtWindow(r.defaultDurationSeconds)
@@ -544,7 +561,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       {mod === "LAUNCH" && pressKit && pressKit.totalCount > 0 && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Press Kit</h2>
+            <h2 className="text-sm font-medium tracking-[-0.14px] text-foreground">Press Kit</h2>
             <Badge variant="muted">{pressKit.releasedCount} / {pressKit.totalCount} released</Badge>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -555,22 +572,22 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 <div
                   key={file.id}
                   className={cn(
-                    "flex items-center justify-between gap-3 rounded-2xl border border-border bg-white p-4",
+                    "flex items-center justify-between gap-3 rounded-xl border border-foreground/[0.06] bg-white p-4",
                     !isReleased && "opacity-60",
                   )}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={cn(
                       "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-                      isReleased ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                      isReleased ? "bg-primary/10 text-primary" : "bg-foreground/[0.06] text-foreground/50"
                     )}>
                       <FileBox className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-foreground" title={name}>
+                      <p className="truncate text-sm font-medium text-foreground" title={name}>
                         {name}
                       </p>
-                      <p className="text-xs text-muted-foreground">{file.sizeLabel}</p>
+                      <p className="text-xs text-foreground/60">{file.sizeLabel}</p>
                     </div>
                   </div>
                   {isReleased ? (
@@ -578,7 +595,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                       href={file.downloadUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="shrink-0 rounded-xl bg-muted p-2 hover:bg-muted/80 transition-colors"
+                      className="shrink-0 rounded-xl bg-foreground/[0.04] p-2 hover:bg-foreground/[0.08] transition-colors"
                       title="Download"
                     >
                       <DownloadCloud className="h-4 w-4 text-foreground" />
@@ -593,146 +610,39 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         </section>
       )}
 
-      {/* Guest access code entry — REMOVED: authenticated users should not see guest entry */}
-      {/* showGuestEntry && (
-        <section className="rounded-2xl border border-border bg-white p-5 space-y-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-              <KeyRound className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">Join as a guest</p>
-              <p className="text-xs text-muted-foreground">Enter the access code provided by the event organiser.</p>
-            </div>
-          </div>
-          {guestError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
-              {guestError}
-            </div>
-          )}
-          <div className="flex gap-2">
-            <input
-              className="flex-1 rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-colors"
-              placeholder="e.g. 7F3KQXPM"
-              value={guestCode}
-              onChange={(e) => setGuestCode(e.target.value.toUpperCase())}
-              maxLength={12}
-            />
-            <Button
-              disabled={guestCode.length < 3 || guestJoining}
-              loading={guestJoining}
-              onClick={() => {
-                setGuestError(null);
-                guestJoin(
-                  { code: guestCode },
-                  {
-                    onSuccess: (res: any) => {
-                      const { token } = readJoinResult(res);
-                      if (token) storeGuestSession(token, id);
-                      if (mod === "AGM") router.push(`/agm/live?eventId=${id}&guest=true`);
-                      else router.push(`/events/live?eventId=${id}&guest=true`);
-                    },
-                    onError: (err: any) => {
-                      setGuestError(
-                        err?.response?.data?.message || err?.message || "Invalid or expired access code.",
-                      );
-                    },
-                  },
-                );
-              }}
-            >
-              Join
-            </Button>
-          </div>
-          <button
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() => setShowGuestEntry(false)}
-          >
-            Cancel
-          </button>
-        </section>
-      ) */}
-
       {/* Sticky bottom CTA */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur px-4 py-3 md:left-64">
-        {isLive && hasRsvped ? (
-          missingStreamLink ? (
-            <Button className="w-full gap-2" variant="outline" disabled>
-              <Radio className="h-4 w-4" /> Join link not available yet
-            </Button>
-          ) : (
-            <Button
-              className="w-full gap-2"
-              style={{ backgroundColor: color }}
-              onClick={() => {
-                if (mod === "AGM") router.push(`/agm/live?eventId=${id}`);
-                else router.push(`/events/live?eventId=${id}`);
-              }}
-            >
-              <Radio className="h-4 w-4" /> Join Live Session →
-            </Button>
-          )
-        ) : isLive && !hasRsvped ? (
-          rsvpEligibility.allowed ? (
-            <div className="space-y-2 w-full">
-              <div className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-                <Clock className="h-4 w-4 animate-pulse shrink-0" />
-                Late registration open
-                {lateWindow && ` — closes ${formatWindowTime(lateWindow)}`}
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  className="flex-1"
-                  onClick={handleRsvp}
-                  disabled={rsvping}
-                  style={{ backgroundColor: color }}
-                >
-                  {rsvping ? "Confirming…" : "RSVP & Join"}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-start gap-2 w-full rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-800">
-              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>
-                {rsvpBlocked}
-                {startsAt && ` It started at ${formatWindowTime(startsAt)}.`}
-                <span className="mt-0.5 block font-medium">
-                  Contact the organiser if you were expecting access.
-                </span>
-              </span>
-            </div>
-          )
-        ) : event.waitlisted && !hasRsvped ? (
-          <Button className="w-full" variant="outline" disabled>On waitlist</Button>
-        ) : hasRsvped ? (
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-foreground/10 bg-white/95 backdrop-blur px-4 py-3 md:left-[259px]">
+        {isLive ? (
+          <Button className="w-full gap-2" size="lg" fullWidth onClick={goLive}>
+            <Radio className="h-4 w-4" /> Join Live Session
+          </Button>
+        ) : event.waitlisted && !event.registered ? (
+          <Button className="w-full" size="lg" fullWidth variant="outline" disabled>On waitlist</Button>
+        ) : event.registered ? (
           <div className="flex gap-3">
             {/* AGM RSVP cannot be cancelled once LIVE or ENDED — doing so wipes
                 the shareholder from the admin register and corrupts quorum data. */}
             {!(mod === "AGM" && (isLive || isEnded)) && (
-              <Button className="flex-1" variant="outline" onClick={handleCancelRsvp} disabled={cancelling}>
+              <Button className="flex-1" size="lg" variant="outline" onClick={handleCancelRsvp} disabled={cancelling}>
                 {cancelling ? "Cancelling…" : "Cancel RSVP"}
               </Button>
             )}
             {mod === "AGM" && !isLive && !isEnded && (
               <Link href={`/agm/pre-vote?eventId=${id}`} className="flex-1">
-                <Button className="w-full" style={{ backgroundColor: color }}>Pre-Vote</Button>
+                <Button className="w-full" size="lg" fullWidth>Pre-Vote</Button>
               </Link>
             )}
             {mod === "HACKATHON" && (
-              <Link
-                href={submitted ? "/hackathon/my-applications" : `/hackathon/apply?challengeId=${id}`}
-                className="flex-1"
-              >
-                <Button className="w-full" style={{ backgroundColor: color }}>
-                  {submitted ? "View Application" : "Apply Now"}
-                </Button>
+              <Link href={`/hackathon/apply?challengeId=${id}`} className="flex-1">
+                <Button className="w-full" size="lg" fullWidth>Apply Now</Button>
               </Link>
             )}
           </div>
         ) : isFull ? (
           <Button
             className="w-full"
+            size="lg"
+            fullWidth
             variant="outline"
             onClick={handleJoinWaitlist}
             disabled={joiningWaitlist}
@@ -740,23 +650,32 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             {joiningWaitlist ? "Joining…" : "Event full — Join waitlist"}
           </Button>
         ) : (
-          <div className="flex flex-col gap-2 w-full">
-            {rsvpBlocked && (
-              <div className="flex items-center gap-1.5 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-800 border border-red-200">
-                <ShieldAlert className="h-4 w-4 shrink-0" />
-                {rsvpBlocked}
+          <div className="space-y-2">
+            {rsvpState?.inLateWindow && rsvpState.isOpen && (
+              <div className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-center text-xs font-semibold text-amber-800">
+                Late registration open — {rsvpState.minutesLeft}m left
               </div>
             )}
-            <div className="flex gap-2">
-              <Button
-                className="flex-1"
-                onClick={handleRsvp}
-                disabled={rsvping || !rsvpEligibility.allowed}
-                style={{ backgroundColor: color }}
-              >
-                {rsvping ? "Confirming…" : "Confirm Attendance (RSVP)"}
-              </Button>
-            </div>
+            <Button
+              className="w-full"
+              size="lg"
+              fullWidth
+              onClick={handleRsvp}
+              disabled={rsvping || rsvpClosedByCutoff}
+            >
+              {rsvping
+                ? "Confirming…"
+                : rsvpClosedByCutoff
+                  ? "Registration Closed"
+                  : "Confirm Attendance"}
+            </Button>
+            {rsvpClosedByCutoff && rsvpState && (
+              <p className="text-center text-xs text-foreground/60">
+                Registration closed at{" "}
+                {rsvpState.closesAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.
+                Contact your registrar to attend.
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -764,40 +683,30 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   );
 }
 
-function Chip({ icon: Icon, children }: { icon: typeof CalendarDays; children: React.ReactNode }) {
+// Equal-width icon-over-label tile — Figma's AGM action grid (Appoint a Proxy /
+// Pre-AGM Voting / QR check-in), as opposed to ActionRow's list treatment used
+// by the other modules.
+function ActionTile({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-xs font-medium backdrop-blur">
-      <Icon className="h-3.5 w-3.5" /> {children}
-    </span>
-  );
-}
-
-function DetailRow({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-background border border-border">
-        {icon}
-      </div>
-      <div className="flex-1 pt-0.5">{children}</div>
+    <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl border border-foreground/[0.06] bg-foreground/[0.02] px-2 py-3.5 text-center transition-colors hover:bg-foreground/[0.04]">
+      {icon}
+      <span className="text-xs font-medium leading-tight text-foreground">{label}</span>
     </div>
   );
 }
 
 function ActionRow({
-  icon, label, bg = "bg-muted/50", labelColor = "text-foreground", style,
+  icon, label, bg = "bg-foreground/[0.02]", labelColor = "text-foreground",
 }: {
-  icon: React.ReactNode; label: string; bg?: string; labelColor?: string; style?: React.CSSProperties;
+  icon: React.ReactNode; label: string; bg?: string; labelColor?: string;
 }) {
   return (
-    <div
-      className={cn("flex items-center justify-between rounded-2xl border border-border px-4 py-3.5 hover:bg-muted/70 transition-colors cursor-pointer", bg)}
-      style={style}
-    >
+    <div className={cn("flex items-center justify-between rounded-xl border border-foreground/[0.06] px-4 py-3.5 hover:bg-foreground/[0.04] transition-colors cursor-pointer", bg)}>
       <div className="flex items-center gap-3">
         {icon}
         <span className={cn("text-sm font-medium", labelColor)}>{label}</span>
       </div>
-      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+      <ChevronRight className="h-4 w-4 text-foreground/40" />
     </div>
   );
 }

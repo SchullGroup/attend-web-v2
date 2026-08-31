@@ -1,102 +1,59 @@
-import React from "react";
-import { cn } from "@/lib/utils";
+import type { Resolution } from "@/types";
 
-export interface Tally {
-  for: number;
-  against: number;
-  abstain: number;
-  forShares?: number;
-  againstShares?: number;
-  abstainShares?: number;
-}
-
-export interface SourceBreakdownProps {
-  bySource: {
-    ONLINE?: Tally;
-    IN_ROOM?: Tally;
-    PROXY?: Tally;
-  };
-}
-
-export function SourceBreakdown({ bySource }: SourceBreakdownProps) {
-  const sources = [
-    { key: "ONLINE", label: "Online", data: bySource.ONLINE },
-    { key: "IN_ROOM", label: "In-Room", data: bySource.IN_ROOM },
-    { key: "PROXY", label: "Proxy", data: bySource.PROXY },
+/**
+ * Item N — three-column vote tally split by source (Online / In-Room / Proxy).
+ * Falls back gracefully when `bySource` is not provided by the backend yet —
+ * the aggregate counts on `Resolution` still render in ResolutionBars.
+ */
+export function SourceBreakdown({
+  r,
+  shareWeighted = false,
+}: {
+  r: Resolution;
+  shareWeighted?: boolean;
+}) {
+  if (!r.bySource) return null;
+  const suffix = shareWeighted ? "Shares" : "Count";
+  const rows: Array<{ key: "ONLINE" | "IN_ROOM" | "PROXY"; label: string }> = [
+    { key: "ONLINE", label: "Online" },
+    { key: "IN_ROOM", label: "In-Room" },
+    { key: "PROXY", label: "Proxy" },
   ];
-
+  const fmt = (n?: number) => (n ?? 0).toLocaleString();
+  const total = {
+    for: (shareWeighted ? r.forShares : r.forCount) ?? 0,
+    against: (shareWeighted ? r.againstShares : r.againstCount) ?? 0,
+    abstain: (shareWeighted ? r.abstainShares : r.abstainCount) ?? 0,
+  };
   return (
-    <div className="rounded-2xl border border-border bg-white p-5 shadow-sm space-y-4">
-      <div>
-        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Votes by Source</h4>
-        <p className="text-[11px] text-muted-foreground mt-0.5">
-          Breakdown of votes cast online, physically in the room, and via proxy.
-        </p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        {sources.map((src) => {
-          const tally = src.data || { for: 0, against: 0, abstain: 0 };
-          
-          // Use shares if present, otherwise counts
-          const forVal = tally.forShares !== undefined ? tally.forShares : tally.for;
-          const againstVal = tally.againstShares !== undefined ? tally.againstShares : tally.against;
-          const abstainVal = tally.abstainShares !== undefined ? tally.abstainShares : tally.abstain;
-          
-          const isWeighted = tally.forShares !== undefined;
-          const total = forVal + againstVal + abstainVal;
-
-          const forPct = total > 0 ? (forVal / total) * 100 : 0;
-          const againstPct = total > 0 ? (againstVal / total) * 100 : 0;
-          const abstainPct = total > 0 ? (abstainVal / total) * 100 : 0;
-
+    <table className="w-full mt-3 text-[11px]">
+      <thead>
+        <tr className="text-left text-muted-foreground">
+          <th className="pb-1 font-semibold">Source</th>
+          <th className="pb-1 text-right font-semibold">For</th>
+          <th className="pb-1 text-right font-semibold">Against</th>
+          <th className="pb-1 text-right font-semibold">Abstain</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => {
+          const s = r.bySource?.[row.key];
           return (
-            <div key={src.key} className="rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
-                <span className="text-xs font-bold text-slate-800">{src.label}</span>
-                <span className="text-[10px] font-semibold text-slate-500">
-                  {total.toLocaleString()} {isWeighted ? "shares" : "votes"}
-                </span>
-              </div>
-
-              <div className="space-y-2">
-                {/* For Progress */}
-                <div className="space-y-0.5">
-                  <div className="flex items-center justify-between text-[10px] font-semibold">
-                    <span className="text-emerald-700">For</span>
-                    <span className="text-slate-700">{forVal.toLocaleString()} ({Math.round(forPct)}%)</span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${forPct}%` }} />
-                  </div>
-                </div>
-
-                {/* Against Progress */}
-                <div className="space-y-0.5">
-                  <div className="flex items-center justify-between text-[10px] font-semibold">
-                    <span className="text-rose-700">Against</span>
-                    <span className="text-slate-700">{againstVal.toLocaleString()} ({Math.round(againstPct)}%)</span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
-                    <div className="h-full bg-rose-500 rounded-full" style={{ width: `${againstPct}%` }} />
-                  </div>
-                </div>
-
-                {/* Abstain Progress */}
-                <div className="space-y-0.5">
-                  <div className="flex items-center justify-between text-[10px] font-semibold">
-                    <span className="text-slate-600">Abstain</span>
-                    <span className="text-slate-700">{abstainVal.toLocaleString()} ({Math.round(abstainPct)}%)</span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
-                    <div className="h-full bg-slate-400 rounded-full" style={{ width: `${abstainPct}%` }} />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <tr key={row.key} className="text-foreground">
+              <td className="py-0.5">{row.label}</td>
+              <td className="py-0.5 text-right">{fmt(s?.[`for${suffix}`] as number | undefined)}</td>
+              <td className="py-0.5 text-right">{fmt(s?.[`against${suffix}`] as number | undefined)}</td>
+              <td className="py-0.5 text-right">{fmt(s?.[`abstain${suffix}`] as number | undefined)}</td>
+            </tr>
           );
         })}
-      </div>
-    </div>
+        <tr className="font-semibold border-t border-border">
+          <td className="pt-1">Total</td>
+          <td className="pt-1 text-right">{fmt(total.for)}</td>
+          <td className="pt-1 text-right">{fmt(total.against)}</td>
+          <td className="pt-1 text-right">{fmt(total.abstain)}</td>
+        </tr>
+      </tbody>
+    </table>
   );
 }

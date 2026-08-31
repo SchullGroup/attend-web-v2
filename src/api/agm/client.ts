@@ -1,5 +1,4 @@
 import { apiClient } from "@/lib/api-client";
-import { normalizeResolutions } from "@/lib/resolution-normalize";
 import {
   ResolutionsResponse,
   ProxyResponse,
@@ -58,11 +57,7 @@ export const agmClient = {
     const response = await apiClient.get<ResolutionsResponse>(
       `/api/v1/participant/events/${eventId}/resolutions`,
     );
-    const data = response.data;
-    if (data?.data) {
-      data.data = { ...data.data, resolutions: normalizeResolutions(data.data.resolutions) };
-    }
-    return data;
+    return response.data;
   },
 
   castVote: async (eventId: string, resolutionId: string, data: CastVoteRequest) => {
@@ -92,29 +87,6 @@ export const agmClient = {
     const response = await apiClient.post<ProxyResponse>(
       `/api/v1/participant/events/${eventId}/proxy`,
       data,
-    );
-    return response.data;
-  },
-
-  assignProxyDirections: async (
-    eventId: string,
-    data: {
-      directions: {
-        resolutionId: string;
-        direction: "FOR" | "AGAINST" | "ABSTAIN" | "LET_PROXY_DECIDE";
-      }[];
-    }
-  ) => {
-    const response = await apiClient.post<ApiResponse>(
-      `/api/v1/agm/${eventId}/proxy/directions`,
-      data
-    );
-    return response.data;
-  },
-
-  revokeProxy: async (eventId: string) => {
-    const response = await apiClient.delete<ApiResponse>(
-      `/api/v1/participant/events/${eventId}/proxy`
     );
     return response.data;
   },
