@@ -1,7 +1,6 @@
-"use client";
+﻿"use client";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { ArrowLeft, Github, Globe } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -80,7 +79,7 @@ function SubmitPageInner() {
     if (!teamId) return;
     setErrorMsg(null);
     // The additional-document upload is collected (when the challenge requires it) but
-    // NOT sent — SubmitApplicationRequest has no field for it (see backend doc 7f). We
+    // NOT sent ΓÇö SubmitApplicationRequest has no field for it (see backend doc 7f). We
     // keep the field rather than fold its URL into the description (which pollutes it).
     const description = form.description.trim();
 
@@ -109,32 +108,32 @@ function SubmitPageInner() {
   const showLinks = show.demoUrl || show.repo;
 
   return (
-    <div className="flex flex-col gap-6">
-      <Link href="/hackathon" className="inline-flex w-fit items-center gap-1 text-sm text-foreground/60 hover:text-foreground">
+    <div className="space-y-6">
+      <button onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> Back
-      </Link>
+      </button>
 
-      <div className="flex flex-col gap-1">
-        <p className="text-xs font-medium tracking-[-0.12px] text-foreground/60">
+      <header>
+        <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">
           {teamData?.data?.name ?? "Your team"}
         </p>
-        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Submit your project</h1>
-        <p className="text-sm tracking-[-0.14px] text-foreground/60">
+        <h1 className="mt-1 text-2xl font-bold text-foreground">Submit your project</h1>
+        <p className="text-sm text-muted-foreground">
           {reqs
             ? "Provide the items requested for this challenge. You can update before the deadline."
             : "Fill in the fields below to submit your team's entry. You can update this before the deadline."}
         </p>
-      </div>
+      </header>
 
-      <form onSubmit={submit} className="flex flex-col gap-5 rounded-xl border border-foreground/[0.06] bg-white p-6 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+      <form onSubmit={submit} className="space-y-5 rounded-2xl border border-border bg-white p-6 shadow-sm">
         {errorMsg && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
             {errorMsg}
           </div>
         )}
 
-        {/* ── Project Details ── */}
-        <p className="-mb-1 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+        {/* ΓöÇΓöÇ Project Details ΓöÇΓöÇ */}
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
           Project Details
         </p>
 
@@ -152,18 +151,20 @@ function SubmitPageInner() {
             <textarea
               value={form.description}
               onChange={(e) => update("description", e.target.value)}
+              maxLength={3000}
               rows={6}
               placeholder="What you built, who it's for, and what makes it stand out."
-              className="w-full rounded-[10px] border border-transparent bg-foreground/[0.04] p-3.5 text-sm tracking-[-0.14px] text-foreground placeholder:font-light placeholder:text-foreground/40 transition-colors focus-visible:border-primary focus-visible:outline-none"
+              className="w-full rounded-xl border border-input bg-white p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary"
             />
+            <p className={`text-xs text-right ${form.description.length >= 2900 ? 'text-red-500' : 'text-muted-foreground'}`}>{form.description.length}/3,000</p>
           </div>
         )}
 
-        {/* ── Links ── */}
+        {/* ΓöÇΓöÇ Links ΓöÇΓöÇ */}
         {showLinks && (
           <>
-            <hr className="border-foreground/[0.06]" />
-            <p className="-mb-1 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+            <hr className="border-border" />
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
               Links
             </p>
             <div className="grid gap-4 md:grid-cols-2">
@@ -191,29 +192,29 @@ function SubmitPageInner() {
           </>
         )}
 
-        {/* ── Pitch deck ── */}
+        {/* ΓöÇΓöÇ Pitch deck ΓöÇΓöÇ */}
         {show.pitchDeck && (
           <>
-            <hr className="border-foreground/[0.06]" />
-            <p className="-mb-1 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+            <hr className="border-border" />
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
               Presentation
             </p>
             <UploadField
               label="Pitch deck"
               accept=".pdf,.ppt,.pptx,.doc,.docx"
               folder="documents"
-              hint="PDF, PPT or DOC · max 10 MB"
+              hint="PDF, PPT or DOC ┬╖ max 10 MB"
               value={form.pitchDeckUrl}
               onUploaded={(url) => update("pitchDeckUrl", url)}
             />
           </>
         )}
 
-        {/* ── Demo video ── */}
+        {/* ΓöÇΓöÇ Demo video ΓöÇΓöÇ */}
         {show.demoVideo && (
           <>
-            <hr className="border-foreground/[0.06]" />
-            <p className="-mb-1 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+            <hr className="border-border" />
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
               Demo
             </p>
             <UploadField
@@ -221,25 +222,25 @@ function SubmitPageInner() {
               accept="video/*"
               folder="videos"
               maxSize={100 * 1024 * 1024}
-              hint="MP4 or MOV · max 100 MB"
+              hint="MP4 or MOV ┬╖ max 100 MB"
               value={form.demoVideoUrl}
               onUploaded={(url) => update("demoVideoUrl", url)}
             />
           </>
         )}
 
-        {/* ── Additional documents ── */}
+        {/* ΓöÇΓöÇ Additional documents ΓöÇΓöÇ */}
         {show.additionalDocs && (
           <>
-            <hr className="border-foreground/[0.06]" />
-            <p className="-mb-1 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+            <hr className="border-border" />
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
               Supporting documents
             </p>
             <UploadField
               label="Additional document"
               accept=".pdf,.doc,.docx,.zip"
               folder="documents"
-              hint="PDF, DOC, or ZIP · max 10 MB"
+              hint="PDF, DOC, or ZIP ┬╖ max 10 MB"
               value={form.additionalDocsUrl}
               onUploaded={(url) => update("additionalDocsUrl", url)}
             />

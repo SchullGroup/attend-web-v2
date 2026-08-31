@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+﻿import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notificationsClient } from "./client";
 import { NotificationsParams, SaveNotificationPreferencesRequest } from "@/types";
 
@@ -51,5 +51,11 @@ export const useMarkAllRead = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.all });
     },
+  });
+};
+
+export const useSubscribeDevice = () => {
+  return useMutation({
+    mutationFn: (subscription: PushSubscription) => notificationsClient.subscribeDevice(subscription),
   });
 };

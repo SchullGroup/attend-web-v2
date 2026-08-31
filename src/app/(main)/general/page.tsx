@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { useGetEvents } from "@/api/events/hooks";
@@ -15,8 +15,13 @@ function apiToCard(item: EventListItem): EventCardData {
     title: item.title,
     organiser: item.registerName || item.organizerName,
     module: item.eventType,
-    thumbnailColor: "#2563eb",
-    image: item.organizerLogo || undefined,
+    thumbnailColor:
+      item.branding?.brandColor ||
+      item.brandPrimary ||
+      (item as any).organizerPrimaryColor ||
+      "#2563eb",
+    logoUrl: item.branding?.logoUrl || item.organizerLogo || null,
+    image: item.flyerUrl || item.bannerUrl || undefined,
     status: item.status,
     date: item.date,
     startTime: item.startTime,
@@ -32,16 +37,27 @@ export default function GeneralEventsPage() {
   const [query, setQuery] = useState("");
   const [fmt, setFmt] = useState<Format>("All");
 
-  const { data, isLoading } = useGetEvents({ search: query || undefined });
+  const { data, isLoading } = useGetEvents({ size: 100, search: query || undefined });
   const apiEvents = data?.data?.events ?? [];
 
   const visible = useMemo((): EventCardData[] => {
     const fmtKey = norm(fmt);
     return apiEvents
-      .filter((e) => e.eventType === "GENERAL" || e.eventType === "GENERAL_EVENT")
+      .filter((e) => {
+        const t = (e.eventType || "").toUpperCase();
+        return (
+          t === "GENERAL" ||
+          t === "GENERAL_EVENT" ||
+          (!t.includes("AGM") &&
+            !t.includes("EGM") &&
+            !t.includes("HACKATHON") &&
+            !t.includes("INNOVATION") &&
+            !t.includes("LAUNCH"))
+        );
+      })
       .filter((e) => (fmt === "All" ? true : norm(e.format) === fmtKey))
       .map(apiToCard);
-  }, [apiEvents, fmt, query]);
+  }, [apiEvents, fmt]);
 
   return (
     <div className="space-y-6">

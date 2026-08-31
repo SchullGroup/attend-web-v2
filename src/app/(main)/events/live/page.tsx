@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { LiveRoom } from "@/components/attend/LiveRoom";
@@ -15,8 +15,8 @@ function EventLiveInner() {
     <LiveRoom
       eventId={eventId}
       showBallot={false}
-      backHref={`/events/${eventId}`}
-      backLabel="Back to event"
+      backHref={eventId ? `/events/${eventId}` : "/events"}
+      backLabel="Leave meeting"
       zoomOverride={zoomOverride}
     />
   );

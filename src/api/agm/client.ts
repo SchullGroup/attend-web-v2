@@ -1,4 +1,5 @@
-import { apiClient } from "@/lib/api-client";
+﻿import { apiClient } from "@/lib/api-client";
+import { normalizeResolutions } from "@/lib/resolution-normalize";
 import {
   ResolutionsResponse,
   ProxyResponse,
@@ -21,7 +22,7 @@ export const agmClient = {
   },
 
   // Finalised AGM minutes. Returns `data: null` (status true) when the admin hasn't
-  // published them yet — callers must treat that as "not available", not an error.
+  // published them yet ΓÇö callers must treat that as "not available", not an error.
   // 403 if the participant isn't registered for the event.
   getMinutes: async (eventId: string) => {
     const response = await apiClient.get<MinutesResponse>(
@@ -57,7 +58,11 @@ export const agmClient = {
     const response = await apiClient.get<ResolutionsResponse>(
       `/api/v1/participant/events/${eventId}/resolutions`,
     );
-    return response.data;
+    const data = response.data;
+    if (data?.data) {
+      data.data = { ...data.data, resolutions: normalizeResolutions(data.data.resolutions) };
+    }
+    return data;
   },
 
   castVote: async (eventId: string, resolutionId: string, data: CastVoteRequest) => {
@@ -87,6 +92,29 @@ export const agmClient = {
     const response = await apiClient.post<ProxyResponse>(
       `/api/v1/participant/events/${eventId}/proxy`,
       data,
+    );
+    return response.data;
+  },
+
+  assignProxyDirections: async (
+    eventId: string,
+    data: {
+      directions: {
+        resolutionId: string;
+        direction: "FOR" | "AGAINST" | "ABSTAIN" | "LET_PROXY_DECIDE";
+      }[];
+    }
+  ) => {
+    const response = await apiClient.post<ApiResponse>(
+      `/api/v1/agm/${eventId}/proxy/directions`,
+      data
+    );
+    return response.data;
+  },
+
+  revokeProxy: async (eventId: string) => {
+    const response = await apiClient.delete<ApiResponse>(
+      `/api/v1/participant/events/${eventId}/proxy`
     );
     return response.data;
   },

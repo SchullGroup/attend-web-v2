@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 import { ButtonHTMLAttributes } from "react";
@@ -21,17 +21,17 @@ export function Button({
   ...props
 }: Props) {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-xl font-medium tracking-[-0.14px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none";
+    "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none";
   const variants = {
-    default: "bg-foreground text-background hover:bg-foreground/90 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.1)]",
+    default: "bg-gray-900 text-white hover:bg-gray-800",
     outline: "border border-border bg-transparent hover:bg-muted text-foreground",
     ghost: "bg-transparent hover:bg-muted text-foreground",
     destructive: "bg-destructive text-white hover:bg-destructive/90",
   };
   const sizes = {
-    sm: "h-9 px-3 text-sm rounded-lg",
+    sm: "h-9 px-3 text-sm",
     md: "h-10 px-5 text-sm",
-    lg: "h-[50px] px-6 text-sm rounded-xl",
+    lg: "h-12 px-6 text-base",
   };
   return (
     <button

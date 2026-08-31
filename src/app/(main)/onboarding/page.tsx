@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import Link from "next/link";
 import { Building2, Lightbulb, Rocket, ShieldCheck, ArrowRight, Star } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -27,7 +27,7 @@ const FEATURES = [
     color: "#059669",
     bg: "#ecfdf5",
     title: "Events & Launches",
-    desc: "RSVP to product launches, investor days, and corporate events — virtual or in-person.",
+    desc: "RSVP to product launches, investor days, and corporate events ΓÇö virtual or in-person.",
     href: "/events",
   },
   {
@@ -48,7 +48,7 @@ export default function OnboardingPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-8 py-4">
       {/* Welcome hero */}
-      <div className="rounded-3xl border border-border bg-gradient-to-br from-gray-900 to-gray-700 p-8 text-white text-center">
+      <div className="rounded-3xl border border-border bg-linear-to-br from-gray-900 to-gray-700 p-8 text-white text-center">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-2xl font-bold">
           {initialsFor(fullName)}
         </div>

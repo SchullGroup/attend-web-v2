@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -6,6 +6,7 @@ import { Mail, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useForgotPassword } from "@/api/auth/hooks";
+import { apiErrorMessage } from "@/lib/api-error";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -25,9 +26,7 @@ export default function ForgotPasswordPage() {
         },
         onError: (err: any) => {
           setErrorMsg(
-            err?.response?.data?.message ||
-              err?.message ||
-              "Could not send reset code. Check your email and try again.",
+            apiErrorMessage(err, "Could not send reset code. Check your email and try again."),
           );
         },
       },
@@ -36,10 +35,13 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="space-y-6">
+      <div className="md:hidden mb-2">
+        <img src="/attend-logo.png" alt="Attend" style={{ height: 31 }} />
+      </div>
 
       <div>
-        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Forgot password?</h1>
-        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/70">
+        <h1 className="text-2xl font-bold text-foreground">Forgot password?</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Enter your email and we&apos;ll send you a verification code.
         </p>
       </div>
@@ -61,7 +63,7 @@ export default function ForgotPasswordPage() {
           onChange={(e) => setEmail(e.target.value)}
         />
         <Button type="submit" fullWidth size="lg" loading={isPending} disabled={!email.trim()}>
-          {isPending ? "Sending code…" : "Send reset code"}
+          {isPending ? "Sending codeΓÇª" : "Send reset code"}
         </Button>
       </form>
 

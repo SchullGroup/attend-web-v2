@@ -89,5 +89,3 @@ export const authClient = {
     return response.data;
   },
 };
-
-

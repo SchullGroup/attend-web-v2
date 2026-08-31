@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+﻿import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { hackathonClient } from "./client";
 import { CreateTeamRequest, SubmitProjectRequest } from "@/types";
 
@@ -41,6 +41,12 @@ export const useGetCertificate = (id: string) => {
     queryFn: () => hackathonClient.getCertificate(id),
     enabled: !!id,
     retry: false,
+    // The certificate row can exist before its PDF is rendered ΓÇö poll until the
+    // backend reports downloadReady, then stop.
+    refetchInterval: (query) => {
+      const cert = query.state.data?.data;
+      return cert?.issued && cert.downloadReady === false ? 4000 : false;
+    },
   });
 };
 

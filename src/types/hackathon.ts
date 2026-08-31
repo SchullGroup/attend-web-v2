@@ -1,5 +1,5 @@
-import { ApiResponse } from "./api";
-import { EventListItem } from "./events";
+﻿import { ApiResponse } from "./api";
+import { EventListItem, EventBranding } from "./events";
 
 export interface TeamMember {
   id: string;
@@ -93,7 +93,10 @@ export interface ChallengeDetailData {
   startTime: string;
   venue: string;
   organizerName: string;
+  /** See the note on EventListItem.registered ΓÇö eligibility, not necessarily an RSVP. */
   registered: boolean;
+  /** True only once a real RSVP (`EventRegistration` row) exists. */
+  hasRsvped?: boolean;
   applicationsOpen?: boolean;
   resourceCount: number;
   tracks?: string[];
@@ -108,7 +111,7 @@ export interface ChallengeDetailData {
   prizeTiers?: PrizeTierItem[];
   submissionRequirements?: SubmissionRequirements;
   myTeam: ChallengeMyTeamSummary | null;
-  // Items I + J — per-challenge branding
+  branding?: EventBranding;
   bannerUrl?: string | null;
   brandPrimary?: string | null;
   brandAccent?: string | null;
@@ -132,7 +135,18 @@ export interface ChallengeCertificateData {
   participantName: string;
   teamName: string;
   applicationStatus: string;
+  /** Would qualify for a certificate ΓÇö not the same as one existing. */
   eligible: boolean;
+  /** A certificate has actually been issued (an organiser ran the issuance). */
+  issued: boolean;
+  certificateId?: string;
+  certificateNumber?: string;
+  /** Winner shown first when a participant holds both. Missing ΓåÆ treat as PARTICIPATION. */
+  certificateType?: "WINNER" | "PARTICIPATION";
+  /** false ΓåÆ the PDF is still generating; poll again shortly. */
+  downloadReady?: boolean;
+  /** e.g. "/api/v1/public/certificates/{id}/download" */
+  downloadPath?: string;
   message: string;
 }
 

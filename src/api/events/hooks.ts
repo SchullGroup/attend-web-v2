@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { eventsClient } from "./client";
-import { EventsQueryParams } from "@/types";
+import { EventsQueryParams, SubmitQuestionRequest, CastVoteRequest } from "@/types";
 
 export const eventKeys = {
   all: ["events"] as const,
@@ -18,11 +18,11 @@ export const useGetEvents = (params?: EventsQueryParams) => {
   });
 };
 
-export const useGetEvent = (id: string) => {
+export const useGetEvent = (id: string, enabled = true) => {
   return useQuery({
     queryKey: eventKeys.detail(id),
     queryFn: () => eventsClient.getEvent(id),
-    enabled: !!id,
+    enabled: !!id && enabled,
   });
 };
 
@@ -69,6 +69,10 @@ export const useGetMyTicket = (id: string) => {
     queryKey: eventKeys.ticket(id),
     queryFn: () => eventsClient.getMyTicket(id),
     enabled: !!id,
+    // Check-in is done by event staff scanning this ticket, so it changes server-side with
+    // nothing for the participant's browser to react to. Poll while they wait at the gate,
+    // and stop the moment it lands ΓÇö the flag never goes back to false.
+    refetchInterval: (query) => (query.state.data?.data?.checkedIn ? false : 10_000),
   });
 };
 
@@ -164,3 +168,191 @@ export const useGetPressKit = (eventId: string, refetchInterval?: number, enable
     enabled,
   });
 };
+
+export const useGuestBrowseEvents = (params: {
+  search?: string;
+  eventType?: string;
+  page?: number;
+  size?: number;
+}) => {
+  return useQuery({
+    queryKey: [...eventKeys.all, "guest-browse", params] as const,
+    queryFn: () => eventsClient.guestBrowseEvents(params),
+    retry: false,
+  });
+};
+
+export const useGuestJoin = (eventId: string) => {
+  return useMutation({
+    mutationFn: ({ code, name }: { code: string; name?: string }) =>
+      eventsClient.guestJoinEvent(eventId, code, name),
+  });
+};
+
+export const useGuestResolutions = (
+  eventId: string,
+  guestToken: string,
+  enabled = true,
+  refetchInterval?: number,
+) => {
+  return useQuery({
+    queryKey: [...eventKeys.detail(eventId), "guest-resolutions"] as const,
+    queryFn: () => eventsClient.guestGetResolutions(eventId, guestToken),
+    enabled: !!eventId && !!guestToken && enabled,
+    retry: false,
+    refetchInterval: refetchInterval ?? false,
+  });
+};
+
+export const useGuestEventView = (eventId: string, guestToken: string, enabled = true) => {
+  return useQuery({
+    queryKey: [...eventKeys.detail(eventId), "guest-view"] as const,
+    queryFn: () => eventsClient.guestGetView(eventId, guestToken),
+    enabled: !!eventId && !!guestToken && enabled,
+    retry: false,
+    refetchInterval: 15000,
+  });
+};
+
+export const useGuestQuestions = (
+  eventId: string,
+  guestToken: string,
+  refetchInterval?: number,
+  enabled = true,
+) => {
+  return useQuery({
+    queryKey: [...eventKeys.detail(eventId), "guest-questions", guestToken] as const,
+    queryFn: () => eventsClient.guestGetQuestions(eventId, guestToken),
+    enabled: !!eventId && !!guestToken && enabled,
+    refetchInterval: refetchInterval ?? false,
+  });
+};
+
+export const useGuestSubmitQuestion = (eventId: string, guestToken: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: SubmitQuestionRequest) =>
+      eventsClient.guestSubmitQuestion(eventId, guestToken, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [...eventKeys.detail(eventId), "guest-questions"] as const,
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["agm", "questions", eventId],
+      });
+    },
+  });
+};
+
+export const useGuestUpvoteQuestion = (eventId: string, guestToken: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (questionId: string) =>
+      eventsClient.guestUpvoteQuestion(eventId, guestToken, questionId),
+    onMutate: async (questionId) => {
+      const qKey = [...eventKeys.detail(eventId), "guest-questions", guestToken] as const;
+      await queryClient.cancelQueries({ queryKey: qKey });
+      const previous = queryClient.getQueryData<any>(qKey);
+      if (previous?.data?.questions) {
+        queryClient.setQueryData<any>(qKey, {
+          ...previous,
+          data: {
+            ...previous.data,
+            questions: previous.data.questions.map((q: any) => {
+              if (q.id === questionId) {
+                const wasUpvoted = !!q.myUpvote;
+                return {
+                  ...q,
+                  myUpvote: !wasUpvoted,
+                  upvoteCount: Math.max(0, (q.upvoteCount ?? 0) + (wasUpvoted ? -1 : 1)),
+                };
+              }
+              return q;
+            }),
+          },
+        });
+      }
+      return { previous };
+    },
+    onError: (_err, _questionId, context) => {
+      if (context?.previous) {
+        const qKey = [...eventKeys.detail(eventId), "guest-questions", guestToken] as const;
+        queryClient.setQueryData(qKey, context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: [...eventKeys.detail(eventId), "guest-questions"] as const,
+      });
+    },
+  });
+};
+
+// Guest polls (┬º9) ΓÇö guests can view and vote on live polls.
+export const useGuestPolls = (
+  eventId: string,
+  guestToken: string,
+  refetchInterval?: number,
+  enabled = true,
+) => {
+  return useQuery({
+    queryKey: [...eventKeys.detail(eventId), "guest-polls", guestToken] as const,
+    queryFn: () => eventsClient.guestGetPolls(eventId, guestToken),
+    enabled: !!eventId && !!guestToken && enabled,
+    refetchInterval: refetchInterval ?? false,
+  });
+};
+
+export const useGuestRespondToPoll = (eventId: string, guestToken: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ pollId, optionId }: { pollId: string; optionId: string }) =>
+      eventsClient.guestRespondToPoll(eventId, guestToken, pollId, optionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [...eventKeys.detail(eventId), "guest-polls"] as const,
+      });
+    },
+  });
+};
+
+// Unified proxy voting (┬º11) ΓÇö a proxy session (canVote: true) casts without a code.
+export const useGuestVote = (eventId: string, guestToken: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      resolutionId,
+      data,
+    }: {
+      resolutionId: string;
+      data: CastVoteRequest;
+    }) => eventsClient.guestVote(eventId, guestToken, resolutionId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [...eventKeys.detail(eventId), "guest-resolutions"] as const,
+      });
+    },
+  });
+};
+
+// Guest proxy voting (┬º10) ΓÇö cast a resolution vote using a proxy code.
+export const useGuestProxyVote = (eventId: string, guestToken: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      resolutionId,
+      proxyCode,
+      data,
+    }: {
+      resolutionId: string;
+      proxyCode: string;
+      data: CastVoteRequest;
+    }) => eventsClient.guestProxyVote(eventId, guestToken, resolutionId, proxyCode, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [...eventKeys.detail(eventId), "guest-resolutions"] as const,
+      });
+    },
+  });
+};
+

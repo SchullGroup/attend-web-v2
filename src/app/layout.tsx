@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import { UserProvider } from "@/lib/user-store";
@@ -9,10 +9,10 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Attend — Enterprise Events Platform",
+  title: "Attend ΓÇö Enterprise Events Platform",
   description: "AGMs, product launches, innovation challenges and more.",
   openGraph: {
-    title: "Attend — Enterprise Events Platform",
+    title: "Attend ΓÇö Enterprise Events Platform",
     description: "AGMs, product launches, innovation challenges and more.",
     url: "https://attend-web-eight.vercel.app",
     siteName: "Attend",
@@ -28,13 +28,15 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Attend — Enterprise Events Platform",
+    title: "Attend ΓÇö Enterprise Events Platform",
     description: "AGMs, product launches, innovation challenges and more.",
     images: ["https://attend-web-eight.vercel.app/attend-logo.png"],
+    site: "@Attend_NG",
   },
 };
 
 import { QueryProvider } from "@/components/providers/query-provider";
+import { SessionBootstrap } from "@/components/providers/session-bootstrap";
 
 export default function RootLayout({
   children,
@@ -45,6 +47,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={outfit.className}>
         <QueryProvider>
+          <SessionBootstrap />
           <UserProvider>{children}</UserProvider>
         </QueryProvider>
       </body>

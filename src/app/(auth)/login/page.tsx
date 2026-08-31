@@ -1,42 +1,86 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CircleUserRound, Lock } from "lucide-react";
+import { Mail, Phone, Lock, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useLogin } from "@/api/auth/hooks";
+import { getDeviceId } from "@/lib/device-id";
+import { apiErrorMessage } from "@/lib/api-error";
+import { DIAL_CODE, stripDialCode, toE164 } from "@/lib/phone";
+import { cn } from "@/lib/utils";
+
+type LoginMode = "email" | "phone";
+
+function safeCallbackUrl(raw: string | null): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
+  return raw;
+}
 
 export default function LoginPage() {
   const router = useRouter();
   const { mutate: loginMutation, isPending } = useLogin();
+  const [mode, setMode] = useState<LoginMode>("email");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [needsVerify, setNeedsVerify] = useState(false);
+  const [justVerifiedEmail, setJustVerifiedEmail] = useState<string | null>(null);
+  const [sessionEnded, setSessionEnded] = useState<string | null>(null);
+
+  useEffect(() => {
+    const verified = sessionStorage.getItem("justVerifiedEmail");
+    if (verified) {
+      setJustVerifiedEmail(verified);
+      setEmail(verified);
+      setMode("email");
+    }
+    sessionStorage.removeItem("justVerifiedEmail");
+
+    const reason = new URLSearchParams(window.location.search).get("reason");
+    if (reason === "other-device") {
+      setSessionEnded(
+        "You were signed out because your account was used to sign in on another device."
+      );
+    } else if (reason === "idle") {
+      setSessionEnded("Your session expired after 2 hours of inactivity. Please sign in again.");
+    }
+  }, []);
+
+  const cleanId = mode === "phone" ? toE164(phone) : email.trim();
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErrorMsg(null);
     setNeedsVerify(false);
     loginMutation(
-      { email, password },
       {
-        onSuccess: () => router.push("/"),
+        identifier: cleanId,
+        emailOrPhone: cleanId,
+        email: cleanId,
+        password,
+        deviceId: getDeviceId(),
+      },
+      {
+        onSuccess: () => {
+          const callbackUrl = new URLSearchParams(window.location.search).get("callbackUrl");
+          router.push(safeCallbackUrl(callbackUrl));
+        },
         onError: (err: any) => {
-          const msg =
-            err?.response?.data?.message || err?.message || "Invalid email or password";
+          const msg = apiErrorMessage(err, "Invalid credentials");
           setErrorMsg(msg);
-          // Backend blocks unverified accounts with a "verify your email" message —
-          // surface a shortcut to the verification page (carrying the email over).
           setNeedsVerify(/verify/i.test(msg) && /email/i.test(msg));
         },
-      },
+      }
     );
   }
 
   function goVerify() {
-    sessionStorage.setItem("pendingVerifyEmail", email);
+    if (mode === "email" && cleanId) {
+      sessionStorage.setItem("pendingVerifyEmail", cleanId);
+    }
     router.push("/verify");
   }
 
@@ -52,6 +96,18 @@ export default function LoginPage() {
       </div>
 
       <form onSubmit={onSubmit} className="flex w-full flex-col items-center gap-6">
+        {sessionEnded && !errorMsg && (
+          <div className="flex w-full items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-left text-sm text-amber-900">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <span>{sessionEnded}</span>
+          </div>
+        )}
+        {justVerifiedEmail && !errorMsg && (
+          <div className="flex w-full items-start gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-left text-sm text-emerald-900">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+            <span>Your email is verified. Enter your password to sign in.</span>
+          </div>
+        )}
         {errorMsg && (
           <div className="w-full rounded-lg border border-red-200 bg-red-50 p-3 text-left text-sm text-red-600">
             {errorMsg}
@@ -67,16 +123,57 @@ export default function LoginPage() {
           </div>
         )}
 
+        {/* Email / Phone Mode Switcher styled with Meristem theme */}
+        <div role="tablist" aria-label="Sign in with" className="flex w-full gap-1 rounded-xl bg-foreground/[0.04] p-1">
+          {(["email", "phone"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => {
+                setMode(m);
+                setErrorMsg(null);
+                setNeedsVerify(false);
+              }}
+              className={cn(
+                "flex-1 rounded-lg py-2 text-sm font-medium transition-colors",
+                mode === m
+                  ? "bg-white text-foreground shadow-sm"
+                  : "text-foreground/60 hover:text-foreground"
+              )}
+            >
+              {m === "email" ? "Email" : "Phone"}
+            </button>
+          ))}
+        </div>
+
         <div className="flex w-full flex-col gap-4">
-          <Input
-            name="email"
-            type="email"
-            autoComplete="email"
-            leftIcon={<CircleUserRound className="h-5 w-5" />}
-            placeholder="Email address"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+          {mode === "email" ? (
+            <Input
+              key="email"
+              name="email"
+              type="email"
+              autoComplete="username"
+              leftIcon={<Mail className="h-5 w-5" />}
+              placeholder="Email address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          ) : (
+            <Input
+              key="phone"
+              name="phone"
+              type="tel"
+              autoComplete="username"
+              leftIcon={<Phone className="h-5 w-5" />}
+              prefix={DIAL_CODE}
+              placeholder="803 123 4567"
+              value={phone}
+              onChange={(e) => setPhone(stripDialCode(e.target.value))}
+            />
+          )}
+
           <Input
             name="password"
             type="password"

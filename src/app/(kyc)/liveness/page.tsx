@@ -1,26 +1,44 @@
-"use client";
+﻿"use client";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useKycStep3 } from "@/api/kyc/hooks";
+import { useBvnSelfieCheck, useKycStep3, useGetKycStatus } from "@/api/kyc/hooks";
+import { getStoredSelfie, clearKycProgress } from "@/lib/kyc-progress";
 
 type Stage = "idle" | "detecting" | "verifying" | "verified";
 
 const OVAL_W = 224;
 const OVAL_H = 296;
 
+// The capture used to be sent at the camera's native resolution, which on a modern phone
+// is 8-12MP ΓÇö a multi-megabyte base64 string for a face match that only needs a few
+// hundred pixels. Downscaling before encoding keeps the payload small enough that the
+// request itself can't be what fails, and steps the quality down if it's still large.
+const MAX_EDGE = 720;
+const MAX_BYTES = 900_000;
+
 export default function LivenessPage() {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const { mutate: bvnSelfieCheck } = useBvnSelfieCheck();
   const { mutate: submitStep3 } = useKycStep3();
+
+  // The BVN comes from the KYC record the backend already holds. It is never stored on
+  // the device ΓÇö a BVN in localStorage stays readable on a shared machine long after the
+  // session ends, which we're not permitted to do.
+  const { data: kycResp } = useGetKycStatus();
+  const verifiedBvn = kycResp?.data?.bvn;
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // Check if photo was already verified during Step 1 (BVN & Photo Match)
+  const savedSelfie = getStoredSelfie();
 
   // Scan line (detecting state)
   const scanDirRef = useRef(1);
@@ -53,24 +71,107 @@ export default function LivenessPage() {
       setStage("detecting");
     } catch {
       setErrorMsg(
-        "We couldn't access your camera. Please allow camera access and try again, or skip for now.",
+        "We couldn't access your camera. Please allow camera access and try again.",
       );
+    }
+  }
+
+  function submitSelfie(selfieImage: string) {
+    setStage("verifying");
+
+    const doStep3 = () => {
+      submitStep3(
+        { selfieImage },
+        {
+          onSuccess: () => {
+            clearKycProgress();
+            setStage("verified");
+          },
+          onError: (err: any) => {
+            setErrorMsg(
+              err?.response?.data?.message ||
+                err?.message ||
+                "Liveness check failed. Please try again.",
+            );
+            setStage("idle");
+          },
+        },
+      );
+    };
+
+    if (verifiedBvn) {
+      // Standalone BVN + selfie re-check before submitting liveness.
+      bvnSelfieCheck(
+        { bvn: verifiedBvn, selfieImage },
+        {
+          // A failed match is still HTTP 200 ΓÇö the result is `data.valid`, not the
+          // status code. Reading only onSuccess (as this did) let every failed match
+          // straight through, which made the check a no-op.
+          onSuccess: (res) => {
+            if (res?.data?.valid) {
+              doStep3();
+              return;
+            }
+            // The backend's message is specific (it includes the confidence score and
+            // lighting advice), so surface it verbatim rather than a generic line.
+            setErrorMsg(
+              res?.data?.message ||
+                "Face match failed. Please ensure good lighting and a clear photo.",
+            );
+            setStage("idle");
+          },
+          onError: (err: any) => {
+            // 503 = Dojah unreachable. Nothing was saved and it's safe to retry, so
+            // don't tell the user their face didn't match ΓÇö that isn't what happened.
+            if (err?.response?.status === 503) {
+              setErrorMsg(
+                "Verification service is temporarily unavailable. Please try again in a moment.",
+              );
+              setStage("idle");
+              return;
+            }
+            const msg = err?.response?.data?.message || err?.message || "";
+            if (/already.*verif/i.test(msg)) {
+              doStep3();
+              return;
+            }
+            setErrorMsg(msg || "We couldn't verify your photo. Please try again.");
+            setStage("idle");
+          },
+        },
+      );
+    } else {
+      doStep3();
     }
   }
 
   function captureAndSubmit() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
+
+    // `videoWidth` stays 0 until the first frame has actually arrived. Firing capture off a
+    // timer meant a slow camera could be photographed before it had produced anything, which
+    // reads to the user as "we couldn't capture a clear image" on a perfectly good attempt.
+    if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
+      stopCamera();
+      setErrorMsg(
+        "Your camera wasn't ready yet. Please try again and hold still for a moment.",
+      );
+      setStage("idle");
+      return;
+    }
+
+    const scale = Math.min(1, MAX_EDGE / Math.max(video.videoWidth, video.videoHeight));
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+
+    const ctx = canvas.getContext("2d");
     let selfieImage = "";
-    if (video && canvas && video.videoWidth) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        // Send raw base64 (strip the "data:image/jpeg;base64," prefix) — the
-        // backend's liveness check expects the bare base64 string.
-        selfieImage = canvas.toDataURL("image/jpeg", 0.8).split(",")[1] ?? "";
+    if (ctx) {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      for (const quality of [0.8, 0.6, 0.45]) {
+        selfieImage = canvas.toDataURL("image/jpeg", quality).split(",")[1] ?? "";
+        if (selfieImage.length <= MAX_BYTES) break;
       }
     }
     stopCamera();
@@ -81,24 +182,13 @@ export default function LivenessPage() {
       return;
     }
 
-    setStage("verifying");
-    submitStep3(
-      { selfieImage },
-      {
-        onSuccess: () => {
-          sessionStorage.removeItem("kyc_bvn");
-          setStage("verified");
-        },
-        onError: (err: any) => {
-          setErrorMsg(
-            err?.response?.data?.message ||
-              err?.message ||
-              "Liveness check failed. Please try again.",
-          );
-          setStage("idle");
-        },
-      },
-    );
+    submitSelfie(selfieImage);
+  }
+
+  // Quick 1-click submit if photo was already verified at Step 1
+  function submitSavedSelfie() {
+    if (!savedSelfie) return;
+    submitSelfie(savedSelfie);
   }
 
   useEffect(() => {
@@ -125,12 +215,24 @@ export default function LivenessPage() {
       setPulseExpanded((v) => !v);
     }, 900);
 
-    // After the scan, capture a frame and submit step 3.
-    detectTimerRef.current = setTimeout(() => {
+    // Capture once the scan animation has run *and* the camera is actually producing
+    // frames. The old fixed 2.8s timer assumed the second was implied by the first; on a
+    // slow-starting camera it wasn't, and the shot was taken of a blank stream.
+    let waited = 0;
+    const attemptCapture = () => {
+      const video = videoRef.current;
+      const ready = !!video && video.readyState >= 2 && video.videoWidth > 0;
+      if (!ready && waited < 5000) {
+        waited += 200;
+        detectTimerRef.current = setTimeout(attemptCapture, 200);
+        return;
+      }
       clearInterval(scanIntervalRef.current!);
       clearInterval(pulseIntervalRef.current!);
       captureAndSubmit();
-    }, 2800);
+    };
+
+    detectTimerRef.current = setTimeout(attemptCapture, 2800);
 
     return () => {
       clearInterval(scanIntervalRef.current!);
@@ -142,6 +244,7 @@ export default function LivenessPage() {
 
   function onSkip() {
     stopCamera();
+    clearKycProgress();
     router.push("/success");
   }
 
@@ -160,21 +263,18 @@ export default function LivenessPage() {
           {stage === "verified" ? (
             <CheckCircle2 className="h-5 w-5 text-emerald-600" />
           ) : (
-            <svg className="h-5 w-5 text-gray-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="8" r="3.5" />
-              <path d="M5 20c0-3.31 3.13-6 7-6s7 2.69 7 6" />
-              <path d="M3 5.5A9 9 0 0 1 5.5 3M21 5.5A9 9 0 0 0 18.5 3M3 18.5A9 9 0 0 0 5.5 21M21 18.5A9 9 0 0 1 18.5 21" />
-            </svg>
+            <ShieldCheck className="h-5 w-5 text-gray-700" />
           )}
         </div>
         <h1 className="text-xl font-bold text-foreground">
-          {stage === "verified" ? "Identity submitted!" : "Face Verification"}
+          {stage === "verified" ? "Identity Verified!" : "Face Liveness Check"}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {stage === "idle" && "A quick selfie to confirm you are the account holder."}
-          {stage === "detecting" && "Hold still — capturing your face…"}
-          {stage === "verifying" && "Submitting your verification…"}
-          {stage === "verified" && "Your selfie has been submitted for verification."}
+          {stage === "idle" && savedSelfie && "Your BVN photo is ready. Click below to complete liveness verification."}
+          {stage === "idle" && !savedSelfie && "A quick face scan to confirm you are the account holder."}
+          {stage === "detecting" && "Hold still ΓÇö capturing your faceΓÇª"}
+          {stage === "verifying" && "Submitting your verificationΓÇª"}
+          {stage === "verified" && "Your liveness verification is complete."}
         </p>
       </div>
 
@@ -184,135 +284,161 @@ export default function LivenessPage() {
         </div>
       )}
 
-      {/* Oval camera frame */}
-      <div className="flex flex-col items-center">
-        <div
-          className="relative flex items-center justify-center"
-          style={{ width: OVAL_W + 56, height: OVAL_H + 56 }}
-        >
-          {/* Pulsing ring — visible only while detecting */}
-          {stage === "detecting" && (
-            <div
-              className="absolute rounded-full border-2 border-gray-900 transition-all duration-700"
-              style={{
-                width: OVAL_W + 56,
-                height: OVAL_H + 56,
-                borderRadius: (OVAL_W + 56) / 2,
-                transform: pulseExpanded ? "scale(1.1)" : "scale(1)",
-                opacity: pulseExpanded ? 0.12 : 0.35,
-              }}
+      {/* Saved Photo Preview (if captured during Step 1) or Camera Oval */}
+      {savedSelfie && stage === "idle" ? (
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-6 text-center">
+          <div className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2 border-emerald-500 bg-emerald-100 shadow-sm">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`data:image/jpeg;base64,${savedSelfie}`}
+              alt="Verified selfie"
+              className="h-full w-full object-cover"
             />
-          )}
-
-          {/* Oval itself */}
+          </div>
+          <div>
+            <p className="flex items-center justify-center gap-1 text-sm font-semibold text-emerald-900">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" /> BVN Photo Matched
+            </p>
+            <p className="text-xs text-emerald-700">Ready to complete final liveness verification</p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center">
           <div
-            className="relative overflow-hidden flex items-center justify-center transition-colors duration-500"
-            style={{
-              width: OVAL_W,
-              height: OVAL_H,
-              borderRadius: OVAL_W / 2,
-              borderWidth: 2,
-              borderStyle: "solid",
-              borderColor: stage === "verified" ? "#10b981" : stage === "detecting" ? "#111827" : "#d1d5db",
-              backgroundColor: stage === "verified" ? "#052e16" : "#1a1f2e",
-            }}
+            className="relative flex items-center justify-center"
+            style={{ width: OVAL_W + 56, height: OVAL_H + 56 }}
           >
-            {/* Live camera feed (hidden once verified) */}
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="absolute inset-0 h-full w-full object-cover"
-              style={{ transform: "scaleX(-1)", display: stage === "verified" ? "none" : "block" }}
-            />
-
-            {/* Scanning line */}
             {stage === "detecting" && (
               <div
-                className="absolute left-0 right-0 h-px"
+                className="absolute rounded-full border-2 border-gray-900 transition-all duration-700"
                 style={{
-                  top: `${scanY}%`,
-                  background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)",
+                  width: OVAL_W + 56,
+                  height: OVAL_H + 56,
+                  borderRadius: (OVAL_W + 56) / 2,
+                  transform: pulseExpanded ? "scale(1.1)" : "scale(1)",
+                  opacity: pulseExpanded ? 0.12 : 0.35,
                 }}
               />
             )}
 
-            {/* Verified state */}
-            {stage === "verified" && (
-              <CheckCircle2 className="relative h-16 w-16 text-emerald-400" />
-            )}
-
-            {/* Idle: face silhouette oval */}
-            {stage === "idle" && (
-              <div
-                className="relative rounded-full border border-white/20"
-                style={{ width: 86, height: 110 }}
+            <div
+              className="relative overflow-hidden flex items-center justify-center transition-colors duration-500"
+              style={{
+                width: OVAL_W,
+                height: OVAL_H,
+                borderRadius: OVAL_W / 2,
+                borderWidth: 2,
+                borderStyle: "solid",
+                borderColor: stage === "verified" ? "#10b981" : stage === "detecting" ? "#111827" : "#d1d5db",
+                backgroundColor: stage === "verified" ? "#052e16" : "#1a1f2e",
+              }}
+            >
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="absolute inset-0 h-full w-full object-cover"
+                style={{ transform: "scaleX(-1)", display: stage === "verified" ? "none" : "block" }}
               />
-            )}
 
-            {/* Corner scan brackets */}
-            {(["tl", "tr", "bl", "br"] as const).map((pos) => (
-              <div
-                key={pos}
-                className={cn(
-                  "absolute w-5 h-5 transition-colors duration-500",
-                  stage === "verified" ? "border-emerald-400" : "border-white/40",
-                  pos === "tl" && "top-3 left-3 border-t-2 border-l-2 rounded-tl",
-                  pos === "tr" && "top-3 right-3 border-t-2 border-r-2 rounded-tr",
-                  pos === "bl" && "bottom-3 left-3 border-b-2 border-l-2 rounded-bl",
-                  pos === "br" && "bottom-3 right-3 border-b-2 border-r-2 rounded-br",
-                )}
-              />
-            ))}
+              {stage === "detecting" && (
+                <div
+                  className="absolute left-0 right-0 h-px"
+                  style={{
+                    top: `${scanY}%`,
+                    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)",
+                  }}
+                />
+              )}
+
+              {stage === "verified" && (
+                <CheckCircle2 className="relative h-16 w-16 text-emerald-400" />
+              )}
+
+              {stage === "idle" && (
+                <div
+                  className="relative rounded-full border border-white/20"
+                  style={{ width: 86, height: 110 }}
+                />
+              )}
+
+              {(["tl", "tr", "bl", "br"] as const).map((pos) => (
+                <div
+                  key={pos}
+                  className={cn(
+                    "absolute w-5 h-5 transition-colors duration-500",
+                    stage === "verified" ? "border-emerald-400" : "border-white/40",
+                    pos === "tl" && "top-3 left-3 border-t-2 border-l-2 rounded-tl",
+                    pos === "tr" && "top-3 right-3 border-t-2 border-r-2 rounded-tr",
+                    pos === "bl" && "bottom-3 left-3 border-b-2 border-l-2 rounded-bl",
+                    pos === "br" && "bottom-3 right-3 border-b-2 border-r-2 rounded-br",
+                  )}
+                />
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Instruction label */}
-        <p
-          className={cn(
-            "mt-3 text-sm font-semibold text-center transition-colors",
-            stage === "verified" ? "text-emerald-600" : "text-foreground",
+          <p
+            className={cn(
+              "mt-3 text-sm font-semibold text-center transition-colors",
+              stage === "verified" ? "text-emerald-600" : "text-foreground",
+            )}
+          >
+            {stage === "idle" && "Position your face within the oval"}
+            {stage === "detecting" && "Hold stillΓÇª"}
+            {stage === "verifying" && "VerifyingΓÇª"}
+            {stage === "verified" && "Submitted Γ£ô"}
+          </p>
+
+          {busy && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-gray-900 animate-pulse" />
+              <span className="text-xs text-muted-foreground">
+                {stage === "verifying" ? "SubmittingΓÇª" : "Framing your photoΓÇª"}
+              </span>
+            </div>
           )}
-        >
-          {stage === "idle" && "Position your face within the oval"}
-          {stage === "detecting" && "Hold still…"}
-          {stage === "verifying" && "Verifying…"}
-          {stage === "verified" && "Submitted ✓"}
-        </p>
-
-        {busy && (
-          <div className="mt-2 flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-gray-900 animate-pulse" />
-            <span className="text-xs text-muted-foreground">
-              {stage === "verifying" ? "Submitting…" : "Analyzing biometrics…"}
-            </span>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <canvas ref={canvasRef} className="hidden" />
 
       {/* CTA buttons */}
       <div className="flex flex-col gap-3">
-        {stage === "idle" && (
+        {stage === "idle" && savedSelfie && (
+          <>
+            <Button fullWidth onClick={submitSavedSelfie}>
+              Complete Verification
+            </Button>
+            <button
+              type="button"
+              onClick={startCheck}
+              className="text-xs text-center text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Re-scan with camera instead
+            </button>
+          </>
+        )}
+
+        {stage === "idle" && !savedSelfie && (
           <>
             <Button fullWidth onClick={startCheck}>
-              Start Check
+              Start Scan
             </Button>
             <button
               type="button"
               onClick={onSkip}
               className="text-sm text-center text-muted-foreground hover:text-foreground transition-colors py-1"
             >
-              Skip — I&apos;ll complete this later
+              Skip ΓÇö I&apos;ll complete this later
             </button>
           </>
         )}
 
         {busy && (
           <Button fullWidth disabled loading>
-            {stage === "verifying" ? "Verifying…" : "Capturing…"}
+            {stage === "verifying" ? "VerifyingΓÇª" : "CapturingΓÇª"}
           </Button>
         )}
 
@@ -323,10 +449,8 @@ export default function LivenessPage() {
         )}
       </div>
 
-      {/* Privacy note */}
       <p className="text-center text-xs text-muted-foreground">
-        Your selfie is used once to confirm your identity and is processed securely
-        by our verification partner.
+        Your verification data is encrypted and processed securely.
       </p>
     </div>
   );

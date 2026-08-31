@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useRef, useState, DragEvent } from "react";
 import { Upload, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -66,26 +66,26 @@ export function UploadField({
         className={cn(
           "flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors",
           dragOver
-            ? "border-primary bg-primary/5"
-            : "border-foreground/10 bg-foreground/[0.02] hover:border-primary/40 hover:bg-primary/5",
+            ? "border-purple-500 bg-purple-50"
+            : "border-border bg-white hover:border-purple-400 hover:bg-purple-50/40",
         )}
       >
         {isPending ? (
           <>
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <p className="text-sm text-foreground/60">Uploading…</p>
+            <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+            <p className="text-sm text-muted-foreground">UploadingΓÇª</p>
           </>
         ) : uploaded ? (
           <>
-            <Check className="h-6 w-6 text-primary" />
+            <Check className="h-6 w-6 text-emerald-600" />
             <p className="text-sm font-medium text-foreground">{fileName || "File uploaded"}</p>
-            <p className="text-xs text-primary">Click to replace</p>
+            <p className="text-xs text-purple-700">Click to replace</p>
           </>
         ) : (
           <>
-            <Upload className="h-6 w-6 text-foreground/40" />
-            <p className="text-sm text-foreground/60">
-              Drag &amp; drop or <span className="font-medium text-primary">browse</span>
+            <Upload className="h-6 w-6 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              Drag &amp; drop or <span className="font-medium text-purple-700">browse</span>
             </p>
             {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
           </>

@@ -18,8 +18,15 @@ export const useLogin = () => {
       const token = response.data.token;
       if (token) {
         Cookies.set("accessToken", token, {
+          // Match the 7-day refresh-token window so the cookie survives a browser
+          // restart. Without an `expires` this was a session cookie: closing the
+          // browser dropped it, middleware then saw no token and bounced the user to
+          // /login ΓÇö a silent "random" logout even though the refresh token was valid.
+          expires: 7,
           secure: process.env.NODE_ENV === "production",
-          sameSite: "strict",
+          // `lax`, not `strict`: strict drops the cookie on top-level navigations INTO
+          // the app (e.g. following an email link), so the entry landed on /login.
+          sameSite: "lax",
         });
       }
       queryClient.invalidateQueries({ queryKey: authKeys.me() });
@@ -41,18 +48,18 @@ export const useLogout = () => {
   return useMutation({
     mutationFn: authClient.logout,
     // Clear local session and redirect regardless of whether the backend
-    // call succeeds — an expired token would otherwise trap the user.
+    // call succeeds ΓÇö an expired token would otherwise trap the user.
     onSuccess: clearAndRedirect,
     onError: clearAndRedirect,
   });
 };
 
-export const useGetMe = () => {
+export const useGetMe = (enabled = true) => {
   return useQuery({
     queryKey: authKeys.me(),
     queryFn: authClient.getMe,
-    // only fetch if access token exists
-    enabled: !!Cookies.get("accessToken"),
+    // only fetch if access token exists and enabled is true
+    enabled: enabled && !!Cookies.get("accessToken"),
     retry: false,
   });
 };
@@ -104,8 +111,9 @@ export const useBvnRecoverComplete = () => {
       const token = response?.data?.token;
       if (token) {
         Cookies.set("accessToken", token, {
+          expires: 7,
           secure: process.env.NODE_ENV === "production",
-          sameSite: "strict",
+          sameSite: "lax",
         });
       }
       queryClient.invalidateQueries({ queryKey: authKeys.me() });

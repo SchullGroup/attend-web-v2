@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { purgeLegacyStoredBvn } from "@/lib/kyc-progress";
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -17,6 +18,14 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
         },
       }),
   );
+
+  // An earlier build stored the user's BVN in localStorage. Nothing writes it any more,
+  // but it is still sitting on every device that used the KYC flow before, so clear it
+  // once on load. This wraps the whole app deliberately ΓÇö a user with a leftover BVN may
+  // never open the KYC pages again, so purging there would miss them.
+  useEffect(() => {
+    purgeLegacyStoredBvn();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

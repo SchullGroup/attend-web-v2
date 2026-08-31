@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Check, X, CheckCircle2, KeyRound } from "lucide-react";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import Link from "next/link";
 import { useResetPassword } from "@/api/auth/hooks";
+import { apiErrorMessage } from "@/lib/api-error";
 
 const RULES = [
   { label: "At least 8 characters", test: (p: string) => p.length >= 8 },
@@ -46,9 +47,7 @@ export default function ResetPasswordPage() {
         },
         onError: (err: any) => {
           setErrorMsg(
-            err?.response?.data?.message ||
-              err?.message ||
-              "Reset failed. Check your code and try again.",
+            apiErrorMessage(err, "Reset failed. Check your code and try again."),
           );
         },
       },
@@ -58,12 +57,15 @@ export default function ResetPasswordPage() {
   if (done) {
     return (
       <div className="space-y-6 text-center">
+        <div className="md:hidden mb-2 flex justify-start">
+          <img src="/attend-logo.png" alt="Attend" style={{ height: 31 }} />
+        </div>
         <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
           <CheckCircle2 className="h-7 w-7 text-emerald-600" />
         </div>
         <div>
-          <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Password updated</h1>
-          <p className="mt-2 text-sm tracking-[-0.14px] text-foreground/70">
+          <h1 className="text-2xl font-bold text-foreground">Password updated</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
             Your password has been reset. Sign in with your new credentials.
           </p>
         </div>
@@ -76,11 +78,20 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="space-y-6">
+      <div className="md:hidden mb-2">
+        <img src="/attend-logo.png" alt="Attend" style={{ height: 31 }} />
+      </div>
 
       <div>
-        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Set a new password</h1>
-        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/70">
+        <h1 className="text-2xl font-bold text-foreground">Set a new password</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Enter the code sent to your email and choose a new password.
+        </p>
+        {/* Same delivery problem as the signup code ΓÇö this screen waits on an emailed OTP
+            too, so it needs the same spam-folder hint rather than only /verify having it. */}
+        <p className="mt-3 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground leading-relaxed">
+          It usually arrives within a minute. If it doesn&apos;t, check your spam or junk
+          folder.
         </p>
       </div>
 
@@ -149,7 +160,7 @@ export default function ResetPasswordPage() {
         )}
 
         <Button type="submit" fullWidth size="lg" loading={isPending} disabled={!canSubmit}>
-          {isPending ? "Updating…" : "Update password"}
+          {isPending ? "UpdatingΓÇª" : "Update password"}
         </Button>
       </form>
 

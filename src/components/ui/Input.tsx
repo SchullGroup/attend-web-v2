@@ -7,11 +7,12 @@ interface Props extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   leftIcon?: ReactNode;
+  prefix?: string;
   hint?: string;
 }
 
 export const Input = forwardRef<HTMLInputElement, Props>(function Input(
-  { label, error, leftIcon, hint, className, id, type, ...props },
+  { label, error, leftIcon, prefix, hint, className, id, type, ...props },
   ref,
 ) {
   const [showPassword, setShowPassword] = useState(false);
@@ -20,16 +21,27 @@ export const Input = forwardRef<HTMLInputElement, Props>(function Input(
   const inputType = isPassword ? (showPassword ? "text" : "password") : type;
 
   return (
-    <div className="space-y-1.5">
+    <div className="w-full space-y-1.5 text-left">
       {label && (
         <label htmlFor={inputId} className="text-sm font-medium text-foreground">
           {label}
         </label>
       )}
-      <div className="relative">
+      <div className="relative flex items-center">
         {leftIcon && (
-          <div className="absolute inset-y-0 left-3 flex items-center text-muted-foreground pointer-events-none">
+          <div className="absolute inset-y-0 left-3 flex items-center text-muted-foreground pointer-events-none z-10">
             {leftIcon}
+          </div>
+        )}
+        {prefix && (
+          <div
+            className={cn(
+              "absolute inset-y-0 flex items-center text-sm font-medium text-foreground/80 select-none z-10",
+              leftIcon ? "left-10" : "left-3.5"
+            )}
+          >
+            <span>{prefix}</span>
+            <span className="ml-2 h-4 w-px bg-foreground/20" />
           </div>
         )}
         <input
@@ -41,6 +53,7 @@ export const Input = forwardRef<HTMLInputElement, Props>(function Input(
             "focus-visible:outline-none focus-visible:border-primary",
             "disabled:opacity-50 transition-colors",
             leftIcon && "pl-10",
+            prefix && (leftIcon ? "pl-24" : "pl-16"),
             isPassword && "pr-10",
             error && "border-destructive",
             className,

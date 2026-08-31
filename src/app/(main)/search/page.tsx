@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -13,7 +13,7 @@ const isInnovation = (t?: string) => t === "HACKATHON" || t === "INNOVATION_CHAL
 function SearchInner() {
   const q = useSearchParams().get("q") ?? "";
 
-  const { data: evData, isLoading: evLoading } = useGetEvents({ search: q || undefined });
+  const { data: evData, isLoading: evLoading } = useGetEvents({ search: q || undefined, size: 100 });
   const { data: chData, isLoading: chLoading } = useGetChallenges({ search: q || undefined });
 
   const isLoading = !!q && (evLoading || chLoading);
@@ -62,8 +62,8 @@ function SearchInner() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-foreground">{e.title}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {e.registerName || e.organizerName} · {formatDate(e.date)}
-                      {e.format ? ` · ${formatEventFormat(e.format)}` : ""}
+                      {e.registerName || e.organizerName} ┬╖ {formatDate(e.date)}
+                      {e.format ? ` ┬╖ ${formatEventFormat(e.format)}` : ""}
                     </p>
                   </div>
                   <ModuleBadge module={e.eventType} />

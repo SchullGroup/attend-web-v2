@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/api-client";
+﻿import { apiClient } from "@/lib/api-client";
 import {
   NotificationsResponse,
   NotificationsParams,
@@ -40,6 +40,14 @@ export const notificationsClient = {
   markAllRead: async () => {
     const response = await apiClient.patch<ApiResponse>(
       "/api/v1/participant/notifications/read-all",
+    );
+    return response.data;
+  },
+ 
+  subscribeDevice: async (subscription: PushSubscription) => {
+    const response = await apiClient.post<ApiResponse>(
+      "/api/v1/devices/subscribe",
+      subscription,
     );
     return response.data;
   },
