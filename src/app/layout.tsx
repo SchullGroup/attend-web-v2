@@ -9,10 +9,10 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Attend ΓÇö Enterprise Events Platform",
+  title: "Attend — Enterprise Events Platform",
   description: "AGMs, product launches, innovation challenges and more.",
   openGraph: {
-    title: "Attend ΓÇö Enterprise Events Platform",
+    title: "Attend — Enterprise Events Platform",
     description: "AGMs, product launches, innovation challenges and more.",
     url: "https://attend-web-eight.vercel.app",
     siteName: "Attend",
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Attend ΓÇö Enterprise Events Platform",
+    title: "Attend — Enterprise Events Platform",
     description: "AGMs, product launches, innovation challenges and more.",
     images: ["https://attend-web-eight.vercel.app/attend-logo.png"],
     site: "@Attend_NG",

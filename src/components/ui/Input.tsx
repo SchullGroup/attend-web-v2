@@ -29,7 +29,7 @@ export const Input = forwardRef<HTMLInputElement, Props>(function Input(
       )}
       <div className="relative flex items-center">
         {leftIcon && (
-          <div className="absolute inset-y-0 left-3 flex items-center text-muted-foreground pointer-events-none z-10">
+          <div className="absolute inset-y-0 left-3 flex items-center text-foreground/40 pointer-events-none z-10">
             {leftIcon}
           </div>
         )}
@@ -64,13 +64,13 @@ export const Input = forwardRef<HTMLInputElement, Props>(function Input(
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground cursor-pointer focus:outline-none"
+            className="absolute inset-y-0 right-3 flex items-center text-foreground/40 hover:text-foreground cursor-pointer focus:outline-none"
           >
             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         )}
       </div>
-      {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
+      {hint && !error && <p className="text-xs text-foreground/60">{hint}</p>}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );

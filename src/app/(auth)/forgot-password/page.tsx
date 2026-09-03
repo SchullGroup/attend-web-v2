@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -35,13 +35,9 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="space-y-6">
-      <div className="md:hidden mb-2">
-        <img src="/attend-logo.png" alt="Attend" style={{ height: 31 }} />
-      </div>
-
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Forgot password?</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Forgot password?</h1>
+        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
           Enter your email and we&apos;ll send you a verification code.
         </p>
       </div>
@@ -63,14 +59,14 @@ export default function ForgotPasswordPage() {
           onChange={(e) => setEmail(e.target.value)}
         />
         <Button type="submit" fullWidth size="lg" loading={isPending} disabled={!email.trim()}>
-          {isPending ? "Sending codeΓÇª" : "Send reset code"}
+          {isPending ? "Sending code…" : "Send reset code"}
         </Button>
       </form>
 
-      <p className="text-center text-sm text-muted-foreground">
+      <p className="text-center text-sm text-foreground/60">
         Remembered it?{" "}
         <Link href="/login" className="font-semibold text-foreground hover:underline">
-          <ArrowLeft className="inline h-3.5 w-3.5 mr-0.5" />
+          <ArrowLeft className="mr-0.5 inline h-3.5 w-3.5" />
           Back to sign in
         </Link>
       </p>

@@ -77,7 +77,7 @@ const STYLES: Record<string, NotificationStyle> = {
 
 const FALLBACK: NotificationStyle = {
   icon: Bell,
-  color: "bg-muted text-muted-foreground",
+  color: "bg-foreground/[0.04] text-foreground/60",
 };
 
 // Matched case-insensitively so a backend switch to lowercase (or a mixed feed during a

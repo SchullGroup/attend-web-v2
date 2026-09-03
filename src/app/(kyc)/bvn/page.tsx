@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
@@ -13,13 +13,13 @@ export default function BvnPage() {
   const { data: meData } = useGetMe();
   const currentUser = meData?.data;
 
-  // A BVN already accepted by the backend must not be re-submitted ΓÇö resuming users
+  // A BVN already accepted by the backend must not be re-submitted — resuming users
   // landed here and were asked to re-enter details that were already verified.
   const { data: kycResp } = useGetKycStatus();
   const step1 = kycResp?.data?.steps?.step1;
   const alreadyVerified = !!step1?.completed;
 
-  // Regulatory consent ΓÇö an un-ticked checkbox gates the submit button, with the
+  // Regulatory consent — an un-ticked checkbox gates the submit button, with the
   // full NDPA/CBN disclosure available inline rather than behind a blocking modal.
   const [hasConsented, setHasConsented] = useState(false);
   const [showDisclosure, setShowDisclosure] = useState(false);
@@ -99,11 +99,11 @@ export default function BvnPage() {
     return (
       <div className="space-y-6">
         <div>
-          <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
+          <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-[10px] bg-emerald-100">
             <CheckCircle2 className="h-5 w-5 text-emerald-600" />
           </div>
-          <h1 className="text-xl font-bold text-foreground">BVN already verified</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-xl font-medium tracking-[-0.6px] text-foreground">BVN already verified</h1>
+          <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
             {step1?.pendingReview
               ? "Your BVN is on file and awaiting review. There's nothing more to do on this step."
               : "We've already confirmed your BVN, so you can skip straight to the next step."}
@@ -124,14 +124,14 @@ export default function BvnPage() {
 
   return (
     <>
-      {/* BVN & DOB INPUT FORM */}
+      {/* BVN & DOB input form */}
       <form onSubmit={onSubmit} className="space-y-6">
         <div>
-          <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
-            <Fingerprint className="h-5 w-5 text-gray-700" />
+          <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-[10px] bg-foreground/[0.04]">
+            <Fingerprint className="h-5 w-5 text-foreground/70" />
           </div>
-          <h1 className="text-xl font-bold text-foreground">Bank Verification Number</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-xl font-medium tracking-[-0.6px] text-foreground">Bank Verification Number</h1>
+          <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
             Enter your 11-digit BVN and Date of Birth to verify your identity.
           </p>
         </div>
@@ -149,7 +149,7 @@ export default function BvnPage() {
           placeholder="22XXXXXXXXX"
           value={bvn}
           onChange={(e) => setBvn(e.target.value.replace(/\D/g, "").slice(0, 11))}
-          hint={`${bvn.length}/11 digits ΓÇö processed securely with Dojah.`}
+          hint={`${bvn.length}/11 digits — processed securely with Dojah.`}
         />
 
         <Input
@@ -160,11 +160,11 @@ export default function BvnPage() {
           leftIcon={<Calendar className="h-4 w-4" />}
           value={dob}
           onChange={(e) => handleDobChange(e.target.value)}
-          hint="Format: Day/Month/Year (e.g. 15/08/1995) ΓÇö must match your BVN record."
+          hint="Format: Day/Month/Year (e.g. 15/08/1995) — must match your BVN record."
         />
 
-        {/* MANDATORY REGULATORY CONSENT ΓÇö un-ticked by default, gates submit */}
-        <div className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
+        {/* Mandatory regulatory consent — un-ticked by default, gates submit */}
+        <div className="space-y-3 rounded-xl border border-foreground/[0.06] bg-foreground/[0.03] p-4">
           <label
             htmlFor="bvnConsent"
             className="flex cursor-pointer items-start gap-3 text-xs leading-relaxed text-foreground"
@@ -175,7 +175,7 @@ export default function BvnPage() {
               type="checkbox"
               checked={hasConsented}
               onChange={(e) => setHasConsented(e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-foreground/20 accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             />
             <span>
               I consent to the processing of my BVN and Date of Birth for identity
@@ -202,7 +202,7 @@ export default function BvnPage() {
 
           {showDisclosure && (
             <div id="bvnDisclosure" className="space-y-3">
-              <div className="space-y-3 rounded-xl border border-border bg-white p-3 text-xs text-muted-foreground">
+              <div className="space-y-3 rounded-xl border border-foreground/[0.06] bg-white p-3 text-xs text-foreground/60">
                 <div className="flex items-center gap-2">
                   <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
                     NDPA &amp; CBN Regulatory Notice
@@ -251,7 +251,7 @@ export default function BvnPage() {
             Back
           </Button>
           <Button type="submit" fullWidth loading={isPending} disabled={!isValid}>
-            {isPending ? "VerifyingΓÇª" : "Continue"}
+            {isPending ? "Verifying…" : "Continue"}
           </Button>
         </div>
       </form>

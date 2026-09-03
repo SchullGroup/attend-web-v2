@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Check, X, CheckCircle2, KeyRound } from "lucide-react";
@@ -57,15 +57,12 @@ export default function ResetPasswordPage() {
   if (done) {
     return (
       <div className="space-y-6 text-center">
-        <div className="md:hidden mb-2 flex justify-start">
-          <img src="/attend-logo.png" alt="Attend" style={{ height: 31 }} />
-        </div>
         <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
           <CheckCircle2 className="h-7 w-7 text-emerald-600" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Password updated</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Password updated</h1>
+          <p className="mt-2 text-sm tracking-[-0.14px] text-foreground/60">
             Your password has been reset. Sign in with your new credentials.
           </p>
         </div>
@@ -78,18 +75,14 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="space-y-6">
-      <div className="md:hidden mb-2">
-        <img src="/attend-logo.png" alt="Attend" style={{ height: 31 }} />
-      </div>
-
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Set a new password</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Set a new password</h1>
+        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
           Enter the code sent to your email and choose a new password.
         </p>
-        {/* Same delivery problem as the signup code ΓÇö this screen waits on an emailed OTP
+        {/* Same delivery problem as the signup code — this screen waits on an emailed OTP
             too, so it needs the same spam-folder hint rather than only /verify having it. */}
-        <p className="mt-3 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground leading-relaxed">
+        <p className="mt-3 rounded-lg bg-foreground/[0.04] px-3 py-2 text-xs leading-relaxed text-foreground/60">
           It usually arrives within a minute. If it doesn&apos;t, check your spam or junk
           folder.
         </p>
@@ -156,15 +149,15 @@ export default function ResetPasswordPage() {
           onChange={(e) => setConfirm(e.target.value)}
         />
         {confirm.length > 0 && !matches && (
-          <p className="text-xs text-red-600 font-medium -mt-2">Passwords do not match.</p>
+          <p className="-mt-2 text-xs font-medium text-red-600">Passwords do not match.</p>
         )}
 
         <Button type="submit" fullWidth size="lg" loading={isPending} disabled={!canSubmit}>
-          {isPending ? "UpdatingΓÇª" : "Update password"}
+          {isPending ? "Updating…" : "Update password"}
         </Button>
       </form>
 
-      <p className="text-center text-sm text-muted-foreground">
+      <p className="text-center text-sm text-foreground/60">
         Remembered it?{" "}
         <Link href="/login" className="font-semibold text-foreground hover:underline">
           Sign in

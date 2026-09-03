@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import Link from "next/link";
 import { Building2, Lightbulb, Rocket, ShieldCheck, ArrowRight, Star } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -27,7 +27,7 @@ const FEATURES = [
     color: "#059669",
     bg: "#ecfdf5",
     title: "Events & Launches",
-    desc: "RSVP to product launches, investor days, and corporate events ΓÇö virtual or in-person.",
+    desc: "RSVP to product launches, investor days, and corporate events — virtual or in-person.",
     href: "/events",
   },
   {
@@ -46,17 +46,17 @@ export default function OnboardingPage() {
   const firstName = fullName.split(" ")[0];
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 py-4">
-      {/* Welcome hero */}
-      <div className="rounded-3xl border border-border bg-linear-to-br from-gray-900 to-gray-700 p-8 text-white text-center">
+    <div className="mx-auto max-w-5xl space-y-8 py-4">
+      {/* Welcome hero — dark gradient kept as the intentional welcome moment */}
+      <div className="rounded-2xl bg-linear-to-br from-gray-900 to-gray-700 p-8 text-center text-white">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-2xl font-bold">
           {initialsFor(fullName)}
         </div>
-        <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold mb-3">
+        <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold">
           <Star className="h-3 w-3" /> Welcome to Attend
         </div>
-        <h1 className="text-3xl font-bold">Hello, {firstName}!</h1>
-        <p className="mt-2 text-sm text-white/70 max-w-sm mx-auto">
+        <h1 className="text-3xl font-semibold tracking-[-0.6px]">Hello, {firstName}!</h1>
+        <p className="mx-auto mt-2 max-w-sm text-sm text-white/70">
           Your account is ready. Here is everything you can do on the Attend platform.
         </p>
       </div>
@@ -67,28 +67,28 @@ export default function OnboardingPage() {
           <Link
             key={title}
             href={href}
-            className="group rounded-2xl border border-border bg-white p-5 hover:border-gray-300 hover:shadow-sm transition-all"
+            className="group rounded-xl border border-foreground/[0.06] bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
           >
             <div
-              className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl"
+              className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-[10px]"
               style={{ backgroundColor: bg }}
             >
               <Icon className="h-5 w-5" style={{ color }} />
             </div>
-            <h3 className="text-sm font-semibold text-foreground mb-1">{title}</h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+            <h3 className="mb-1 text-sm font-semibold text-foreground">{title}</h3>
+            <p className="text-xs leading-relaxed text-foreground/60">{desc}</p>
           </Link>
         ))}
       </div>
 
       {/* KYC CTA */}
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 flex items-start gap-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100">
+      <div className="flex items-start gap-4 rounded-xl border border-amber-200 bg-amber-50 p-5">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-amber-100">
           <ShieldCheck className="h-5 w-5 text-amber-600" />
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-amber-900">Complete your identity verification</p>
-          <p className="text-xs text-amber-700 mt-0.5">
+          <p className="mt-0.5 text-xs text-amber-700">
             Verify your BVN and CHN to unlock AGM voting and full shareholder access. Takes about 2 minutes.
           </p>
         </div>

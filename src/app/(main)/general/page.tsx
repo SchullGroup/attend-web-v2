@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { useGetEvents } from "@/api/events/hooks";
@@ -60,22 +60,22 @@ export default function GeneralEventsPage() {
   }, [apiEvents, fmt]);
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <header>
-        <h1 className="text-2xl font-bold text-foreground">General Events</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">General Events</h1>
+        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
           Conferences, meetings and roundtables.
         </p>
       </header>
 
-      <div className="space-y-3">
+      <div className="flex flex-col gap-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/40" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by title or organiser"
-            className="h-11 w-full rounded-xl border border-input bg-white pl-10 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary"
+            className="h-11 w-full rounded-[10px] border border-transparent bg-foreground/[0.04] pl-10 pr-3 text-sm tracking-[-0.14px] text-foreground outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
           />
         </div>
         <div className="flex flex-wrap gap-2">
@@ -87,7 +87,7 @@ export default function GeneralEventsPage() {
                 "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
                 fmt === f
                   ? "border-primary bg-primary text-white"
-                  : "border-border bg-white text-muted-foreground hover:bg-muted",
+                  : "border-foreground/[0.06] bg-white text-foreground/60 hover:bg-foreground/[0.04]",
               )}
             >
               {f}
@@ -99,11 +99,11 @@ export default function GeneralEventsPage() {
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2">
           {[1, 2, 3, 4].map((n) => (
-            <div key={n} className="h-64 animate-pulse rounded-2xl border border-border bg-muted" />
+            <div key={n} className="h-64 animate-pulse rounded-xl bg-foreground/[0.04]" />
           ))}
         </div>
       ) : visible.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-foreground/15 p-10 text-center text-sm text-foreground/50">
           No general events right now.
         </div>
       ) : (

@@ -65,7 +65,7 @@ interface LiveRoomProps {
   backHref?: string;
   backLabel?: string;
   // TEMP: force a Zoom meeting (number + plain passcode) instead of the event's
-  // streamUrl ΓÇö for testing the live room before the backend flow exists.
+  // streamUrl — for testing the live room before the backend flow exists.
   zoomOverride?: { meetingNumber: string; passcode: string };
 }
 
@@ -81,7 +81,7 @@ export function LiveRoom({
   const session = useSession();
   // Trust useSession alone. This used to also OR in a raw sessionStorage read, which
   // overrode useSession's precedence: a leftover guest token from an earlier guest visit
-  // made a fully signed-in shareholder register as a guest ΓÇö and lose the vote.
+  // made a fully signed-in shareholder register as a guest — and lose the vote.
   // A real account always wins; useSession enforces that.
   const isGuest = session.type === "GUEST";
   const [guestToken, setGuestToken] = useState<string>("");
@@ -95,11 +95,11 @@ export function LiveRoom({
 
   const event = isGuest ? guestViewResp?.data : eventResp?.data;
   // The participant payload calls it `title`; the guest join/view payload calls it
-  // `eventTitle` ΓÇö reading only `title` left every guest on the "Live session" fallback.
+  // `eventTitle` — reading only `title` left every guest on the "Live session" fallback.
   const title =
     event?.title ?? (event as { eventTitle?: string } | undefined)?.eventTitle ?? "Live session";
   const organiser = event?.registerName || event?.organizerName || "";
-  // ┬º7 register branding ΓÇö present on both participant and guest event payloads.
+  // §7 register branding — present on both participant and guest event payloads.
   const brandColor = event?.branding?.brandColor || undefined;
   const brandLogo = event?.branding?.logoUrl || undefined;
   const isLive = event?.status === "LIVE";
@@ -156,22 +156,22 @@ export function LiveRoom({
   const zoom = zoomOverride?.meetingNumber ? zoomOverride : parseZoomUrl(streamUrl);
   const displayName = session.user?.fullName || (isGuest ? getGuestName() : "Participant");
   const canVote = !isGuest && (session.user ? session.user.capabilities.includes("VOTE") : true);
-  // ┬º11: a guest who signed in with a proxy code (or proxy QR) at /join gets canVote:true
-  // on the view payload, and may then vote directly ΓÇö no per-vote code entry. Read live
+  // §11: a guest who signed in with a proxy code (or proxy QR) at /join gets canVote:true
+  // on the view payload, and may then vote directly — no per-vote code entry. Read live
   // from the polled view so a resumed session re-checks it without re-parsing the token.
   const guestCanVote = isGuest && !!(guestViewResp?.data as { canVote?: boolean } | undefined)?.canVote;
   // A guest with no proxy rights watches the ballot for the record: every resolution and
-  // its live tally, but none of the voting apparatus ΓÇö no per-resolution status badge, no
+  // its live tally, but none of the voting apparatus — no per-resolution status badge, no
   // countdown, no FOR/AGAINST/ABSTAIN. Showing an "Open" badge to someone who cannot act
   // on it reads as a prompt they're being denied.
   const ballotReadOnly = isGuest && !guestCanVote;
   const canSubmitQA = session.user ? session.user.capabilities.includes("QA") : true;
 
-  // Zoom's gallery view needs SharedArrayBuffer ΓåÆ the page must be cross-origin
+  // Zoom's gallery view needs SharedArrayBuffer → the page must be cross-origin
   // isolated. Isolate ONLY for Zoom meetings by reloading once with `?coi=1`
   // (next.config applies COOP/COEP for that flag). Non-Zoom pages stay un-isolated,
   // so YouTube/Vimeo iframe streams keep working on every browser.
-  // "ready" once the page is isolated (or we tried and the browser won't isolate ΓÇö
+  // "ready" once the page is isolated (or we tried and the browser won't isolate —
   // e.g. Safari/Firefox, where Zoom still works, just without gallery view). We hold
   // ZoomStage back until then so the SDK isn't downloaded on a page we're about to
   // navigate away from (that race left the SDK global unset).
@@ -190,15 +190,15 @@ export function LiveRoom({
     window.location.replace(url.toString());
   }, [zoomMn]);
 
-  // Countdown to start ΓÇö only polled before the event is live.
+  // Countdown to start — only polled before the event is live.
   // Everything below hits *participant* endpoints, which 401/403 for a guest by design.
   // They're gated on !isGuest so a guest doesn't fire a burst of doomed requests on entry.
   const { data: cdData } = useGetCountdown(eventId, !!event && !isLive && !isGuest);
   const cdSecs =
     typeof cdData?.data?.secondsUntilStart === "number" ? cdData.data.secondsUntilStart : null;
 
-  // Live quorum (AGM ballot only). Response is a generic map ΓÇö read the percentage
-  // defensively; show "ΓÇö" rather than a fabricated number if it's not present.
+  // Live quorum (AGM ballot only). Response is a generic map — read the percentage
+  // defensively; show "—" rather than a fabricated number if it's not present.
   const quorumPct = (() => {
     const m = (quorumData?.data ?? {}) as Record<string, unknown>;
     const raw =
@@ -213,7 +213,7 @@ export function LiveRoom({
     showBallot && !isGuest,
   );
   // Proxy guests read the same resolutions from their own view-only endpoint, so the
-  // ballot panel shows live tallies. Gated on guestCanVote, not just isGuest ΓÇö backend
+  // ballot panel shows live tallies. Gated on guestCanVote, not just isGuest — backend
   // hard-blocks this endpoint (403) for a plain guest as of 2026-08-17, so firing it for
   // one would just be a doomed request every 5s.
   const { data: guestResData } = useGuestResolutions(
@@ -243,13 +243,13 @@ export function LiveRoom({
   const { mutate: guestVote, isPending: guestVoting } = useGuestVote(eventId, guestToken);
   const [proxyCode, setProxyCode] = useState("");
   // In the guest read-only ballot the proxy-code entry is collapsed behind this toggle.
-  // It's the only way a plain guest can reach the vote buttons, so it can't be deleted ΓÇö
+  // It's the only way a plain guest can reach the vote buttons, so it can't be deleted —
   // but it stays out of sight for the majority of guests, who hold no proxy.
   const [showProxyEntry, setShowProxyEntry] = useState(false);
   // A proxy guest and a voting participant share the same ballot; this is its busy flag.
   const castPending = voting || guestVoting;
 
-  // Press Kit ΓÇö product launches only. Poll while live so files flip to "released"
+  // Press Kit — product launches only. Poll while live so files flip to "released"
   // as the organiser releases them.
   const isLaunch = event?.eventType === "PRODUCT_LAUNCH";
   const { data: pressKitResp, error: pressKitError } = useGetPressKit(
@@ -258,11 +258,11 @@ export function LiveRoom({
     isLaunch && !isGuest,
   );
   const pressKit = pressKitResp?.data;
-  // 403 ΓåÆ the participant isn't registered for this event (press kit is gated).
+  // 403 → the participant isn't registered for this event (press kit is gated).
   const pressKitForbidden =
     (pressKitError as { response?: { status?: number } } | null)?.response?.status === 403;
 
-  // When the register has no share weighting, shares are all 0 ΓÇö ResolutionBars falls back
+  // When the register has no share weighting, shares are all 0 — ResolutionBars falls back
   // to head counts on its own, so the tally doesn't need a flag to gate them.
   // The ballot shows one open resolution at a time and advances to the next unvoted one
   // as soon as a vote succeeds. `locallyVoted` marks just-cast resolutions optimistically
@@ -278,7 +278,7 @@ export function LiveRoom({
   const isOpenRes = (r: Resolution) =>
     (r.status || "").toUpperCase() === "OPEN" || r.secondsRemaining > 0;
   const isResVoted = (r: Resolution) => !!r.myVote || locallyVoted.has(r.id);
-  // Stable 1-based numbering by position ΓÇö resolution.order isn't reliably 0-based,
+  // Stable 1-based numbering by position — resolution.order isn't reliably 0-based,
   // which is what produced "6 of 5". Number by index so the count always tallies.
   const sortedRes = [...resolutions].sort((a, b) => a.order - b.order);
   const openResolutions = sortedRes.filter(isOpenRes);
@@ -316,11 +316,11 @@ export function LiveRoom({
     resolutions.length > 0 && resolutions.every((r) => (r.status || "").toUpperCase() === "CLOSED");
   // Open while a resolution is live, Closed only when every one has closed,
   // otherwise Waiting (resolutions exist but none has been opened yet).
-  const ballotStatus = openRes ? "Open" : allClosed ? "Closed" : resolutions.length ? "Waiting" : "ΓÇö";
+  const ballotStatus = openRes ? "Open" : allClosed ? "Closed" : resolutions.length ? "Waiting" : "—";
   const openPos = openRes ? sortedRes.findIndex((r) => r.id === openRes.id) + 1 : null;
 
   // Real-time Q&A over WebSocket; polling stays as a slow (30s) fallback.
-  // The socket authenticates with accessToken, which a guest doesn't have ΓÇö left
+  // The socket authenticates with accessToken, which a guest doesn't have — left
   // unconnected it would retry every 5s forever. Guest Q&A needs the guest-token
   // STOMP header before this can be enabled for them.
   useQaSocket(eventId, !isGuest);
@@ -361,7 +361,7 @@ export function LiveRoom({
   const [vote, setVote] = useState<VoteChoice | null>(null);
   const [voteMsg, setVoteMsg] = useState<{ kind: "ok" | "err"; text: string; disclaimer?: string } | null>(null);
   const [isEditingVote, setIsEditingVote] = useState(false);
-  // A success message next to the permanent "Vote Recorded" card is redundant clutter ΓÇö
+  // A success message next to the permanent "Vote Recorded" card is redundant clutter —
   // fade it on its own rather than needing the user to dismiss it or vote again to clear
   // it. Errors stay put; those need to actually be read and acted on.
   useEffect(() => {
@@ -369,7 +369,7 @@ export function LiveRoom({
     const t = setTimeout(() => setVoteMsg(null), 4000);
     return () => clearTimeout(t);
   }, [voteMsg]);
-  // The "Voting as proxy" banner is one-time orientation, not a persistent status ΓÇö once
+  // The "Voting as proxy" banner is one-time orientation, not a persistent status — once
   // shown, it fades so it doesn't keep competing with the actual vote state below it.
   const [showProxyIntro, setShowProxyIntro] = useState(true);
   useEffect(() => {
@@ -387,7 +387,7 @@ export function LiveRoom({
   // never sits on top of (or blocks) Zoom's own controls.
   const [videoHover, setVideoHover] = useState(false);
 
-  // Show the user's just-submitted question optimistically ΓÇö but only until the
+  // Show the user's just-submitted question optimistically — but only until the
   // backend's list actually returns it (so it doesn't appear twice).
   const showMyPending =
     qSent &&
@@ -414,7 +414,7 @@ export function LiveRoom({
     }
   };
 
-  // Local "starts in" ticker ΓÇö re-syncs to the backend's secondsUntilStart on
+  // Local "starts in" ticker — re-syncs to the backend's secondsUntilStart on
   // each poll, ticks down locally in between.
   const [startsIn, setStartsIn] = useState<number | null>(null);
   useEffect(() => {
@@ -442,7 +442,7 @@ export function LiveRoom({
   }, [openRes?.id, openRes?.secondsRemaining]);
 
   // Pre-select the user's existing vote so they can review/change it in the window.
-  // Also clear the last resolution's status message ΓÇö hasRecorded ORs voteMsg?.kind
+  // Also clear the last resolution's status message — hasRecorded ORs voteMsg?.kind
   // === "ok", so a stale success would otherwise flag the NEXT resolution as already
   // voted (showing "Vote Recorded" for a resolution the user hasn't voted on).
   useEffect(() => {
@@ -452,7 +452,7 @@ export function LiveRoom({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openRes?.id]);
 
-  // Same reset for polls ΓÇö a stale selection/message would otherwise carry into the
+  // Same reset for polls — a stale selection/message would otherwise carry into the
   // next poll and pre-highlight an unrelated option.
   useEffect(() => {
     setPollChoice(null);
@@ -480,7 +480,7 @@ export function LiveRoom({
   // participant or a proxy guest.
   const voteHandlers = (okText: string, resId: string) => ({
     onSuccess: (res: any) => {
-      // Only the guest/proxy vote endpoints carry this (added 2026-08-18) ΓÇö undefined
+      // Only the guest/proxy vote endpoints carry this (added 2026-08-18) — undefined
       // for a regular participant vote, which is correct: the disclaimer is proxy-specific.
       const disclaimer = res?.data?.disclaimer || res?.disclaimer;
       setVoteMsg({ kind: "ok" as const, text: okText, disclaimer });
@@ -504,7 +504,7 @@ export function LiveRoom({
     setVoteMsg(null);
     const args = { resolutionId: openRes.id, data: { choice: vote } };
     const h = voteHandlers("Your vote has been recorded.", openRes.id);
-    // ┬º11: a proxy guest votes via the guest endpoint (auth'd by X-Guest-Token, no code);
+    // §11: a proxy guest votes via the guest endpoint (auth'd by X-Guest-Token, no code);
     // a participant via the participant endpoint.
     if (guestCanVote) guestVote(args, h);
     else castVote(args, h);
@@ -563,7 +563,7 @@ export function LiveRoom({
     );
   }
 
-  // A badge for resolution state. Shown in the read-only guest ballot too ΓÇö it is a statement of
+  // A badge for resolution state. Shown in the read-only guest ballot too — it is a statement of
   // where the resolution stands, not a prompt to act, and without it a guest cannot tell an open
   // resolution from a closed one. The "Voted X" branch never fires for a guest, who has no vote.
   function statusBadge(r: Resolution) {
@@ -579,7 +579,7 @@ export function LiveRoom({
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <Link href={resolvedBackHref} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <Link href={resolvedBackHref} className="inline-flex items-center gap-1 text-sm text-foreground/60 hover:text-foreground">
           <ArrowLeft className="h-4 w-4" /> {backLabel}
         </Link>
         <div className="flex items-center gap-2">
@@ -589,12 +589,12 @@ export function LiveRoom({
               Live
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.04] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-foreground/60">
               Not live
             </span>
           )}
           {watching > 0 && (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1 text-xs text-foreground/60">
               <Users className="h-3.5 w-3.5" />
               {watching.toLocaleString()} watching
             </span>
@@ -631,7 +631,7 @@ export function LiveRoom({
         {/* Stream */}
         <div className="lg:col-span-3">
           {videoHidden && (
-            <div className="flex items-center justify-between rounded-2xl bg-slate-900 px-4 py-3">
+            <div className="flex items-center justify-between rounded-xl bg-slate-900 px-4 py-3">
               <div className="flex items-center gap-3">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                   <span className="h-1 w-1 rounded-full bg-white" /> Live
@@ -647,12 +647,12 @@ export function LiveRoom({
             </div>
           )}
           {/* Stay mounted while minimised. Unmounting ZoomStage runs its cleanup,
-              which calls leaveMeeting() ΓÇö that would drop you out of the meeting. */}
+              which calls leaveMeeting() — that would drop you out of the meeting. */}
           <div
             onMouseEnter={() => setVideoHover(true)}
             onMouseLeave={() => setVideoHover(false)}
             className={cn(
-              "relative overflow-hidden rounded-2xl bg-slate-900",
+              "relative overflow-hidden rounded-xl bg-slate-900",
               !zoom && "aspect-video",
               videoHidden && "hidden",
             )}
@@ -669,13 +669,13 @@ export function LiveRoom({
                   // Isolating (a one-time reload). Don't load the Zoom SDK yet.
                   <div className="flex min-h-105 w-full flex-col items-center justify-center gap-3 text-white">
                     <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/25 border-t-white/80" />
-                    <p className="text-sm font-semibold text-white/85">Preparing the meetingΓÇª</p>
+                    <p className="text-sm font-semibold text-white/85">Preparing the meeting…</p>
                   </div>
                 )
               ) : streamUrl ? (
                 <iframe
                   // `credentialless` lets this cross-origin embed load inside our
-                  // COEP (cross-origin isolated) page ΓÇö otherwise COEP blocks it.
+                  // COEP (cross-origin isolated) page — otherwise COEP blocks it.
                   // See the headers() block in next.config.ts.
                   {...({ credentialless: "" } as any)}
                   src={toEmbedUrl(streamUrl)}
@@ -699,7 +699,7 @@ export function LiveRoom({
                       {startsIn != null && startsIn > 0
                         ? `Starts in ${fmtCountdown(startsIn)}`
                         : isLive
-                        ? "The organiser hasn't posted a join link yet ΓÇö check back shortly."
+                        ? "The organiser hasn't posted a join link yet — check back shortly."
                         : "The live stream will appear here once the session begins"}
                     </p>
                   </div>
@@ -716,8 +716,8 @@ export function LiveRoom({
               </button>
           </div>
 
-          {/* Countdown strip ΓÇö driven by the open resolution's secondsRemaining (AGM only).
-              Hidden in the read-only guest ballot: "Voting open ┬╖ 30s remaining" is a call
+          {/* Countdown strip — driven by the open resolution's secondsRemaining (AGM only).
+              Hidden in the read-only guest ballot: "Voting open · 30s remaining" is a call
               to act, and the guest has nothing to act with. */}
           {showBallot && openRes && !ballotReadOnly && (
             <div
@@ -728,30 +728,30 @@ export function LiveRoom({
             >
               <Vote className="h-4 w-4 shrink-0 text-white" />
               <p className="text-sm font-semibold text-white">
-                Voting open ┬╖ Resolution {openPos ?? "ΓÇö"}
-                {countdown > 0 ? ` ┬╖ ${countdown}s remaining` : ""}
+                Voting open · Resolution {openPos ?? "—"}
+                {countdown > 0 ? ` · ${countdown}s remaining` : ""}
               </p>
             </div>
           )}
 
           {/* Also hidden for read-only guests: Quorum is a participant-only endpoint (so it
-              renders "ΓÇö" for them), and the Status cell is the "Waiting"/"Open" badge again. */}
+              renders "—" for them), and the Status cell is the "Waiting"/"Open" badge again. */}
           {showBallot && !ballotReadOnly && (
             <div className="mt-3 grid grid-cols-3 gap-2">
-              <div className="rounded-xl border border-border bg-white p-3 text-center">
-                <p className="text-xs text-muted-foreground">Quorum</p>
+              <div className="rounded-xl border border-foreground/[0.06] bg-white p-3 text-center">
+                <p className="text-xs text-foreground/60">Quorum</p>
                 <p className="text-base font-semibold text-foreground">
-                  {quorumPct != null ? `${quorumPct}%` : "ΓÇö"}
+                  {quorumPct != null ? `${quorumPct}%` : "—"}
                 </p>
               </div>
-              <div className="rounded-xl border border-border bg-white p-3 text-center">
-                <p className="text-xs text-muted-foreground">Resolution</p>
+              <div className="rounded-xl border border-foreground/[0.06] bg-white p-3 text-center">
+                <p className="text-xs text-foreground/60">Resolution</p>
                 <p className="text-base font-semibold text-foreground">
-                  {openPos ?? "ΓÇö"} of {resolutions.length || "ΓÇö"}
+                  {openPos ?? "—"} of {resolutions.length || "—"}
                 </p>
               </div>
-              <div className="rounded-xl border border-border bg-white p-3 text-center">
-                <p className="text-xs text-muted-foreground">Status</p>
+              <div className="rounded-xl border border-foreground/[0.06] bg-white p-3 text-center">
+                <p className="text-xs text-foreground/60">Status</p>
                 <p className="text-base font-semibold text-foreground">{ballotStatus}</p>
               </div>
             </div>
@@ -760,8 +760,8 @@ export function LiveRoom({
 
         {/* Right panel */}
         <div className="lg:col-span-2">
-          <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
-            <div className="flex border-b border-border">
+          <div className="overflow-hidden rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+            <div className="flex border-b border-foreground/[0.06]">
               {[
                 { id: "qa" as Tab, label: "Q&A", icon: MessageSquare },
                 ...(isLaunch ? [{ id: "presskit" as Tab, label: "Press Kit", icon: FileBox }] : []),
@@ -773,7 +773,7 @@ export function LiveRoom({
                   onClick={() => selectTab(id)}
                   className={cn(
                     "flex flex-1 items-center justify-center gap-1.5 py-3 text-xs font-semibold",
-                    tab === id ? "border-b-2 border-primary text-primary" : "text-muted-foreground",
+                    tab === id ? "border-b-2 border-primary text-primary" : "text-foreground/60",
                   )}
                 >
                   <Icon className="h-3.5 w-3.5" /> {label}
@@ -784,12 +784,12 @@ export function LiveRoom({
             <div className="max-h-105 overflow-y-auto p-4">
               {tab === "qa" && (
                 <div className="flex flex-col gap-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">
                     Submitted Questions
                   </p>
                   <ul className="space-y-2">
                     {qaItems.map((item) => (
-                      <li key={item.id} className="rounded-xl border border-border bg-white p-3">
+                      <li key={item.id} className="rounded-xl border border-foreground/[0.06] bg-white p-3">
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <p className="text-xs font-semibold text-foreground">{item.who}</p>
                           <div className="flex items-center gap-2">
@@ -799,7 +799,7 @@ export function LiveRoom({
                               </span>
                             )}
                             {item.submittedAt && (
-                              <p className="text-[11px] text-muted-foreground">
+                              <p className="text-[11px] text-foreground/60">
                                 <RelativeTimeLabel timestamp={item.submittedAt} />
                               </p>
                             )}
@@ -822,7 +822,7 @@ export function LiveRoom({
                                 "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors",
                                 item.myUpvote
                                   ? "border-primary bg-primary/10 text-primary"
-                                  : "border-border text-muted-foreground hover:bg-muted",
+                                  : "border-foreground/[0.06] text-foreground/60 hover:bg-foreground/[0.04]",
                               )}
                             >
                               <ThumbsUp className={cn("h-3.5 w-3.5", item.myUpvote && "fill-current")} />
@@ -831,14 +831,14 @@ export function LiveRoom({
                           </div>
                         ) : item.status === "APPROVED" || item.status === "ANSWERED" ? (
                           <div className="mt-2 flex items-center">
-                            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/30 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-foreground/[0.06] bg-foreground/[0.03] px-2.5 py-1 text-[11px] font-medium text-foreground/60">
                               <ThumbsUp className="h-3.5 w-3.5" />
                               {item.upvoteCount} upvotes
                             </span>
                           </div>
                         ) : item.status === "PENDING" ? (
                           <div className="mt-2 flex items-center">
-                            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/30 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-foreground/[0.06] bg-foreground/[0.03] px-2.5 py-1 text-[11px] font-medium text-foreground/60">
                               <Clock className="h-3 w-3" />
                               Pending Approval
                             </span>
@@ -850,15 +850,15 @@ export function LiveRoom({
                       <li className="rounded-xl border border-primary/20 bg-primary/5 p-3">
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <p className="text-xs font-semibold text-primary">You</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            <RelativeTimeLabel timestamp={qSentAt} fallback="just now" /> ┬╖ Pending review
+                          <p className="text-[11px] text-foreground/60">
+                            <RelativeTimeLabel timestamp={qSentAt} fallback="just now" /> · Pending review
                           </p>
                         </div>
                         <p className="text-sm text-foreground leading-relaxed">{userQuestion}</p>
                       </li>
                     )}
                   </ul>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-foreground/60">
                     Questions are reviewed by the moderator before being shown to the Chair.
                   </p>
                   {!canSubmitQA ? (
@@ -871,7 +871,7 @@ export function LiveRoom({
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
                         placeholder="Submit a question..."
-                        className="h-10 flex-1 rounded-xl border border-input bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="h-10 flex-1 rounded-xl border border-transparent bg-foreground/[0.04] px-3 text-sm outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
                       />
                       <Button type="submit" size="sm" loading={submittingQ} disabled={!q.trim()} className="bg-slate-900 hover:bg-slate-800">
                         <Send className="h-4 w-4" />
@@ -889,23 +889,23 @@ export function LiveRoom({
                 (ballotReadOnly ? (
                   /* Read-only guest ballot. As of 2026-08-17 backend hard-blocks resolution
                      data for non-proxy guests (403), so sortedRes is always empty for a plain
-                     guest now ΓÇö this used to show live tallies too, but the proxy-code entry
+                     guest now — this used to show live tallies too, but the proxy-code entry
                      point below must stay reachable regardless, since it's the only route from
                      guest to voter and used to live nested inside the now-unreachable
                      sortedRes.length > 0 branch. */
                   <div className="space-y-2">
                     {sortedRes.length > 0 ? (
                       <>
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">
                           Resolutions
                         </p>
                         {sortedRes.map((r, idx) => {
                           const showResult = r.forCount + r.againstCount + r.abstainCount > 0;
                           const { label, tone } = statusBadge(r);
                           return (
-                            <div key={r.id} className="rounded-xl border border-border p-3">
+                            <div key={r.id} className="rounded-xl border border-foreground/[0.06] p-3">
                               <div className="flex items-start justify-between gap-2">
-                                <p className="text-[11px] text-muted-foreground">Resolution {idx + 1}</p>
+                                <p className="text-[11px] text-foreground/60">Resolution {idx + 1}</p>
                                 <span
                                   className={cn(
                                     "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
@@ -917,10 +917,10 @@ export function LiveRoom({
                               </div>
                               <p className="text-sm font-medium text-foreground">{r.title}</p>
                               {r.description && (
-                                <p className="mt-1 text-xs text-muted-foreground">{r.description}</p>
+                                <p className="mt-1 text-xs text-foreground/60">{r.description}</p>
                               )}
                               {r.candidates && r.candidates.length > 0 ? (
-                                <div className="mt-3 space-y-2 border-t border-border pt-2">
+                                <div className="mt-3 space-y-2 border-t border-foreground/[0.06] pt-2">
                                   {r.candidates.map((c) => (
                                     <div key={c.id}>
                                       <p className="text-xs font-medium text-foreground">{c.name}</p>
@@ -929,7 +929,7 @@ export function LiveRoom({
                                   ))}
                                 </div>
                               ) : showResult ? (
-                                <div className="mt-3 space-y-3 border-t border-border pt-2">
+                                <div className="mt-3 space-y-3 border-t border-foreground/[0.06] pt-2">
                                   <ResolutionBars r={r} />
                                   {r.bySource && <SourceBreakdown bySource={r.bySource} />}
                                 </div>
@@ -939,13 +939,13 @@ export function LiveRoom({
                         })}
                       </>
                     ) : (
-                      <div className="py-8 text-center text-sm text-muted-foreground">
+                      <div className="py-8 text-center text-sm text-foreground/60">
                         Resolution details are only visible to shareholders and their appointed
                         proxies.
                       </div>
                     )}
 
-                    <p className="pt-1 text-[11px] text-muted-foreground">
+                    <p className="pt-1 text-[11px] text-foreground/60">
                       You&apos;re viewing this meeting as a guest.
                       {sortedRes.length > 0 &&
                         " Results update live; voting is open to shareholders and their appointed proxies."}
@@ -962,16 +962,16 @@ export function LiveRoom({
                           I have a proxy code
                         </button>
                       ) : (
-                        <div className="space-y-2 rounded-xl border border-border bg-slate-50/70 p-3.5">
+                        <div className="space-y-2 rounded-xl border border-foreground/[0.06] bg-slate-50/70 p-3.5">
                           <div>
                             <p className="text-xs font-semibold text-foreground">Proxy code</p>
-                            <p className="text-[11px] text-muted-foreground">
+                            <p className="text-[11px] text-foreground/60">
                               Enter the 10-digit code given to you by a shareholder to vote on
                               their behalf.
                             </p>
                           </div>
                           <input
-                            className="w-full rounded-xl border border-border bg-white px-3 py-2 font-mono text-xs tracking-widest outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
+                            className="w-full rounded-xl border border-foreground/[0.06] bg-white px-3 py-2 font-mono text-xs tracking-widest outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
                             placeholder="e.g. 0417382951"
                             maxLength={10}
                             value={proxyCode}
@@ -1034,7 +1034,7 @@ export function LiveRoom({
                               )}
                             </>
                           ) : (
-                            <p className="text-[11px] text-muted-foreground">
+                            <p className="text-[11px] text-foreground/60">
                               No resolution is open for voting right now.
                             </p>
                           )}
@@ -1054,7 +1054,7 @@ export function LiveRoom({
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">
                           Resolution {openPos}
                         </p>
-                        {/* Only appears when more than one resolution is open at once ΓÇö
+                        {/* Only appears when more than one resolution is open at once —
                             steps between them without crowding the single-open case. */}
                         {openResolutions.length > 1 && (
                           <div className="flex items-center gap-1">
@@ -1063,11 +1063,11 @@ export function LiveRoom({
                               onClick={gotoPrevOpen}
                               disabled={!hasPrevOpen}
                               aria-label="Previous open resolution"
-                              className="rounded-md border border-border p-1 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-30"
+                              className="rounded-md border border-foreground/[0.06] p-1 text-foreground/60 transition-colors hover:bg-foreground/[0.04] disabled:opacity-30"
                             >
                               <ChevronLeft className="h-3.5 w-3.5" />
                             </button>
-                            <span className="text-[10px] font-medium text-muted-foreground">
+                            <span className="text-[10px] font-medium text-foreground/60">
                               {openIdx + 1}/{openResolutions.length} open
                             </span>
                             <button
@@ -1075,7 +1075,7 @@ export function LiveRoom({
                               onClick={gotoNextOpen}
                               disabled={!hasNextOpen}
                               aria-label="Next open resolution"
-                              className="rounded-md border border-border p-1 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-30"
+                              className="rounded-md border border-foreground/[0.06] p-1 text-foreground/60 transition-colors hover:bg-foreground/[0.04] disabled:opacity-30"
                             >
                               <ChevronRight className="h-3.5 w-3.5" />
                             </button>
@@ -1085,7 +1085,7 @@ export function LiveRoom({
                       <h3 className="mt-0.5 text-base font-semibold text-foreground">
                         {openRes.title}
                       </h3>
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <p className="mt-1 text-xs text-foreground/60">
                         {openRes.description}
                       </p>
                     </div>
@@ -1129,7 +1129,7 @@ export function LiveRoom({
                     {(() => {
                       // myVote isn't reliably present on the guest resolutions response
                       // (confirmed 2026-08-17), and voteMsg now clears itself after a few
-                      // seconds ΓÇö locallyVoted is the one signal that's actually set on
+                      // seconds — locallyVoted is the one signal that's actually set on
                       // every successful cast and never auto-clears, so it's what keeps
                       // this card up rather than reverting to the vote UI once the other
                       // two go away.
@@ -1140,7 +1140,7 @@ export function LiveRoom({
 
                       if (hasRecorded && !isEditingVote) {
                         return (
-                          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 space-y-3 shadow-xs">
+                          <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 space-y-3 shadow-xs">
                             <div className="flex items-center justify-between gap-3">
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white shadow-sm">
@@ -1170,7 +1170,7 @@ export function LiveRoom({
                       return (
                         <>
                           {isEditingVote && resolutionIsOpen && (
-                            <div className="flex items-center justify-between text-xs text-muted-foreground pb-1">
+                            <div className="flex items-center justify-between text-xs text-foreground/60 pb-1">
                               <span>Updating your vote</span>
                               <button
                                 type="button"
@@ -1200,7 +1200,7 @@ export function LiveRoom({
                                       ? "border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                                       : opt === "AGAINST"
                                       ? "border-red-200 text-red-700 hover:bg-red-50"
-                                      : "border-border text-muted-foreground hover:bg-muted";
+                                      : "border-foreground/[0.06] text-foreground/60 hover:bg-foreground/[0.04]";
                                   const selectedTone =
                                     opt === "FOR"
                                       ? "bg-emerald-600 text-white border-emerald-600"
@@ -1228,13 +1228,13 @@ export function LiveRoom({
                               </Button>
                             </>
                           ) : isGuest && !guestCanVote ? (
-                            <div className="rounded-xl border border-border bg-slate-50/70 p-3.5 space-y-3">
+                            <div className="rounded-xl border border-foreground/[0.06] bg-slate-50/70 p-3.5 space-y-3">
                               <div>
                                 <p className="text-xs font-semibold text-foreground">Have a proxy code?</p>
-                                <p className="text-[11px] text-muted-foreground">Enter the 10-digit code given to you by a shareholder to cast a vote on their behalf.</p>
+                                <p className="text-[11px] text-foreground/60">Enter the 10-digit code given to you by a shareholder to cast a vote on their behalf.</p>
                               </div>
                               <input
-                                className="w-full rounded-xl border border-border bg-white px-3 py-2 text-xs font-mono tracking-widest outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
+                                className="w-full rounded-xl border border-foreground/[0.06] bg-white px-3 py-2 text-xs font-mono tracking-widest outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
                                 placeholder="e.g. 0417382951"
                                 maxLength={10}
                                 value={proxyCode}
@@ -1281,8 +1281,8 @@ export function LiveRoom({
                     })()}
 
                     {openRes.forCount + openRes.againstCount + openRes.abstainCount > 0 && (
-                      <div className="border-t border-border pt-3 space-y-3">
-                        <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <div className="border-t border-foreground/[0.06] pt-3 space-y-3">
+                        <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/60">
                           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" /> Live tally
                         </p>
                         <ResolutionBars r={openRes} />
@@ -1292,28 +1292,28 @@ export function LiveRoom({
                   </div>
                 ) : sortedRes.length > 0 ? (
                   <div className="space-y-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">
                       {allClosed ? "Results" : "Resolutions"}
                     </p>
                     {sortedRes.map((r, idx) => {
                       const { label, tone } = statusBadge(r);
                       // Show the tally as soon as any vote exists, not only once the
-                      // resolution closes ΓÇö a proxy/guest watching the ballot should see
+                      // resolution closes — a proxy/guest watching the ballot should see
                       // the count move live, the same as the open-resolution panel does.
                       const showResult = r.forCount + r.againstCount + r.abstainCount > 0;
                       return (
-                        <div key={r.id} className="rounded-xl border border-border p-3">
+                        <div key={r.id} className="rounded-xl border border-foreground/[0.06] p-3">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <p className="text-[11px] text-muted-foreground">Resolution {idx + 1}</p>
+                              <p className="text-[11px] text-foreground/60">Resolution {idx + 1}</p>
                               <p className="text-sm font-medium text-foreground">{r.title}</p>
                             </div>
                             <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{label}</span>
                           </div>
-                          {/* Candidate resolutions keep the flat counts at 0 ΓÇö every tally
+                          {/* Candidate resolutions keep the flat counts at 0 — every tally
                               lives on the candidates themselves, so render those instead. */}
                           {r.candidates && r.candidates.length > 0 ? (
-                            <div className="mt-3 space-y-2 border-t border-border pt-2">
+                            <div className="mt-3 space-y-2 border-t border-foreground/[0.06] pt-2">
                               {r.candidates.map((c) => (
                                 <div key={c.id}>
                                   <p className="text-xs font-medium text-foreground">{c.name}</p>
@@ -1322,7 +1322,7 @@ export function LiveRoom({
                               ))}
                             </div>
                           ) : showResult ? (
-                            <div className="mt-3 border-t border-border pt-2 space-y-3">
+                            <div className="mt-3 border-t border-foreground/[0.06] pt-2 space-y-3">
                               <ResolutionBars r={r} />
                               {r.bySource && <SourceBreakdown bySource={r.bySource} />}
                             </div>
@@ -1332,7 +1332,7 @@ export function LiveRoom({
                     })}
                   </div>
                 ) : (
-                  <div className="py-8 text-center text-sm text-muted-foreground">
+                  <div className="py-8 text-center text-sm text-foreground/60">
                     No resolutions for this meeting yet.
                   </div>
                 ))}
@@ -1340,11 +1340,11 @@ export function LiveRoom({
               {tab === "poll" && (
                 <div className="space-y-4">
                   {!activePoll ? (
-                    <div className="py-8 text-center text-sm text-muted-foreground">
+                    <div className="py-8 text-center text-sm text-foreground/60">
                       No active poll at the moment.
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
+                    <div className="rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
                       <div className="mb-4">
                         <span className="inline-block rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-blue-700">
                           Live Poll
@@ -1375,7 +1375,7 @@ export function LiveRoom({
                                 "flex w-full items-center justify-between rounded-xl border p-3 text-left transition-colors disabled:opacity-75",
                                 isSelected
                                   ? "border-primary bg-primary/5 ring-1 ring-primary"
-                                  : "border-border hover:border-primary/50 hover:bg-muted/50"
+                                  : "border-foreground/[0.06] hover:border-primary/50 hover:bg-foreground/[0.04]"
                               )}
                             >
                               <span className="text-sm font-medium text-foreground">{opt.text}</span>
@@ -1417,18 +1417,18 @@ export function LiveRoom({
               {tab === "presskit" && (
                 <div className="space-y-3">
                   {pressKitForbidden ? (
-                    <div className="py-8 text-center text-sm text-muted-foreground">
+                    <div className="py-8 text-center text-sm text-foreground/60">
                       You must be registered for this event to view the press kit.
                     </div>
                   ) : !pressKit || pressKit.totalCount === 0 ? (
-                    <div className="py-8 text-center text-sm text-muted-foreground">
+                    <div className="py-8 text-center text-sm text-foreground/60">
                       No press kit files have been released yet.
                     </div>
                   ) : (
                     <>
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-semibold text-foreground">Digital Press Kit</h3>
-                        <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+                        <span className="rounded-full bg-foreground/[0.04] px-2.5 py-1 text-[11px] font-semibold text-foreground/60">
                           {pressKit.releasedCount} / {pressKit.totalCount} released
                         </span>
                       </div>
@@ -1441,14 +1441,14 @@ export function LiveRoom({
                               key={file.id}
                               className={cn(
                                 "flex items-center justify-between gap-3 rounded-xl border p-3",
-                                isReleased ? "border-primary/20 bg-primary/5" : "border-border bg-white opacity-60",
+                                isReleased ? "border-primary/20 bg-primary/5" : "border-foreground/[0.06] bg-white opacity-60",
                               )}
                             >
                               <div className="flex min-w-0 items-center gap-3">
                                 <div
                                   className={cn(
                                     "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-                                    isReleased ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+                                    isReleased ? "bg-primary/10 text-primary" : "bg-foreground/[0.04] text-foreground/60",
                                   )}
                                 >
                                   <FileBox className="h-4.5 w-4.5" />
@@ -1457,7 +1457,7 @@ export function LiveRoom({
                                   <p className="truncate text-sm font-semibold text-foreground" title={name}>
                                     {name}
                                   </p>
-                                  <p className="text-xs text-muted-foreground">{file.sizeLabel}</p>
+                                  <p className="text-xs text-foreground/60">{file.sizeLabel}</p>
                                 </div>
                               </div>
                               {isReleased ? (
@@ -1493,7 +1493,7 @@ export function LiveRoom({
 function ResolutionBars({ r }: { r: Resolution }) {
   const totalShares = r.forShares + r.againstShares + r.abstainShares;
   const totalCount = r.forCount + r.againstCount + r.abstainCount;
-  // AGM votes are weighted by shareholding, so the share figure is always shown ΓÇö including
+  // AGM votes are weighted by shareholding, so the share figure is always shown — including
   // when it's 0, which tells the viewer the register carries no weighting rather than
   // silently dropping the column. Percentages fall back to head counts in that case.
   const useShares = totalShares > 0;
@@ -1511,11 +1511,11 @@ function ResolutionBars({ r }: { r: Resolution }) {
           <div key={row.label}>
             <div className="mb-0.5 flex items-center justify-between text-[11px]">
               <span className="font-medium text-foreground">{row.label}</span>
-              <span className="text-muted-foreground">
-                {row.count} ┬╖ {row.shares.toLocaleString()} shares ┬╖ {pct(row.count, row.shares)}%
+              <span className="text-foreground/60">
+                {row.count} · {row.shares.toLocaleString()} shares · {pct(row.count, row.shares)}%
               </span>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <div className="h-1.5 overflow-hidden rounded-full bg-foreground/[0.04]">
               <div className={`${row.color} h-full`} style={{ width: `${pct(row.count, row.shares)}%` }} />
             </div>
           </div>

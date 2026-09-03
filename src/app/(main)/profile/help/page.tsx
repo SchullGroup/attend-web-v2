@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ChevronDown, Mail, MessageCircle } from "lucide-react";
@@ -16,19 +16,22 @@ export default function HelpPage() {
   const [open, setOpen] = useState<number | null>(0);
 
   return (
-    <div className="space-y-6">
-      <Link href="/profile" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+    <div className="flex flex-col gap-6">
+      <Link
+        href="/profile"
+        className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
+      >
         <ArrowLeft className="h-4 w-4" /> Back
       </Link>
 
       <header>
-        <h1 className="text-2xl font-bold text-foreground">Help & FAQ</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Help &amp; FAQ</h1>
+        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
           Answers to the most common questions.
         </p>
       </header>
 
-      <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-white">
+      <ul className="divide-y divide-foreground/[0.06] overflow-hidden rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
         {FAQ.map((f, i) => {
           const expanded = open === i;
           return (
@@ -40,13 +43,13 @@ export default function HelpPage() {
                 <span className="text-sm font-semibold text-foreground">{f.q}</span>
                 <ChevronDown
                   className={cn(
-                    "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                    "h-4 w-4 shrink-0 text-foreground/40 transition-transform",
                     expanded && "rotate-180",
                   )}
                 />
               </button>
               {expanded && (
-                <div className="px-5 pb-4 text-sm text-muted-foreground">{f.a}</div>
+                <div className="px-5 pb-4 text-sm text-foreground/60">{f.a}</div>
               )}
             </li>
           );
@@ -54,22 +57,22 @@ export default function HelpPage() {
       </ul>
 
       <section className="grid gap-3 md:grid-cols-2">
-        <a href="mailto:support@attend.io" className="flex items-center gap-3 rounded-2xl border border-border bg-white p-4 hover:bg-muted/30">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <a href="mailto:support@attend.io" className="flex items-center gap-3 rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-colors hover:bg-foreground/[0.02]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
             <Mail className="h-4 w-4" />
           </div>
           <div>
             <p className="text-sm font-semibold text-foreground">Email support</p>
-            <p className="text-xs text-muted-foreground">support@attend.io</p>
+            <p className="text-xs text-foreground/60">support@attend.io</p>
           </div>
         </a>
-        <a href="mailto:support@attend.io?subject=Live%20Chat%20Request" className="flex items-center gap-3 rounded-2xl border border-border bg-white p-4 hover:bg-muted/30">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+        <a href="mailto:support@attend.io?subject=Live%20Chat%20Request" className="flex items-center gap-3 rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-colors hover:bg-foreground/[0.02]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-emerald-100 text-emerald-700">
             <MessageCircle className="h-4 w-4" />
           </div>
           <div>
             <p className="text-sm font-semibold text-foreground">Live chat</p>
-            <p className="text-xs text-muted-foreground">MonΓÇôFri, 9:00 ΓÇô 17:00 WAT</p>
+            <p className="text-xs text-foreground/60">Mon–Fri, 9:00 – 17:00 WAT</p>
           </div>
         </a>
       </section>

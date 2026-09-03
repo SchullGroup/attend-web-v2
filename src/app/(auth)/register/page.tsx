@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -33,7 +33,7 @@ export default function RegisterPage() {
     { label: "Contains a number", ok: /\d/.test(form.password) },
   ];
   const passwordValid = passwordRules.every((r) => r.ok);
-  // Only a mismatch counts, not a half-typed confirmation ΓÇö the inline error would
+  // Only a mismatch counts, not a half-typed confirmation — the inline error would
   // otherwise flash red from the first keystroke.
   const passwordsMatch = form.password === form.confirmPassword;
   const confirmError =
@@ -91,13 +91,9 @@ export default function RegisterPage() {
 
   return (
     <div className="space-y-6">
-      <div className="md:hidden mb-2">
-        <img src="/attend-logo.png" alt="Attend" style={{ height: 31 }} />
-      </div>
-
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Create your account</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Create your account</h1>
+        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
           Join Attend in under a minute.
         </p>
       </div>
@@ -134,10 +130,10 @@ export default function RegisterPage() {
           prefix={DIAL_CODE}
           placeholder="801 234 5678"
           value={form.phone}
-          // Drop anything duplicating the pinned code so the field never reads "+234 0801ΓÇª".
+          // Drop anything duplicating the pinned code so the field never reads "+234 0801…".
           onChange={(e) => update("phone", stripDialCode(e.target.value))}
         />
-        <p className="-mt-2 text-[11px] text-muted-foreground">
+        <p className="-mt-2 text-[11px] text-foreground/60">
           At least one of email or phone is required.
         </p>
         <div>
@@ -189,10 +185,10 @@ export default function RegisterPage() {
         </Button>
       </form>
 
-      <p className="text-center text-xs text-muted-foreground">
+      <p className="text-center text-xs text-foreground/60">
         By continuing, you agree to Attend&apos;s Terms of Service and Privacy Policy.
       </p>
-      <p className="text-center text-sm text-muted-foreground">
+      <p className="text-center text-sm text-foreground/60">
         Already have an account?{" "}
         <Link href="/login" className="font-semibold text-foreground hover:underline">
           Sign in

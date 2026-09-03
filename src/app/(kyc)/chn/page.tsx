@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
@@ -21,7 +21,7 @@ export default function ChnPage() {
 
   useEffect(() => {
     // Step 1 (BVN) must have run first, and the backend is the only authority on that.
-    // Nothing on this device is consulted ΓÇö a BVN must never be persisted client-side, and
+    // Nothing on this device is consulted — a BVN must never be persisted client-side, and
     // a per-browser copy was wrong anyway (someone resuming on a new device got bounced
     // back to re-enter a BVN already on file).
     //
@@ -37,7 +37,7 @@ export default function ChnPage() {
 
   function handleError(err: any) {
     const msg = err?.response?.data?.message || err?.message || "";
-    // CHN already on file ΓÇö not an error; continue to the liveness step.
+    // CHN already on file — not an error; continue to the liveness step.
     if (/already.*(submitted|verif)/i.test(msg)) {
       router.push("/liveness");
       return;
@@ -65,11 +65,11 @@ export default function ChnPage() {
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       <div>
-        <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
-          <Lock className="h-5 w-5 text-gray-700" />
+        <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-[10px] bg-foreground/[0.04]">
+          <Lock className="h-5 w-5 text-foreground/70" />
         </div>
-        <h1 className="text-xl font-bold text-foreground">CHN ΓÇö CSCS Clearing House Number</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-xl font-medium tracking-[-0.6px] text-foreground">CHN — CSCS Clearing House Number</h1>
+        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
           Enter the CHN issued by the Central Securities Clearing System. You can
           find this on your stockbroker statement.
         </p>
@@ -91,17 +91,17 @@ export default function ChnPage() {
         hint="Alphanumeric, at least 10 characters."
       />
 
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-foreground/60">
         Don&apos;t have a CHN?{" "}
         <button
           type="button"
           disabled={busy}
-          className="underline underline-offset-2 hover:text-foreground transition-colors disabled:opacity-50"
+          className="underline underline-offset-2 transition-colors hover:text-foreground disabled:opacity-50"
           onClick={onSkip}
         >
           Skip for now
         </button>
-        {" "}ΓÇö you can add it later from your profile.
+        {" "}— you can add it later from your profile.
       </p>
 
       <div className="flex gap-3">
@@ -115,7 +115,7 @@ export default function ChnPage() {
           Back
         </Button>
         <Button type="submit" fullWidth loading={submitting} disabled={!isValid || busy}>
-          {submitting ? "SubmittingΓÇª" : "Continue"}
+          {submitting ? "Submitting…" : "Continue"}
         </Button>
       </div>
     </form>

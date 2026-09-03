@@ -21,7 +21,7 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
 
   // An earlier build stored the user's BVN in localStorage. Nothing writes it any more,
   // but it is still sitting on every device that used the KYC flow before, so clear it
-  // once on load. This wraps the whole app deliberately ΓÇö a user with a leftover BVN may
+  // once on load. This wraps the whole app deliberately — a user with a leftover BVN may
   // never open the KYC pages again, so purging there would miss them.
   useEffect(() => {
     purgeLegacyStoredBvn();

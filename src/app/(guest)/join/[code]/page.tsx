@@ -5,12 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 // Legacy invite shape, kept only so old links don't dead-end.
 //
 // This page was built against three endpoints from the update spec that the backend never
-// shipped ΓÇö /guest/invites/{code}, /guest/redeem and /guest/session ΓÇö so it 404'd for
+// shipped — /guest/invites/{code}, /guest/redeem and /guest/session — so it 404'd for
 // everyone who followed it. Its "capabilities" panel and name/email/phone/role capture had
 // nowhere to go either: the real endpoint, POST /guest/events/{eventId}/join, takes a code
 // and nothing else.
 //
-// Live invite links use /guest-join?eventId=ΓÇª&code=ΓÇª ΓÇö the shape the backend documents when
+// Live invite links use /guest-join?eventId=…&code=… — the shape the backend documents when
 // it mints a code. If this old link carried an eventId we can forward straight through;
 // without one the code alone can't identify an event, and /guest-join sends them to browse.
 function LegacyGuestJoinInner({ code }: { code: string }) {

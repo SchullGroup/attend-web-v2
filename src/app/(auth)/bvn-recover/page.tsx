@@ -159,7 +159,7 @@ export default function BvnRecoverPage() {
             onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
             maxLength={6}
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-foreground/60">
             Code expires in 5 minutes.
           </p>
           <Button type="submit" fullWidth size="lg" loading={busy}>
@@ -182,7 +182,7 @@ export default function BvnRecoverPage() {
 
       {step === "contact" && (
         <form onSubmit={handleComplete} className="space-y-4">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-foreground/60">
             Optional — you can skip this and add contacts later from your profile.
           </p>
           <Input
@@ -218,7 +218,7 @@ export default function BvnRecoverPage() {
         </form>
       )}
 
-      <p className="text-center text-sm text-muted-foreground">
+      <p className="text-center text-sm text-foreground/60">
         Have your email or phone on file?{" "}
         <Link href="/login" className="font-semibold text-foreground hover:underline">
           Sign in

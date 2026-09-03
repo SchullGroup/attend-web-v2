@@ -3,7 +3,7 @@ import { useRef, useState, DragEvent } from "react";
 import { Upload, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Picks and HOLDS a file in memory (shows name/size + Remove) ΓÇö it does NOT upload.
+// Picks and HOLDS a file in memory (shows name/size + Remove) — it does NOT upload.
 // The parent uploads the held file at submit time.
 interface Props {
   label: string;
@@ -57,7 +57,7 @@ export function FilePickField({
           "flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors",
           dragOver
             ? "border-purple-500 bg-purple-50"
-            : "border-border bg-white hover:border-purple-400 hover:bg-purple-50/40",
+            : "border-foreground/[0.06] bg-white hover:border-purple-400 hover:bg-purple-50/40",
         )}
       >
         {value ? (
@@ -68,11 +68,11 @@ export function FilePickField({
           </>
         ) : (
           <>
-            <Upload className="h-6 w-6 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
+            <Upload className="h-6 w-6 text-foreground/60" />
+            <p className="text-sm text-foreground/60">
               Drag &amp; drop or <span className="font-medium text-purple-700">browse</span>
             </p>
-            {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+            {hint && <p className="text-xs text-foreground/60">{hint}</p>}
           </>
         )}
       </div>

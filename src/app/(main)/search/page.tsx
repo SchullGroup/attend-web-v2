@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -25,10 +25,10 @@ function SearchInner() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <header>
-        <h1 className="text-2xl font-bold text-foreground">Search</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Search</h1>
+        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
           {q ? (
             <>
               Results for &ldquo;<span className="font-medium text-foreground">{q}</span>&rdquo;
@@ -40,30 +40,30 @@ function SearchInner() {
       </header>
 
       {!q ? null : isLoading ? (
-        <div className="space-y-2">
+        <div className="flex flex-col gap-2">
           {[1, 2, 3, 4].map((n) => (
-            <div key={n} className="h-16 animate-pulse rounded-2xl border border-border bg-muted" />
+            <div key={n} className="h-16 animate-pulse rounded-xl bg-foreground/[0.04]" />
           ))}
         </div>
       ) : results.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-foreground/15 p-10 text-center text-sm text-foreground/50">
           No results for &ldquo;{q}&rdquo;. Try a different word.
         </div>
       ) : (
-        <ul className="overflow-hidden rounded-2xl border border-border bg-white">
+        <ul className="overflow-hidden rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
           {results.map((e: EventListItem, i) => {
             const href = isInnovation(e.eventType) ? `/hackathon/${e.id}` : `/events/${e.id}`;
             return (
-              <li key={e.id} className={i > 0 ? "border-t border-border" : ""}>
-                <Link href={href} className="flex items-center gap-3 p-4 hover:bg-muted/30">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-xs font-bold text-primary">
+              <li key={e.id} className={i > 0 ? "border-t border-foreground/[0.06]" : ""}>
+                <Link href={href} className="flex items-center gap-3 p-4 transition-colors hover:bg-foreground/[0.02]">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-primary/10 text-xs font-bold text-primary">
                     {initialsFor(e.registerName || e.organizerName)}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-foreground">{e.title}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {e.registerName || e.organizerName} ┬╖ {formatDate(e.date)}
-                      {e.format ? ` ┬╖ ${formatEventFormat(e.format)}` : ""}
+                    <p className="truncate text-xs text-foreground/60">
+                      {e.registerName || e.organizerName} · {formatDate(e.date)}
+                      {e.format ? ` · ${formatEventFormat(e.format)}` : ""}
                     </p>
                   </div>
                   <ModuleBadge module={e.eventType} />

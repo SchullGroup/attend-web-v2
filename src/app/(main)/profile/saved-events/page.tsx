@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { useGetSavedEvents } from "@/api/events/hooks";
@@ -12,7 +12,7 @@ export default function SavedEventsPage() {
     organiser: e.registerName || e.organizerName,
     module: e.eventType,
     // Saved cards were passing neither branding nor banner, so they always rendered
-    // the default blue ΓÇö unlike the same event on every other page.
+    // the default blue — unlike the same event on every other page.
     thumbnailColor:
       e.branding?.brandColor ||
       e.brandPrimary ||
@@ -29,14 +29,17 @@ export default function SavedEventsPage() {
   }));
 
   return (
-    <div className="space-y-6">
-      <Link href="/profile" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+    <div className="flex flex-col gap-6">
+      <Link
+        href="/profile"
+        className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
+      >
         <ArrowLeft className="h-4 w-4" /> Back
       </Link>
 
       <header>
-        <h1 className="text-2xl font-bold text-foreground">Saved events</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Saved events</h1>
+        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
           Events you&apos;ve bookmarked for later.
         </p>
       </header>
@@ -44,12 +47,12 @@ export default function SavedEventsPage() {
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2">
           {[1, 2].map((n) => (
-            <div key={n} className="h-72 animate-pulse rounded-2xl border border-border bg-muted" />
+            <div key={n} className="h-72 animate-pulse rounded-xl bg-foreground/[0.04]" />
           ))}
         </div>
       ) : saved.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-          Nothing saved yet ΓÇö tap the bookmark on any event to save it here.
+        <div className="rounded-xl border border-dashed border-foreground/15 p-10 text-center text-sm text-foreground/50">
+          Nothing saved yet — tap the bookmark on any event to save it here.
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">

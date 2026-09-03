@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -48,21 +48,24 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <Link href="/profile" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+    <div className="flex flex-col gap-6">
+      <Link
+        href="/profile"
+        className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
+      >
         <ArrowLeft className="h-4 w-4" /> Back
       </Link>
 
       <header>
-        <h1 className="text-2xl font-bold text-foreground">Change password</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Change password</h1>
+        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
           Use a strong password you don&apos;t use anywhere else.
         </p>
       </header>
 
       <form
         onSubmit={submit}
-        className="mx-auto max-w-lg space-y-5 rounded-2xl border border-border bg-white p-6 shadow-sm"
+        className="mx-auto flex w-full max-w-2xl flex-col gap-5 rounded-xl border border-foreground/[0.06] bg-white p-6 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]"
       >
         {errorMsg && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
@@ -98,8 +101,8 @@ export default function ChangePasswordPage() {
         />
 
         {success && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-            Password updated. Please sign in againΓÇª
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-primary">
+            Password updated. Please sign in again…
           </div>
         )}
 

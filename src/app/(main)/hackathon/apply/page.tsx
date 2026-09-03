@@ -1,11 +1,12 @@
-﻿"use client";
+"use client";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, Check, Video, Code2, Globe } from "lucide-react";
+import { ArrowLeft, Trash2, ChevronDown, Check, Video, Code2, Globe } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FilePickField } from "@/components/attend/FilePickField";
+import { Dialog } from "@/components/ui/Dialog";
 import { uploadClient } from "@/api/upload/client";
 import { useApplicationConfig, useSubmitApplication, useGetMyApplications } from "@/api/innovation/hooks";
 import { useGetChallenge } from "@/api/hackathon/hooks";
@@ -13,9 +14,17 @@ import { useGetMe } from "@/api/auth/hooks";
 import { InnovationApplicationRequest } from "@/types/innovation";
 import { cn } from "@/lib/utils";
 
+// Laid out to Figma's apply flow: a right-side drawer over a scrim, two steps with a
+// thin progress bar, a sticky footer button, invite-style member rows, and a success
+// modal. OUR logic is grafted on: the "already on a team" gate, the 3,000-character
+// limit + counters, and the one-time "just submitted" banner handoff.
+
 type Member = { id: string; name: string; role: string; email?: string; isLeader?: boolean };
 
-const STEPS = ["Team", "Idea", "Members"] as const;
+const STEP_TITLES = ["Apply to challenge", "Add team members"];
+const STEP_SUBTITLE = "Submit your idea details and invite your team members.";
+const FIELD =
+  "w-full rounded-[10px] border border-transparent bg-foreground/[0.04] px-3.5 text-sm tracking-[-0.14px] text-foreground placeholder:font-light placeholder:text-foreground/40 transition-colors focus-visible:border-primary focus-visible:outline-none";
 
 function ApplyPageInner() {
   const router = useRouter();
@@ -47,7 +56,6 @@ function ApplyPageInner() {
   };
   const anyProjectField = Object.values(show).some(Boolean);
 
-  const challengeName = config?.challengeName ?? "Innovation Challenge";
   const tracks = config?.tracks && config.tracks.length > 0 ? config.tracks : ["General"];
   const teamSize = { min: config?.minTeamSize ?? 1, max: config?.maxTeamSize ?? 5 };
 
@@ -57,7 +65,7 @@ function ApplyPageInner() {
   const [ideaTitle, setIdeaTitle] = useState("");
   const [ideaDescription, setIdeaDescription] = useState("");
   const [members, setMembers] = useState<Member[]>([{ id: "m1", name: "", role: "Team Lead", isLeader: true }]);
-  // Project (step 4)
+  // Project fields (part of step 1)
   const [projectDescription, setProjectDescription] = useState("");
   const [sourceCodeUrl, setSourceCodeUrl] = useState("");
   const [liveDemoUrl, setLiveDemoUrl] = useState("");
@@ -68,6 +76,13 @@ function ApplyPageInner() {
   const [additionalDocsFile, setAdditionalDocsFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [justSubmitted, setJustSubmitted] = useState(false);
+
+  // Step 2's "add new member" mini-form — filled in, then committed to `members`
+  // via "Invite members" (added members render as immutable summary rows,
+  // only removable, not inline-editable).
+  const [memberDraftOpen, setMemberDraftOpen] = useState(true);
+  const [memberDraft, setMemberDraft] = useState({ name: "", role: "", email: "" });
 
   useEffect(() => {
     if (!challengeId) router.replace("/hackathon");
@@ -90,21 +105,28 @@ function ApplyPageInner() {
     );
   }, [me]);
 
-  function addMember() {
-    setMembers((m) => [...m, { id: `m${Math.random()}`, name: "", role: "", email: "" }]);
-  }
   function removeMember(id: string) {
     setMembers((m) => m.filter((x) => x.id !== id));
   }
-  function updateMember(id: string, k: "name" | "role" | "email", v: string) {
-    setMembers((m) => m.map((x) => (x.id === id ? { ...x, [k]: v } : x)));
+  function inviteMember() {
+    if (!memberDraft.name.trim() || !memberDraft.role.trim() || !memberDraft.email.trim()) return;
+    setMembers((m) => [
+      ...m,
+      { id: `m${Math.random().toString(36).slice(2)}`, name: memberDraft.name.trim(), role: memberDraft.role.trim(), email: memberDraft.email.trim() },
+    ]);
+    setMemberDraft({ name: "", role: "", email: "" });
   }
 
+  const leader = members.find((m) => m.isLeader);
+  const otherMembers = members.filter((m) => !m.isLeader);
   const teamSizeOk = members.length >= teamSize.min && members.length <= teamSize.max;
 
-  // A project field is only required if the admin asked for it (`show.*`); anything
-  // not required is hidden, so it never blocks. Project now lives on the Idea step.
+  // Backend rejects a project description over 3,000 characters — caught here so the
+  // user sees it while typing rather than as a failed submit.
   const projectDescriptionTooLong = show.projectDescription && projectDescription.trim().length > 3000;
+
+  // A project field is only required if the admin asked for it (`show.*`); anything
+  // not required is hidden, so it never blocks.
   const projectComplete =
     (!show.projectDescription || (projectDescription.trim().length > 0 && !projectDescriptionTooLong)) &&
     (!show.sourceCode || sourceCodeUrl.trim().length > 0) &&
@@ -114,18 +136,16 @@ function ApplyPageInner() {
     (!show.pitchDeck || !!pitchDeckFile) &&
     (!show.additionalDocs || !!additionalDocsFile);
 
-  const canNext =
-    step === 0 ? teamName.trim().length > 0 :
-    step === 1 ? ideaTitle.trim().length > 0 && ideaDescription.trim().length > 10 && projectComplete :
-    true; // Members is the last step ΓåÆ uses the Submit button (gated by canSubmit)
-
-  const canSubmit =
+  const canContinue =
     teamName.trim().length > 0 &&
     ideaTitle.trim().length > 0 &&
     ideaDescription.trim().length > 10 &&
-    teamSizeOk &&
-    members.every((x) => x.name.trim() && x.role.trim() && (x.email ?? "").trim()) &&
     projectComplete;
+
+  const canSubmit =
+    canContinue &&
+    teamSizeOk &&
+    members.every((x) => x.name.trim() && x.role.trim() && (x.email ?? "").trim());
 
   async function submit() {
     setErrorMsg(null);
@@ -163,10 +183,11 @@ function ApplyPageInner() {
 
       submitApplication(payload, {
         onSuccess: () => {
-          // Read on the next page and cleared immediately there ΓÇö same one-time-banner
-          // pattern as justVerifiedEmail on /login.
+          // Read on my-applications and cleared immediately there — same one-time-banner
+          // pattern as justVerifiedEmail on /login. Set here so it still fires when the
+          // user closes the success modal with "Done".
           sessionStorage.setItem("justSubmittedApplication", teamName.trim());
-          router.push("/hackathon/my-applications");
+          setJustSubmitted(true);
         },
         onError: (err: any) => {
           setErrorMsg(
@@ -181,7 +202,7 @@ function ApplyPageInner() {
     }
   }
 
-  // Gating: applications closed, already applied, or already a member of another team.
+  // Gating: applications closed, already applied, or already on someone else's team.
   if (!cfgLoading && config && !config.applicationOpen) {
     return (
       <Gate title="Applications are closed" body="This challenge is not accepting applications right now." />
@@ -214,278 +235,290 @@ function ApplyPageInner() {
   }
 
   return (
-    <div className="space-y-6">
-      <button onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Cancel application
-      </button>
-
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">
-          {challengeName}
-        </p>
-        <h1 className="mt-1 text-2xl font-bold text-foreground">Apply to challenge</h1>
-        <p className="text-sm text-muted-foreground">
-          Submit your team, idea and project in one go. You can&apos;t edit after submitting (you can withdraw and re-apply).
-        </p>
-      </header>
-
-      {/* stepper */}
-      <div className="flex items-center gap-2">
-        {STEPS.map((s, i) => {
-          const done = i < step;
-          const active = i === step;
-          return (
-            <div key={s} className="flex flex-1 items-center gap-2">
-              <div
-                className={cn(
-                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
-                  done && "border-purple-600 bg-purple-600 text-white",
-                  active && "border-purple-600 bg-white text-purple-700",
-                  !done && !active && "border-border bg-white text-muted-foreground",
-                )}
-              >
-                {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
-              </div>
-              <div className="hidden text-xs font-medium md:block">{s}</div>
-              {i < STEPS.length - 1 && (
-                <div className={cn("h-1 flex-1 rounded-full", done ? "bg-purple-600" : "bg-border")} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {errorMsg && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
-          {errorMsg}
-        </div>
-      )}
-
-      <div className="rounded-2xl border border-border bg-white p-6 shadow-sm">
-        {/* Step 1 ΓÇö Team */}
-        {step === 0 && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-foreground">Team details</h2>
-            <Input
-              name="teamName"
-              label="Team name"
-              placeholder="e.g. ByteForce"
-              value={teamName}
-              onChange={(e) => setTeamName(e.target.value)}
-            />
-            <div>
-              <label className="text-sm font-medium text-foreground">Pathway</label>
-              <select
-                value={track}
-                onChange={(e) => setTrack(e.target.value)}
-                className="mt-1.5 h-11 w-full rounded-xl border border-input bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary"
-              >
-                {tracks.map((t) => (
-                  <option key={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2 ΓÇö Idea */}
-        {step === 1 && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-foreground">Your idea</h2>
-            <Input
-              name="ideaTitle"
-              label="Idea title"
-              placeholder="e.g. MicroVest ΓÇö fractional ETFs for everyone"
-              value={ideaTitle}
-              onChange={(e) => setIdeaTitle(e.target.value)}
-            />
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Description</label>
-              <textarea
-                value={ideaDescription}
-                onChange={(e) => setIdeaDescription(e.target.value)}
-                maxLength={3000}
-                rows={6}
-                placeholder="Describe the problem, your solution, target users, and what you'll have built by demo day."
-                className="w-full rounded-xl border border-input bg-white p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary"
-              />
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">Minimum 10 characters.</p>
-                <p className={`text-xs ${ideaDescription.length >= 2900 ? 'text-red-500' : 'text-muted-foreground'}`}>{ideaDescription.length}/3,000</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3 ΓÇö Members */}
-        {step === 2 && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-foreground">Team members</h2>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addMember}
-                disabled={members.length >= teamSize.max}
-              >
-                <Plus className="h-4 w-4" /> Add member
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {teamSize.min}ΓÇô{teamSize.max} members per team. Add their full name, role and email.
-            </p>
-            <ul className="space-y-3">
-              {members.map((m, i) => (
-                <li key={m.id} className="rounded-xl border border-border bg-muted/30 p-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="text-xs font-semibold text-muted-foreground">Member {i + 1}</p>
-                    {members.length > 1 && (
-                      <button
-                        onClick={() => removeMember(m.id)}
-                        className="text-xs font-medium text-destructive hover:underline"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <Input
-                      name={`name-${m.id}`}
-                      label="Full name"
-                      placeholder="e.g. Adaeze Nwosu"
-                      value={m.name}
-                      onChange={(e) => updateMember(m.id, "name", e.target.value)}
-                    />
-                    <Input
-                      name={`role-${m.id}`}
-                      label="Role"
-                      placeholder="e.g. Backend engineer"
-                      value={m.role}
-                      onChange={(e) => updateMember(m.id, "role", e.target.value)}
-                    />
-                    <Input
-                      name={`email-${m.id}`}
-                      label="Email"
-                      type="email"
-                      placeholder="e.g. adaeze@example.com"
-                      value={m.email ?? ""}
-                      onChange={(e) => updateMember(m.id, "email", e.target.value)}
-                    />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Project ΓÇö merged into the Idea step (only the fields the admin requires) */}
-        {step === 1 && anyProjectField && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-foreground">Your project</h2>
-            {show.projectDescription && (
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Project description</label>
-                <textarea
-                  value={projectDescription}
-                  onChange={(e) => setProjectDescription(e.target.value)}
-                  maxLength={3000}
-                  rows={5}
-                  placeholder="What you built, how it works, and what's done so far."
-                  className={cn("w-full rounded-xl border bg-white p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary", projectDescriptionTooLong ? "border-red-400" : "border-input")}
-                />
-                {projectDescriptionTooLong && (
-                  <p className="text-xs text-red-500">Project description must not exceed 3,000 characters</p>
-                )}
-                <p className={`text-xs text-right ${projectDescription.length >= 2900 ? 'text-red-500' : 'text-muted-foreground'}`}>{projectDescription.length}/3,000</p>
-              </div>
-            )}
-            {(show.sourceCode || show.liveDemo || show.pitchVideo || show.demoVideo) && (
-              <div className="grid gap-4 md:grid-cols-2">
-                {show.sourceCode && (
-                  <Input
-                    name="sourceCodeUrl"
-                    label="Source repository"
-                    leftIcon={<Code2 className="h-4 w-4" />}
-                    placeholder="https://github.com/team/project"
-                    value={sourceCodeUrl}
-                    onChange={(e) => setSourceCodeUrl(e.target.value)}
-                  />
-                )}
-                {show.liveDemo && (
-                  <Input
-                    name="liveDemoUrl"
-                    label="Live demo URL"
-                    leftIcon={<Globe className="h-4 w-4" />}
-                    placeholder="https://demo.example.com"
-                    value={liveDemoUrl}
-                    onChange={(e) => setLiveDemoUrl(e.target.value)}
-                  />
-                )}
-                {show.pitchVideo && (
-                  <Input
-                    name="pitchVideoUrl"
-                    label="Pitch video URL"
-                    leftIcon={<Video className="h-4 w-4" />}
-                    placeholder="https://youtube.com/... or loom.com/..."
-                    value={pitchVideoUrl}
-                    onChange={(e) => setPitchVideoUrl(e.target.value)}
-                  />
-                )}
-                {show.demoVideo && (
-                  <Input
-                    name="demoVideoUrl"
-                    label="Demo video URL"
-                    leftIcon={<Video className="h-4 w-4" />}
-                    placeholder="https://youtube.com/watch?v=..."
-                    value={demoVideoUrl}
-                    onChange={(e) => setDemoVideoUrl(e.target.value)}
-                  />
-                )}
-              </div>
-            )}
-            {show.pitchDeck && (
-              <FilePickField
-                label="Pitch deck"
-                accept=".pdf,.ppt,.pptx,.doc,.docx"
-                hint="PDF, PPT or DOC ┬╖ max 10 MB ΓÇö uploaded when you submit"
-                value={pitchDeckFile}
-                onChange={setPitchDeckFile}
-              />
-            )}
-            {show.additionalDocs && (
-              <FilePickField
-                label="Additional document"
-                accept=".pdf,.doc,.docx,.zip"
-                hint="PDF, DOC, or ZIP ┬╖ max 10 MB ΓÇö uploaded when you submit"
-                value={additionalDocsFile}
-                onChange={setAdditionalDocsFile}
-              />
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="flex items-center justify-between gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setStep((s) => Math.max(0, s - 1))}
-          disabled={step === 0}
-        >
-          Back
-        </Button>
-        {step < STEPS.length - 1 ? (
-          <Button onClick={() => setStep((s) => s + 1)} disabled={!canNext}>
+    <Dialog
+      open
+      onClose={() => router.push(`/hackathon/${challengeId}`)}
+      side="right"
+      footer={
+        step === 0 ? (
+          <Button size="lg" fullWidth onClick={() => setStep(1)} disabled={!canContinue}>
             Continue
           </Button>
         ) : (
-          <Button onClick={submit} loading={uploading || isPending} disabled={uploading || isPending || !canSubmit}>
-            Submit application
+          <Button size="lg" fullWidth onClick={submit} loading={uploading || isPending} disabled={uploading || isPending || !canSubmit}>
+            Submit Application
           </Button>
-        )}
-      </div>
-    </div>
+        )
+      }
+    >
+        <div>
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => (step === 0 ? router.push(`/hackathon/${challengeId}`) : setStep(0))}
+              aria-label="Back"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground/10 text-foreground/70 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4 text-foreground" />
+            </button>
+            <p className="text-xs font-medium tracking-[-0.12px] text-foreground/60">Step {step + 1} of 2</p>
+          </div>
+
+          <div className="mt-5 flex flex-col gap-1">
+            <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">{STEP_TITLES[step]}</h1>
+            <p className="text-sm tracking-[-0.14px] text-foreground/60">{STEP_SUBTITLE}</p>
+          </div>
+
+          <div className="mt-4 h-1 w-full overflow-hidden rounded-full bg-foreground/10">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: step === 0 ? "50%" : "100%" }}
+            />
+          </div>
+
+          {errorMsg && (
+            <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+              {errorMsg}
+            </div>
+          )}
+
+          {/* Step 1 — Idea + team basics */}
+          {step === 0 && (
+            <div className="mt-5 flex flex-col gap-4">
+              <Input
+                name="teamName"
+                label="Team name"
+                placeholder="Enter Team Name"
+                value={teamName}
+                onChange={(e) => setTeamName(e.target.value)}
+              />
+              {tracks.length > 1 && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Pathway</label>
+                <select
+                  value={track}
+                  onChange={(e) => setTrack(e.target.value)}
+                  className="h-[50px] w-full rounded-[10px] border border-transparent bg-foreground/[0.04] px-3.5 text-sm tracking-[-0.14px] text-foreground transition-colors focus-visible:border-primary focus-visible:outline-none"
+                >
+                  {tracks.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              )}
+              <Input
+                name="ideaTitle"
+                label="Idea title"
+                placeholder="Enter Idea title"
+                value={ideaTitle}
+                onChange={(e) => setIdeaTitle(e.target.value)}
+              />
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Description</label>
+                <textarea
+                  value={ideaDescription}
+                  onChange={(e) => setIdeaDescription(e.target.value)}
+                  maxLength={3000}
+                  rows={5}
+                  placeholder="Describe the problem, your solution, target users, and what you'll have built by demo day."
+                  className={cn(FIELD, "py-3.5 leading-relaxed")}
+                />
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-foreground/50">Minimum 10 characters.</p>
+                  <p className={cn("text-xs", ideaDescription.length >= 2900 ? "text-red-500" : "text-foreground/50")}>
+                    {ideaDescription.length}/3,000
+                  </p>
+                </div>
+              </div>
+
+              {anyProjectField && (
+                <>
+                  {show.projectDescription && (
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground">Project description</label>
+                      <textarea
+                        value={projectDescription}
+                        onChange={(e) => setProjectDescription(e.target.value)}
+                        maxLength={3000}
+                        rows={4}
+                        placeholder="What you built, how it works, and what's done so far."
+                        className={cn(FIELD, "py-3.5 leading-relaxed", projectDescriptionTooLong && "border-red-400 focus-visible:border-red-400")}
+                      />
+                      {projectDescriptionTooLong && (
+                        <p className="text-xs text-red-500">Project description must not exceed 3,000 characters</p>
+                      )}
+                      <p className={cn("text-right text-xs", projectDescription.length >= 2900 ? "text-red-500" : "text-foreground/50")}>
+                        {projectDescription.length}/3,000
+                      </p>
+                    </div>
+                  )}
+                  {show.sourceCode && (
+                    <Input
+                      name="sourceCodeUrl"
+                      label="Source repository"
+                      leftIcon={<Code2 className="h-4 w-4" />}
+                      placeholder="GitHub repository link"
+                      value={sourceCodeUrl}
+                      onChange={(e) => setSourceCodeUrl(e.target.value)}
+                    />
+                  )}
+                  {show.liveDemo && (
+                    <Input
+                      name="liveDemoUrl"
+                      label="Live demo URL"
+                      leftIcon={<Globe className="h-4 w-4" />}
+                      placeholder="Enter GitHub / Demo link"
+                      value={liveDemoUrl}
+                      onChange={(e) => setLiveDemoUrl(e.target.value)}
+                    />
+                  )}
+                  {show.pitchVideo && (
+                    <Input
+                      name="pitchVideoUrl"
+                      label="Pitch video URL"
+                      leftIcon={<Video className="h-4 w-4" />}
+                      placeholder="https://youtube.com/... or loom.com/..."
+                      value={pitchVideoUrl}
+                      onChange={(e) => setPitchVideoUrl(e.target.value)}
+                    />
+                  )}
+                  {show.demoVideo && (
+                    <Input
+                      name="demoVideoUrl"
+                      label="Demo video URL"
+                      leftIcon={<Video className="h-4 w-4" />}
+                      placeholder="https://youtube.com/watch?v=..."
+                      value={demoVideoUrl}
+                      onChange={(e) => setDemoVideoUrl(e.target.value)}
+                    />
+                  )}
+                  {show.pitchDeck && (
+                    <FilePickField
+                      label="Pitch deck"
+                      accept=".pdf,.ppt,.pptx,.doc,.docx"
+                      hint="PDF, PPT or DOC · max 10 MB — uploaded when you submit"
+                      value={pitchDeckFile}
+                      onChange={setPitchDeckFile}
+                    />
+                  )}
+                  {show.additionalDocs && (
+                    <FilePickField
+                      label="Additional document"
+                      accept=".pdf,.doc,.docx,.zip"
+                      hint="PDF, DOC, or ZIP · max 10 MB — uploaded when you submit"
+                      value={additionalDocsFile}
+                      onChange={setAdditionalDocsFile}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Step 2 — Team members */}
+          {step === 1 && (
+            <div className="mt-5 flex flex-col gap-3">
+              {leader && (
+                <div className="rounded-xl bg-white p-4">
+                  <p className="text-sm font-medium text-foreground">
+                    {leader.name || "You"} <span className="font-normal text-foreground/40">(You)</span>
+                  </p>
+                  <p className="text-xs text-foreground/50">
+                    {leader.role}
+                    {leader.email && <> <span className="mx-1 inline-block h-1 w-1 rounded-full bg-foreground/20 align-middle" /> {leader.email}</>}
+                  </p>
+                </div>
+              )}
+
+              {otherMembers.map((m) => (
+                <div key={m.id} className="flex items-center justify-between gap-3 rounded-xl bg-white p-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">{m.name}</p>
+                    <p className="truncate text-xs text-foreground/50">
+                      {m.role}
+                      {m.email && <> <span className="mx-1 inline-block h-1 w-1 rounded-full bg-foreground/20 align-middle" /> {m.email}</>}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeMember(m.id)}
+                    aria-label={`Remove ${m.name}`}
+                    className="shrink-0 text-red-500 hover:text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+
+              {members.length < teamSize.max && (
+                <div className="rounded-xl bg-white p-4">
+                  <button
+                    type="button"
+                    onClick={() => setMemberDraftOpen((v) => !v)}
+                    className="flex w-full items-center justify-between text-sm font-medium text-foreground"
+                  >
+                    Add new member
+                    <ChevronDown className={cn("h-4 w-4 text-foreground/50 transition-transform", memberDraftOpen && "rotate-180")} />
+                  </button>
+                  {memberDraftOpen && (
+                    <div className="mt-3 flex flex-col gap-3">
+                      <input
+                        value={memberDraft.name}
+                        onChange={(e) => setMemberDraft((d) => ({ ...d, name: e.target.value }))}
+                        placeholder="Full name"
+                        className={cn(FIELD, "h-[46px]")}
+                      />
+                      <input
+                        value={memberDraft.role}
+                        onChange={(e) => setMemberDraft((d) => ({ ...d, role: e.target.value }))}
+                        placeholder="Role"
+                        className={cn(FIELD, "h-[46px]")}
+                      />
+                      <input
+                        value={memberDraft.email}
+                        onChange={(e) => setMemberDraft((d) => ({ ...d, email: e.target.value }))}
+                        placeholder="Email Address"
+                        type="email"
+                        className={cn(FIELD, "h-[46px]")}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={inviteMember}
+                disabled={!memberDraft.name.trim() || !memberDraft.role.trim() || !memberDraft.email.trim()}
+                className="flex h-[50px] w-full items-center justify-center gap-2 rounded-[10px] bg-foreground/[0.04] text-sm font-medium text-foreground transition-colors hover:bg-foreground/[0.08] disabled:opacity-50"
+              >
+                + Invite members
+              </button>
+
+              <p className="text-xs text-foreground/50">
+                {teamSize.min}–{teamSize.max} members per team.
+              </p>
+            </div>
+          )}
+        </div>
+
+      {justSubmitted && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-xl">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary">
+              <Check className="h-8 w-8 text-white" strokeWidth={3} />
+            </div>
+            <h2 className="mt-5 text-xl font-medium tracking-[-0.4px] text-foreground">Application Submitted</h2>
+            <p className="mt-2 text-sm text-foreground/60">
+              Your application has been received. We&apos;ll notify you once judging begins.
+            </p>
+            <Button size="lg" fullWidth className="mt-6" onClick={() => router.push("/hackathon/my-applications")}>
+              Done
+            </Button>
+          </div>
+        </div>
+      )}
+    </Dialog>
   );
 }
 
@@ -496,15 +529,14 @@ function Gate({
   body: string;
   action?: { label: string; href: string };
 }) {
-  const router = useRouter();
   return (
-    <div className="space-y-6">
-      <button onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back
-      </button>
-      <div className="mx-auto max-w-md rounded-2xl border border-border bg-white p-8 text-center shadow-sm">
-        <h1 className="text-xl font-bold text-foreground">{title}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{body}</p>
+    <div className="flex flex-col gap-6">
+      <Link href="/hackathon" className="inline-flex w-fit items-center gap-1 text-sm text-foreground/60 hover:text-foreground">
+        <ArrowLeft className="h-4 w-4" /> Back to Innovation
+      </Link>
+      <div className="mx-auto w-full max-w-md rounded-xl border border-foreground/[0.06] bg-white p-8 text-center shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+        <h1 className="text-xl font-medium text-foreground">{title}</h1>
+        <p className="mt-2 text-sm text-foreground/60">{body}</p>
         {action && (
           <Link href={action.href} className="mt-4 inline-block">
             <Button variant="outline" size="sm">{action.label}</Button>

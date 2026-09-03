@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useRef, useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -10,7 +10,7 @@ import { apiErrorMessage } from "@/lib/api-error";
 
 function maskEmail(email: string): string {
   if (!email) return "your email";
-  return email.replace(/^(.{2})(.*)(@.*)$/, (_, a, b, c) => a + b.replace(/./g, "ΓÇó") + c);
+  return email.replace(/^(.{2})(.*)(@.*)$/, (_, a, b, c) => a + b.replace(/./g, "•") + c);
 }
 
 /**
@@ -20,7 +20,7 @@ function maskEmail(email: string): string {
  * new code while the old one is still valid is refused with "Please wait N minute(s)..." (the
  * backend switched this message from seconds to minutes on 2026-08-14). At the
  * previous 60s the button went live a full minute before the server would honour it, so the one
- * person who most needs it ΓÇö someone whose code never arrived ΓÇö got an error for clicking a
+ * person who most needs it — someone whose code never arrived — got an error for clicking a
  * button that looked ready.
  *
  * The countdown starts when this page mounts, a moment *after* the server created the code, so it
@@ -28,7 +28,7 @@ function maskEmail(email: string): string {
  */
 const RESEND_COOLDOWN_SECONDS = 120;
 
-/** "1:59" past a minute, "45s" under it ΓÇö a raw "117s" is hard to read as a wait. */
+/** "1:59" past a minute, "45s" under it — a raw "117s" is hard to read as a wait. */
 function formatCooldown(total: number): string {
   if (total < 60) return `${total}s`;
   const mins = Math.floor(total / 60);
@@ -66,7 +66,7 @@ function VerifyForm() {
     next[i] = v;
     setDigits(next);
     // With the auto-submit re-entrancy guard in verifyCode, an edit mid-flight is a no-op
-    // on purpose ΓÇö the request is already going out and would otherwise be resent.
+    // on purpose — the request is already going out and would otherwise be resent.
     if (isPending || success) return;
     if (v && i < 5) refs.current[i + 1]?.focus();
     if (next.every(Boolean)) verifyCode(next.join(""));
@@ -107,7 +107,7 @@ function VerifyForm() {
           sessionStorage.removeItem("pendingVerifyEmail");
           sessionStorage.removeItem("pendingVerifyPhone");
           // Hand the address to the login page, which repeats the confirmation and
-          // prefills the field ΓÇö so the message survives the navigation instead of
+          // prefills the field — so the message survives the navigation instead of
           // vanishing into a "Welcome back" screen that acknowledges nothing.
           // sessionStorage rather than a query param: an email in the URL ends up in
           // browser history and server access logs.
@@ -160,23 +160,19 @@ function VerifyForm() {
 
   return (
     <div className="space-y-6">
-      <div className="md:hidden mb-2">
-        <img src="/attend-logo.png" alt="Attend" style={{ height: 31 }} />
-      </div>
-
       <div className="text-center">
-        <div className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100">
-          <Mail className="h-6 w-6 text-gray-700" />
+        <div className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-foreground/[0.04]">
+          <Mail className="h-6 w-6 text-foreground/70" />
         </div>
-        <h1 className="text-2xl font-bold text-foreground">Verify your email</h1>
-        <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Verify your email</h1>
+        <p className="mt-2 text-sm leading-relaxed text-foreground/60">
           We sent a 6-digit code to
           <br />
           <span className="font-semibold text-foreground">{maskEmail(email)}</span>
         </p>
         {/* Testers reported codes never arriving; the most common cause is spam filing, and
             saying so up front costs nothing when it's a genuine delivery failure. */}
-        <p className="mx-auto mt-3 max-w-xs rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground leading-relaxed">
+        <p className="mx-auto mt-3 max-w-xs rounded-lg bg-foreground/[0.04] px-3 py-2 text-xs leading-relaxed text-foreground/60">
           It usually arrives within a minute. If it doesn&apos;t, check your spam or junk
           folder before requesting another code.
         </p>
@@ -197,8 +193,8 @@ function VerifyForm() {
               onKeyDown={(e) => handleKey(i, e)}
               className={cn(
                 "h-12 w-12 rounded-xl border text-center text-lg font-semibold transition-all",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                d ? "border-foreground bg-foreground/5" : "border-input bg-white",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                d ? "border-foreground bg-foreground/5" : "border-foreground/15 bg-white",
               )}
             />
           ))}
@@ -208,7 +204,7 @@ function VerifyForm() {
         {success && (
           <p className="flex items-center justify-center gap-1.5 text-center text-sm font-semibold text-emerald-600">
             <CheckCircle2 className="h-4 w-4" />
-            Email verified ΓÇö taking you to sign inΓÇª
+            Email verified — taking you to sign in…
           </p>
         )}
 
@@ -222,13 +218,13 @@ function VerifyForm() {
           // verification look like the form was still waiting for input.
           disabled={!filled || isPending || success}
         >
-          {success ? "Verified" : isPending ? "VerifyingΓÇª" : "Confirm code"}
+          {success ? "Verified" : isPending ? "Verifying…" : "Confirm code"}
         </Button>
 
-        <p className="text-center text-sm text-muted-foreground">
+        <p className="text-center text-sm text-foreground/60">
           Didn&apos;t receive a code?{" "}
           {resendCooldown > 0 ? (
-            <span className="font-semibold text-muted-foreground">
+            <span className="font-semibold text-foreground/60">
               Resend in {formatCooldown(resendCooldown)}
             </span>
           ) : (
@@ -238,17 +234,17 @@ function VerifyForm() {
               disabled={resending}
               className="font-semibold text-foreground hover:underline disabled:opacity-50"
             >
-              {resending ? "SendingΓÇª" : "Resend code"}
+              {resending ? "Sending…" : "Resend code"}
             </button>
           )}
         </p>
       </form>
 
-      <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
-        <Link href="/register" className="hover:text-foreground hover:underline transition-colors">
+      <div className="flex flex-col items-center gap-2 text-sm text-foreground/60">
+        <Link href="/register" className="transition-colors hover:text-foreground hover:underline">
           Wrong details? Go back
         </Link>
-        <Link href="/login" className="hover:text-foreground hover:underline transition-colors">
+        <Link href="/login" className="transition-colors hover:text-foreground hover:underline">
           Already have an account? Sign in
         </Link>
       </div>

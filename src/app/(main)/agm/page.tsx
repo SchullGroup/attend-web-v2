@@ -1,185 +1,165 @@
-﻿"use client";
+"use client";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  Building2, CalendarDays, MapPin,
-  Users, Vote, ChevronRight, UserCheck,
-} from "lucide-react";
+import { ChevronRight, Building2, Search, Clock } from "lucide-react";
 import { useGetEvents } from "@/api/events/hooks";
 import { EventListItem } from "@/types";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { formatDate } from "@/lib/utils";
+import { Input } from "@/components/ui/Input";
+import { AgmHero, AgmSubNav } from "@/components/attend/AgmSubNav";
+import { cn, formatDate } from "@/lib/utils";
 
-const fmtFormat = (f: string) => (f || "").toLowerCase().replace(/_/g, "-");
+// Ported from the figma-redesign branch. Clean adoption — AgmSubNav/AgmHero and
+// the Input component already exist here. The old page's per-card Proxy/Pre-vote
+// CTAs are intentionally dropped: figma routes each card to /events/[id], whose
+// detail page already surfaces "Appoint/Change Proxy" and pre-vote (gated on
+// agmProxyEnabled), and the AgmSubNav pill row covers Proxy history / My receipts
+// / Minutes. So no proxy/vote entry point is lost.
+
+type StatusTab = "all" | "live" | "upcoming";
+const STATUS_TABS: { key: StatusTab; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "live", label: "Live" },
+  { key: "upcoming", label: "Upcoming" },
+];
+
+// Deterministic pastel tile per organiser, matching Home's approach (no real
+// per-organiser logo/branding available from the API yet).
+const TILE_TINTS = ["#f9b6ff", "#8ba6ff", "#c3e1d0", "#dbe1c3", "#f6f6f6", "#e2e2e2"];
+function tileTint(seed: string) {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 997;
+  return TILE_TINTS[h % TILE_TINTS.length];
+}
+
+function fmtTime(startTime?: string) {
+  if (!startTime) return "--";
+  const [h, m] = startTime.split(":").map(Number);
+  if (Number.isNaN(h)) return startTime;
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m ?? 0).padStart(2, "0")} ${period}`;
+}
 
 export default function AgmPage() {
+  const [tab, setTab] = useState<StatusTab>("all");
+  const [query, setQuery] = useState("");
+
   // Backend event type for AGMs/EGMs is "AGM_EGM" (not "AGM"). Filter defensively
   // too, in case the backend returns mixed types for an unrecognised value.
   const { data, isLoading } = useGetEvents({ eventType: "AGM_EGM", size: 50 });
-  const agms = (data?.data?.events ?? []).filter((e) => e.eventType === "AGM_EGM");
+  const agms = (data?.data?.events ?? []).filter(
+    (e) => e.eventType === "AGM_EGM" && e.status !== "CANCELLED",
+  );
 
-  const upcoming = agms.filter((e) => e.status !== "ENDED" && e.status !== "CANCELLED");
-  const past = agms.filter((e) => e.status === "ENDED");
+  const visible = useMemo(() => {
+    let list = agms;
+    if (tab === "live") list = list.filter((e) => e.status === "LIVE");
+    else if (tab === "upcoming") list = list.filter((e) => e.status !== "LIVE" && e.status !== "ENDED");
+    if (query.trim()) {
+      const q = query.trim().toLowerCase();
+      list = list.filter(
+        (e) =>
+          e.title.toLowerCase().includes(q) ||
+          (e.registerName || e.organizerName || "").toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [agms, tab, query]);
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Annual General Meetings</h1>
-            <p className="text-sm text-muted-foreground">
-              All upcoming AGMs on the Attend platform.
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/agm/proxy-history">
-            <Button variant="outline" size="sm">Proxy history</Button>
-          </Link>
-          <Link href="/agm/receipt">
-            <Button variant="outline" size="sm">My receipts</Button>
-          </Link>
-          <Link href="/agm/minutes">
-            <Button variant="outline" size="sm">Minutes</Button>
-          </Link>
-        </div>
-      </header>
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center gap-1 text-sm font-medium tracking-[-0.14px]">
+        <span className="text-foreground">AGM</span>
+        <ChevronRight className="h-3 w-3 -rotate-90 text-foreground/40" />
+        <span className="text-foreground/40">All AGMs</span>
+      </div>
 
-      {isLoading ? (
-        <div className="space-y-4">
-          {[1, 2].map((n) => (
-            <div key={n} className="h-40 animate-pulse rounded-2xl border border-border bg-muted" />
-          ))}
-        </div>
-      ) : (
-        <>
-          {upcoming.length > 0 && (
-            <section>
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Upcoming
-              </h2>
-              <ul className="space-y-4">
-                {upcoming.map((e) => (
-                  <AgmCard key={e.id} event={e} />
-                ))}
-              </ul>
-            </section>
-          )}
+      <AgmHero />
+      <AgmSubNav active="agms" />
 
-          {past.length > 0 && (
-            <section>
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Past
-              </h2>
-              <ul className="space-y-4">
-                {past.map((e) => (
-                  <AgmCard key={e.id} event={e} />
-                ))}
-              </ul>
-            </section>
-          )}
+      <Input
+        leftIcon={<Search className="h-4 w-4" />}
+        placeholder="Search for events"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
 
-          {agms.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-              No AGMs available at this time.
-            </div>
-          )}
-        </>
+      <div className="flex gap-2 overflow-x-auto border-b border-foreground/10">
+        {STATUS_TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={cn(
+              "border-b-2 px-6 py-2 text-sm tracking-[-0.14px] transition-colors",
+              tab === t.key
+                ? "border-foreground font-semibold text-foreground"
+                : "border-transparent text-foreground/60 hover:text-foreground",
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {isLoading && (
+        <p className="py-8 text-center text-sm text-foreground/50">Loading events…</p>
       )}
+
+      {!isLoading && visible.length === 0 && (
+        <p className="py-8 text-center text-sm text-foreground/50">
+          No AGMs in this category yet.
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        {visible.map((e: EventListItem) => (
+          <AgmListCard key={e.id} event={e} />
+        ))}
+      </div>
     </div>
   );
 }
 
-function AgmCard({ event: e }: { event: EventListItem }) {
-  const registered = e.registered;
+function AgmListCard({ event: e }: { event: EventListItem }) {
+  const organiser = e.registerName || e.organizerName;
   const isLive = e.status === "LIVE";
-  // Proxy appointment closes once the meeting starts ΓÇö mirrors the gate on the appoint
-  // page itself, so the entry point doesn't lead to a page that only says "closed".
-  const proxyClosed = isLive || e.status === "ENDED" || e.status === "CANCELLED";
 
   return (
-    <li className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
-      <div className="flex flex-col gap-4 p-5 md:flex-row md:items-start">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100">
-          <Building2 className="h-5 w-5 text-slate-500" />
-        </div>
-
-        <div className="flex-1 space-y-3">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {e.registerName || e.organizerName}
-              </p>
-              <h2 className="text-base font-semibold leading-snug text-foreground md:text-lg">
-                {e.title}
-              </h2>
-            </div>
-            {isLive ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-red-700">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-600" />
-                Live
-              </span>
-            ) : e.hasRsvped ? (
-              <Badge variant="success">Confirmed</Badge>
-            ) : (
-              <Badge variant="muted">{fmtFormat(e.format)}</Badge>
-            )}
-          </div>
-
-          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <CalendarDays className="h-3.5 w-3.5" />
-              {formatDate(e.date)} ┬╖ {e.startTime}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Building2 className="h-3.5 w-3.5" />
-              {fmtFormat(e.format)}
-            </span>
-            {e.venue && (
-              <span className="flex items-center gap-1.5">
-                <MapPin className="h-3.5 w-3.5" />
-                {e.venue}
-              </span>
-            )}
-            {e.maximumCapacity > 0 && (
-              <span className="flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5" />
-                {e.maximumCapacity.toLocaleString()} capacity
-              </span>
-            )}
-          </div>
-
-          <div className="pt-1">
-            {registered ? (
-              <div className="flex gap-2">
-                {!proxyClosed && (
-                  <Link href={`/agm/proxy?eventId=${e.id}`}>
-                    <Button size="sm" variant="outline" className="border-slate-200 text-slate-700 hover:bg-slate-50">
-                      <UserCheck className="h-3.5 w-3.5 mr-1.5" /> Proxy
-                    </Button>
-                  </Link>
-                )}
-                {!isLive && (
-                  <Link href={`/agm/pre-vote?eventId=${e.id}`}>
-                    <Button size="sm" className="flex-1 bg-slate-900 text-white hover:bg-slate-800 border-0">
-                      <Vote className="h-3.5 w-3.5 mr-1.5" /> Pre-vote
-                    </Button>
-                  </Link>
-                )}
-                <Link href={`/events/${e.id}`}>
-                  <Button size="sm" className="flex-1 bg-slate-900 text-white hover:bg-slate-800 border-0">
-                    <ChevronRight className="h-3.5 w-3.5 mr-1.5" /> View
-                  </Button>
-                </Link>
-              </div>
-            ) : (
-              <Link href={`/events/${e.id}`}>
-                <Button size="sm" className="bg-slate-900 text-white hover:bg-slate-800 border-0 w-full">View</Button>
-              </Link>
-            )}
-          </div>
-        </div>
+    <Link
+      // The dedicated /agm/[id] route doesn't exist yet — AGM detail (agenda,
+      // proxy/pre-vote entry points) is served by the shared /events/[id]
+      // page today, same as before this retrofit.
+      href={`/events/${e.id}`}
+      className="flex items-center gap-2.5 rounded-xl border border-foreground/[0.06] bg-white p-1.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+    >
+      <div
+        className="flex h-[60px] w-[60px] shrink-0 items-center justify-center overflow-hidden rounded-[10px]"
+        style={{ backgroundColor: tileTint(organiser || e.title) }}
+      >
+        {e.organizerLogo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={e.organizerLogo} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <Building2 className="h-6 w-6 text-foreground/60" strokeWidth={1.75} />
+        )}
       </div>
-    </li>
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-1">
+        <p className="truncate text-sm font-medium tracking-[-0.14px] text-foreground">
+          {e.title}
+        </p>
+        <p className="flex items-center gap-1 text-xs text-foreground/80">
+          <Clock className="h-3.5 w-3.5" />
+          {formatDate(e.date)}, {fmtTime(e.startTime)}
+        </p>
+      </div>
+      {isLive && (
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+          <span className="h-1.5 w-1.5 rounded-full bg-white" /> Live
+        </span>
+      )}
+      <span className="mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-foreground/10 text-foreground/60">
+        <ChevronRight className="h-4 w-4" />
+      </span>
+    </Link>
   );
 }

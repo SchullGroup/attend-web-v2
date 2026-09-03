@@ -10,8 +10,8 @@ export interface EventCardData {
   organiser: string;
   module: string;
   thumbnailColor?: string;
-  // The register's logo from the event's branding payload. Often null ΓÇö the admin
-  // hasn't uploaded one ΓÇö so every use has to degrade to the organiser name alone.
+  // The register's logo from the event's branding payload. Often null — the admin
+  // hasn't uploaded one — so every use has to degrade to the organiser name alone.
   logoUrl?: string | null;
   // The event flyer (flyerUrl, falling back to bannerUrl). Fills the card header when
   // present; otherwise the header falls back to the organiser's brand colour.
@@ -41,7 +41,7 @@ export function EventCard({ event, href }: Props) {
   return (
     <Link
       href={link}
-      className="group block overflow-hidden rounded-2xl border border-border bg-white transition-all hover:-translate-y-0.5 hover:shadow-lg"
+      className="group block overflow-hidden rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
     >
       {/* When the event has a flyer it fills the card header (cropped to fit); otherwise the
           header falls back to the organiser's brand colour with their initials as a watermark.
@@ -97,7 +97,7 @@ export function EventCard({ event, href }: Props) {
         <h3 className="line-clamp-2 text-base font-semibold leading-snug text-foreground group-hover:text-primary">
           {event.title}
         </h3>
-        <div className="space-y-1.5 text-xs text-muted-foreground">
+        <div className="space-y-1.5 text-xs text-foreground/60">
           <div className="flex items-center gap-1.5">
             <CalendarDays className="h-3.5 w-3.5" />
             {formatDate(event.date)}
@@ -106,7 +106,7 @@ export function EventCard({ event, href }: Props) {
             <div className="flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5" />
               {event.startTime}
-              {event.endTime ? ` ΓÇô ${event.endTime}` : ""}
+              {event.endTime ? ` – ${event.endTime}` : ""}
             </div>
           )}
           {event.venue && (
@@ -116,9 +116,9 @@ export function EventCard({ event, href }: Props) {
             </div>
           )}
         </div>
-        <div className="flex items-center justify-between border-t border-border pt-3">
+        <div className="flex items-center justify-between border-t border-foreground/[0.06] pt-3">
           {event.rsvpCount != null ? (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-xs text-foreground/60">
               <Users className="h-3.5 w-3.5" />
               {event.rsvpCount.toLocaleString()} attending
             </div>

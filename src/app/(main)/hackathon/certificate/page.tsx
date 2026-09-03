@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { Suspense, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Download, Award, Star, Check, Clock, Trophy } from "lucide-react";
@@ -62,41 +62,47 @@ function CertificateInner() {
   if (challengeId && isLoading) {
     return (
       <div className="mx-auto max-w-3xl">
-        <div className="h-96 animate-pulse rounded-3xl border border-border bg-muted" />
+        <div className="h-96 animate-pulse rounded-2xl bg-foreground/[0.04]" />
       </div>
     );
   }
 
   if (!challengeId || !cert) {
     return (
-      <div className="space-y-6">
-        <button onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <div className="flex flex-col gap-6">
+        <button
+          onClick={() => router.back()}
+          className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
+        >
           <ArrowLeft className="h-4 w-4" /> Back
         </button>
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-foreground/15 p-10 text-center text-sm text-foreground/50">
           No certificate found. Open this from a challenge you participated in.
         </div>
       </div>
     );
   }
 
-  // No certificate issued yet. `eligible` means "would qualify" ΓÇö issuance is an
+  // No certificate issued yet. `eligible` means "would qualify" — issuance is an
   // organiser-triggered run, so a qualifying entrant still waits for the file.
   if (!cert.issued) {
     const waiting = cert.eligible;
     return (
-      <div className="space-y-6">
-        <button onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <div className="flex flex-col gap-6">
+        <button
+          onClick={() => router.back()}
+          className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
+        >
           <ArrowLeft className="h-4 w-4" /> Back
         </button>
-        <div className="mx-auto max-w-md rounded-3xl border border-border bg-white p-8 text-center shadow-sm">
+        <div className="mx-auto max-w-md rounded-xl border border-foreground/[0.06] bg-white p-8 text-center shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
           <div className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
             <Clock className="h-8 w-8 text-amber-600" />
           </div>
-          <h1 className="mt-4 text-xl font-bold text-foreground">
+          <h1 className="mt-4 text-xl font-medium tracking-[-0.6px] text-foreground">
             {waiting ? "Your certificate is being prepared" : "Certificate not available yet"}
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-2 text-sm text-foreground/60">
             {cert.message ||
               (waiting
                 ? "You qualify for a certificate. It will appear here once the organiser issues it."
@@ -111,29 +117,35 @@ function CertificateInner() {
     name: cert.participantName,
     eventTitle: cert.eventTitle,
     subline: cert.teamName ? `Team ${cert.teamName}` : "",
-    verifyId: cert.certificateNumber || data?.referenceId || "ΓÇö",
+    verifyId: cert.certificateNumber || data?.referenceId || "—",
   };
 
   const pdfPending = cert.downloadReady === false;
 
   return (
-    <div className="space-y-6">
-      <button onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+    <div className="flex flex-col gap-6">
+      <button
+        onClick={() => router.back()}
+        className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
+      >
         <ArrowLeft className="h-4 w-4" /> Back
       </button>
 
       <header className="flex flex-wrap items-center gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Your certificate</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Your certificate</h1>
+          <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
             {isWinner
-              ? "Congratulations on your achievement ΓÇö share it."
-              : "Thank you for taking part ΓÇö share your achievement."}
+              ? "Congratulations on your achievement — share it."
+              : "Thank you for taking part — share your achievement."}
           </p>
         </div>
       </header>
 
       <div className="mx-auto max-w-3xl">
+        {/* Certificate artwork — branded purple design, snapshotted as-is for the
+            PDF fallback via downloadNodeAsPdf, so its styling is intentionally left
+            outside the flat design system. */}
         <div ref={certRef} className="relative overflow-hidden rounded-3xl border-[3px] border-purple-200 bg-linear-to-br from-white via-purple-50/40 to-white p-8 shadow-lg md:p-12">
           <Corner className="left-3 top-3" />
           <Corner className="right-3 top-3 rotate-90" />
@@ -191,15 +203,15 @@ function CertificateInner() {
 
         <div className="mt-4 flex justify-center gap-3">
           <Button onClick={handleDownload} loading={downloading} disabled={downloading || pdfPending}>
-            <Download className="h-4 w-4" /> {pdfPending ? "PreparingΓÇª" : "Download PDF"}
+            <Download className="h-4 w-4" /> {pdfPending ? "Preparing…" : "Download PDF"}
           </Button>
           <Button variant="outline" onClick={handleShare}>
             {shared ? <><Check className="h-4 w-4" /> Copied!</> : "Share"}
           </Button>
         </div>
         {pdfPending && (
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            The PDF is still being generated ΓÇö this will be ready shortly.
+          <p className="mt-2 text-center text-xs text-foreground/60">
+            The PDF is still being generated — this will be ready shortly.
           </p>
         )}
       </div>

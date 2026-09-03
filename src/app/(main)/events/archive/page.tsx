@@ -1,6 +1,5 @@
-﻿"use client";
+"use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ArrowLeft, PlayCircle } from "lucide-react";
 import { useGetEvents } from "@/api/events/hooks";
 import { Badge } from "@/components/ui/Badge";
@@ -22,31 +21,30 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 export default function ArchivePage() {
-  const router = useRouter();
   const { data, isLoading } = useGetEvents({ status: "ENDED", size: 50 });
   const events = (data?.data?.events ?? []).filter((e) => e.status === "ENDED");
 
   return (
-    <div className="space-y-6">
-      <button onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back
-      </button>
+    <div className="flex flex-col gap-6">
+      <Link href="/events" className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 hover:text-foreground">
+        <ArrowLeft className="h-4 w-4" /> Back to events
+      </Link>
 
-      <header>
-        <h1 className="text-2xl font-bold text-foreground">Event archive</h1>
-        <p className="text-sm text-muted-foreground">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Event archive</h1>
+        <p className="text-sm tracking-[-0.14px] text-foreground/60">
           Catch up on past events with full recordings and presentation decks.
         </p>
-      </header>
+      </div>
 
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((n) => (
-            <div key={n} className="h-28 animate-pulse rounded-2xl border border-border bg-muted" />
+            <div key={n} className="h-28 animate-pulse rounded-xl border border-foreground/[0.06] bg-foreground/[0.03]" />
           ))}
         </div>
       ) : events.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-foreground/15 p-10 text-center text-sm text-foreground/50">
           No past events yet. Recordings appear here after events end.
         </div>
       ) : (
@@ -56,7 +54,7 @@ export default function ArchivePage() {
             return (
               <li
                 key={e.id}
-                className="flex flex-col gap-3 rounded-2xl border border-border bg-white p-4 md:flex-row md:items-center md:gap-5"
+                className="flex flex-col gap-3 rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] md:flex-row md:items-center md:gap-5"
               >
                 <Link
                   href={`/events/${e.id}`}
@@ -71,16 +69,16 @@ export default function ArchivePage() {
                 <div className="flex-1">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      <p className="text-xs font-medium uppercase tracking-wide text-foreground/50">
                         {organiser}
                       </p>
-                      <h2 className="text-sm font-semibold text-foreground md:text-base">
+                      <h2 className="text-sm font-medium tracking-[-0.14px] text-foreground md:text-base">
                         <Link href={`/events/${e.id}`} className="hover:text-primary">{e.title}</Link>
                       </h2>
                     </div>
                     <Badge variant="muted">{TYPE_LABEL[e.eventType] ?? e.eventType}</Badge>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs text-foreground/60">
                     Ended {formatDate(e.date)}
                   </p>
                 </div>

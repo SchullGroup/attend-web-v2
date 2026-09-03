@@ -218,7 +218,7 @@ export default function LoginPage() {
         </Link>
       </div>
 
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-foreground/60">
         No email or phone on file?{" "}
         <Link href="/bvn-recover" className="font-semibold text-foreground hover:underline">
           Sign in with BVN

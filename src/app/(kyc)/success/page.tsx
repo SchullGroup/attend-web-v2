@@ -9,7 +9,7 @@ type Tone = "emerald" | "amber" | "muted";
 const TONE_CLASS: Record<Tone, string> = {
   emerald: "text-emerald-700",
   amber: "text-amber-600",
-  muted: "text-muted-foreground",
+  muted: "text-foreground/50",
 };
 
 function stepStatus(s?: KycStepDetail): { label: string; tone: Tone } {
@@ -62,18 +62,18 @@ export default function KycSuccessPage() {
         {header.icon}
       </div>
       <div>
-        <h1 className="text-2xl font-bold text-foreground">{header.title}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{header.text}</p>
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">{header.title}</h1>
+        <p className="mt-2 text-sm tracking-[-0.14px] text-foreground/60">{header.text}</p>
       </div>
 
-      <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-4 text-left">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <div className="space-y-2 rounded-xl border border-foreground/[0.06] bg-foreground/[0.03] p-4 text-left">
+        <p className="text-xs font-medium uppercase tracking-wide text-foreground/50">
           {verified ? "Verification details" : "Submitted for verification"}
         </p>
         {isLoading ? (
           <div className="space-y-2">
             {[1, 2, 3].map((n) => (
-              <div key={n} className="h-5 animate-pulse rounded bg-muted" />
+              <div key={n} className="h-5 animate-pulse rounded bg-foreground/[0.06]" />
             ))}
           </div>
         ) : (
@@ -81,7 +81,7 @@ export default function KycSuccessPage() {
             const { label, tone } = stepStatus(detail);
             return (
               <div key={fallback} className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">{detail?.title || fallback}</span>
+                <span className="text-foreground/60">{detail?.title || fallback}</span>
                 <span className={`font-medium ${TONE_CLASS[tone]}`}>{label}</span>
               </div>
             );
@@ -90,7 +90,7 @@ export default function KycSuccessPage() {
       </div>
 
       {!verified && !rejected && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-foreground/60">
           You&apos;ll be notified once your identity is confirmed. You can still
           browse events while verification is in progress.
         </p>

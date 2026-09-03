@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import Link from "next/link";
 import { ArrowLeft, ChevronRight } from "lucide-react";
 import { useGetMyEvents } from "@/api/events/hooks";
@@ -41,50 +41,53 @@ export default function MyEventsPage() {
   }));
 
   return (
-    <div className="space-y-6">
-      <Link href="/profile" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+    <div className="flex flex-col gap-6">
+      <Link
+        href="/profile"
+        className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
+      >
         <ArrowLeft className="h-4 w-4" /> Back
       </Link>
 
       <header>
-        <h1 className="text-2xl font-bold text-foreground">My events</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">My events</h1>
+        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
           Events you&apos;ve RSVP&apos;d to or attended.
         </p>
       </header>
 
       {isLoading ? (
-        <div className="space-y-2">
+        <div className="flex flex-col gap-2">
           {[1, 2, 3].map((n) => (
-            <div key={n} className="h-20 animate-pulse rounded-2xl border border-border bg-muted" />
+            <div key={n} className="h-20 animate-pulse rounded-xl bg-foreground/[0.04]" />
           ))}
         </div>
       ) : events.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-foreground/15 p-10 text-center text-sm text-foreground/50">
           You haven&apos;t RSVP&apos;d to anything yet. Browse events to get started.
         </div>
       ) : (
-        <ul className="overflow-hidden rounded-2xl border border-border bg-white">
+        <ul className="overflow-hidden rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
           {events.map((e, i) => (
-            <li key={e.id} className={i > 0 ? "border-t border-border" : ""}>
+            <li key={e.id} className={i > 0 ? "border-t border-foreground/[0.06]" : ""}>
               <Link
                 href={`/events/${e.id}`}
-                className="flex items-center gap-3 p-4 hover:bg-muted/30"
+                className="flex items-center gap-3 p-4 transition-colors hover:bg-foreground/[0.02]"
               >
                 <div
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] text-xs font-bold text-white"
                   style={{ background: e.thumbnailColor }}
                 >
                   {initialsFor(e.organiser)}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-foreground">{e.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDate(e.date)} ┬╖ {e.format}
+                  <p className="text-xs text-foreground/60">
+                    {formatDate(e.date)} · {e.format}
                   </p>
                 </div>
                 <Badge variant="success">Confirmed</Badge>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                <ChevronRight className="h-4 w-4 text-foreground/40" />
               </Link>
             </li>
           ))}

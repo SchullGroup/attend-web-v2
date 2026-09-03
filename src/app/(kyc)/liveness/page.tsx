@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
@@ -13,7 +13,7 @@ const OVAL_W = 224;
 const OVAL_H = 296;
 
 // The capture used to be sent at the camera's native resolution, which on a modern phone
-// is 8-12MP ΓÇö a multi-megabyte base64 string for a face match that only needs a few
+// is 8-12MP — a multi-megabyte base64 string for a face match that only needs a few
 // hundred pixels. Downscaling before encoding keeps the payload small enough that the
 // request itself can't be what fails, and steps the quality down if it's still large.
 const MAX_EDGE = 720;
@@ -28,7 +28,7 @@ export default function LivenessPage() {
   const { mutate: submitStep3 } = useKycStep3();
 
   // The BVN comes from the KYC record the backend already holds. It is never stored on
-  // the device ΓÇö a BVN in localStorage stays readable on a shared machine long after the
+  // the device — a BVN in localStorage stays readable on a shared machine long after the
   // session ends, which we're not permitted to do.
   const { data: kycResp } = useGetKycStatus();
   const verifiedBvn = kycResp?.data?.bvn;
@@ -104,7 +104,7 @@ export default function LivenessPage() {
       bvnSelfieCheck(
         { bvn: verifiedBvn, selfieImage },
         {
-          // A failed match is still HTTP 200 ΓÇö the result is `data.valid`, not the
+          // A failed match is still HTTP 200 — the result is `data.valid`, not the
           // status code. Reading only onSuccess (as this did) let every failed match
           // straight through, which made the check a no-op.
           onSuccess: (res) => {
@@ -122,7 +122,7 @@ export default function LivenessPage() {
           },
           onError: (err: any) => {
             // 503 = Dojah unreachable. Nothing was saved and it's safe to retry, so
-            // don't tell the user their face didn't match ΓÇö that isn't what happened.
+            // don't tell the user their face didn't match — that isn't what happened.
             if (err?.response?.status === 503) {
               setErrorMsg(
                 "Verification service is temporarily unavailable. Please try again in a moment.",
@@ -256,24 +256,24 @@ export default function LivenessPage() {
       <div>
         <div
           className={cn(
-            "mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
-            stage === "verified" ? "bg-emerald-100" : "bg-gray-100",
+            "mb-3 inline-flex h-10 w-10 items-center justify-center rounded-[10px] transition-colors",
+            stage === "verified" ? "bg-emerald-100" : "bg-foreground/[0.04]",
           )}
         >
           {stage === "verified" ? (
             <CheckCircle2 className="h-5 w-5 text-emerald-600" />
           ) : (
-            <ShieldCheck className="h-5 w-5 text-gray-700" />
+            <ShieldCheck className="h-5 w-5 text-foreground/70" />
           )}
         </div>
-        <h1 className="text-xl font-bold text-foreground">
+        <h1 className="text-xl font-medium tracking-[-0.6px] text-foreground">
           {stage === "verified" ? "Identity Verified!" : "Face Liveness Check"}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
           {stage === "idle" && savedSelfie && "Your BVN photo is ready. Click below to complete liveness verification."}
           {stage === "idle" && !savedSelfie && "A quick face scan to confirm you are the account holder."}
-          {stage === "detecting" && "Hold still ΓÇö capturing your faceΓÇª"}
-          {stage === "verifying" && "Submitting your verificationΓÇª"}
+          {stage === "detecting" && "Hold still — capturing your face…"}
+          {stage === "verifying" && "Submitting your verification…"}
           {stage === "verified" && "Your liveness verification is complete."}
         </p>
       </div>
@@ -286,8 +286,8 @@ export default function LivenessPage() {
 
       {/* Saved Photo Preview (if captured during Step 1) or Camera Oval */}
       {savedSelfie && stage === "idle" ? (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-6 text-center">
-          <div className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2 border-emerald-500 bg-emerald-100 shadow-sm">
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-6 text-center">
+          <div className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2 border-emerald-500 bg-emerald-100">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`data:image/jpeg;base64,${savedSelfie}`}
@@ -310,7 +310,7 @@ export default function LivenessPage() {
           >
             {stage === "detecting" && (
               <div
-                className="absolute rounded-full border-2 border-gray-900 transition-all duration-700"
+                className="absolute rounded-full border-2 border-foreground transition-all duration-700"
                 style={{
                   width: OVAL_W + 56,
                   height: OVAL_H + 56,
@@ -386,16 +386,16 @@ export default function LivenessPage() {
             )}
           >
             {stage === "idle" && "Position your face within the oval"}
-            {stage === "detecting" && "Hold stillΓÇª"}
-            {stage === "verifying" && "VerifyingΓÇª"}
-            {stage === "verified" && "Submitted Γ£ô"}
+            {stage === "detecting" && "Hold still…"}
+            {stage === "verifying" && "Verifying…"}
+            {stage === "verified" && "Submitted ✓"}
           </p>
 
           {busy && (
             <div className="mt-2 flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-gray-900 animate-pulse" />
-              <span className="text-xs text-muted-foreground">
-                {stage === "verifying" ? "SubmittingΓÇª" : "Framing your photoΓÇª"}
+              <span className="h-2 w-2 rounded-full bg-foreground animate-pulse" />
+              <span className="text-xs text-foreground/60">
+                {stage === "verifying" ? "Submitting…" : "Framing your photo…"}
               </span>
             </div>
           )}
@@ -414,7 +414,7 @@ export default function LivenessPage() {
             <button
               type="button"
               onClick={startCheck}
-              className="text-xs text-center text-muted-foreground hover:text-foreground transition-colors"
+              className="text-xs text-center text-foreground/60 hover:text-foreground transition-colors"
             >
               Re-scan with camera instead
             </button>
@@ -429,16 +429,16 @@ export default function LivenessPage() {
             <button
               type="button"
               onClick={onSkip}
-              className="text-sm text-center text-muted-foreground hover:text-foreground transition-colors py-1"
+              className="text-sm text-center text-foreground/60 hover:text-foreground transition-colors py-1"
             >
-              Skip ΓÇö I&apos;ll complete this later
+              Skip — I&apos;ll complete this later
             </button>
           </>
         )}
 
         {busy && (
           <Button fullWidth disabled loading>
-            {stage === "verifying" ? "VerifyingΓÇª" : "CapturingΓÇª"}
+            {stage === "verifying" ? "Verifying…" : "Capturing…"}
           </Button>
         )}
 
@@ -449,7 +449,7 @@ export default function LivenessPage() {
         )}
       </div>
 
-      <p className="text-center text-xs text-muted-foreground">
+      <p className="text-center text-xs text-foreground/60">
         Your verification data is encrypted and processed securely.
       </p>
     </div>

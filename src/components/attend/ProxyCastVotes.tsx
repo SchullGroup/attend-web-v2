@@ -45,7 +45,7 @@ export function ProxyCastVotes({
             >
               <span className="min-w-0 truncate text-foreground">
                 {v.resolutionTitle}
-                {v.candidateName ? <span className="text-muted-foreground"> — {v.candidateName}</span> : null}
+                {v.candidateName ? <span className="text-foreground/60"> — {v.candidateName}</span> : null}
               </span>
               <span
                 className={cn(

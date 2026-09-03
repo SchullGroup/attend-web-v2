@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Bell, Mail, Smartphone, Save } from "lucide-react";
@@ -37,7 +37,7 @@ export default function NotificationPreferencesPage() {
   const pushOn = pushPref || pushSubscribed;
 
   // The toggles are local state until Save is pressed. Without a baseline to compare against
-  // there was no way to tell the user their flips weren't persisted yet ΓÇö they read the
+  // there was no way to tell the user their flips weren't persisted yet — they read the
   // switch position as the saved value and navigated away.
   const [baseline, setBaseline] = useState<string | null>(null);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
@@ -117,35 +117,35 @@ export default function NotificationPreferencesPage() {
   if (isLoading) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
-        <p className="text-sm text-muted-foreground animate-pulse">Loading preferences...</p>
+        <p className="animate-pulse text-sm text-foreground/60">Loading preferences...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <button
         onClick={() => router.back()}
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Back to Profile
       </button>
 
       <header>
-        <h1 className="text-2xl font-bold text-foreground">Notification Preferences</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Notification Preferences</h1>
+        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
           Choose how you would like to be notified about meeting updates and documents.
         </p>
       </header>
 
       {/* Web Push Segment */}
-      <section className="rounded-2xl border border-border bg-white p-5 shadow-sm space-y-4">
+      <section className="flex flex-col gap-4 rounded-xl border border-foreground/[0.06] bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-0.5">
-            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <Smartphone className="h-4 w-4 text-primary" /> Web Push Notifications
             </h3>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-foreground/60">
               Receive instant alerts on your desktop or device when a vote opens or a meeting starts.
             </p>
           </div>
@@ -156,14 +156,14 @@ export default function NotificationPreferencesPage() {
             disabled={submittingPush}
             onClick={() => {
               // Two things have to happen: record the preference for saving, and ask the
-              // browser for a subscription. The preference is the part that persists ΓÇö
+              // browser for a subscription. The preference is the part that persists —
               // the browser half is a no-op until push is configured.
               setPushPref(!pushOn);
               handleTogglePush(!pushOn);
             }}
             className={cn(
               "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50",
-              pushOn ? "bg-primary" : "bg-muted"
+              pushOn ? "bg-primary" : "bg-foreground/[0.15]"
             )}
           >
             <span
@@ -176,18 +176,18 @@ export default function NotificationPreferencesPage() {
         </div>
 
         {pushMsg && (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
             {pushMsg}
           </p>
         )}
       </section>
 
       {/* Email Preferences */}
-      <section className="rounded-2xl border border-border bg-white p-5 shadow-sm space-y-4">
-        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 border-b border-slate-100 pb-3">
+      <section className="flex flex-col gap-4 rounded-xl border border-foreground/[0.06] bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+        <h3 className="flex items-center gap-2 border-b border-foreground/[0.06] pb-3 text-sm font-semibold text-foreground">
           <Mail className="h-4 w-4 text-primary" /> Email Notifications
         </h3>
-        <div className="space-y-3.5">
+        <div className="flex flex-col gap-3.5">
           <PreferenceToggle
             label="RSVP Confirmations"
             description="Receive an email receipt when you confirm your attendance at an event."
@@ -210,11 +210,11 @@ export default function NotificationPreferencesPage() {
       </section>
 
       {/* In-App Notifications */}
-      <section className="rounded-2xl border border-border bg-white p-5 shadow-sm space-y-4">
-        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 border-b border-slate-100 pb-3">
+      <section className="flex flex-col gap-4 rounded-xl border border-foreground/[0.06] bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+        <h3 className="flex items-center gap-2 border-b border-foreground/[0.06] pb-3 text-sm font-semibold text-foreground">
           <Bell className="h-4 w-4 text-primary" /> In-App Notifications
         </h3>
-        <div className="space-y-3.5">
+        <div className="flex flex-col gap-3.5">
           <PreferenceToggle
             label="RSVP Confirmations"
             description="Display a notification in the app when your RSVP is successful."
@@ -241,7 +241,7 @@ export default function NotificationPreferencesPage() {
           <p
             className={cn(
               "text-xs font-medium",
-              saveMsg === "Preferences saved." ? "text-emerald-700" : "text-red-600",
+              saveMsg === "Preferences saved." ? "text-primary" : "text-red-600",
             )}
           >
             {saveMsg}
@@ -258,7 +258,7 @@ export default function NotificationPreferencesPage() {
           disabled={!isDirty || savingPrefs}
           className="flex items-center gap-2 px-6"
         >
-          <Save className="h-4 w-4" /> {savingPrefs ? "SavingΓÇª" : "Save Preferences"}
+          <Save className="h-4 w-4" /> {savingPrefs ? "Saving…" : "Save Preferences"}
         </Button>
       </div>
     </div>
@@ -278,9 +278,9 @@ function PreferenceToggle({
 }) {
   return (
     <div className="flex items-start justify-between gap-4">
-      <div className="space-y-0.5 max-w-[80%]">
+      <div className="max-w-[80%] space-y-0.5">
         <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-xs text-muted-foreground leading-normal">{description}</p>
+        <p className="text-xs leading-normal text-foreground/60">{description}</p>
       </div>
       <button
         type="button"
@@ -289,7 +289,7 @@ function PreferenceToggle({
         onClick={() => onChange(!checked)}
         className={cn(
           "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
-          checked ? "bg-primary" : "bg-muted"
+          checked ? "bg-primary" : "bg-foreground/[0.15]"
         )}
       >
         <span

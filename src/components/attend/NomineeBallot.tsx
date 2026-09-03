@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import type { CandidateItem, VoteChoiceValue } from "@/types";
 
-// Ballot for a candidate ("election") resolution ΓÇö every candidate is voted on
+// Ballot for a candidate ("election") resolution — every candidate is voted on
 // independently. Field names mirror the API: `candidates` and `{ candidateId, choice }`.
 export type CandidateVote = { candidateId: string; choice: VoteChoiceValue };
 
@@ -53,10 +53,10 @@ export function NomineeBallot({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-border bg-white p-5 shadow-sm">
+    <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-foreground/[0.06] bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
       <div>
         <h3 className="text-sm font-bold text-foreground">Candidate ballot</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <p className="text-xs text-foreground/60 mt-0.5">
           Please select your vote for each candidate below to complete your ballot.
         </p>
       </div>
@@ -72,7 +72,7 @@ export function NomineeBallot({
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-foreground leading-snug">{candidate.name}</p>
-                  {candidate.bio && <p className="text-xs text-muted-foreground mt-0.5">{candidate.bio}</p>}
+                  {candidate.bio && <p className="text-xs text-foreground/60 mt-0.5">{candidate.bio}</p>}
                 </div>
               </div>
 
@@ -140,7 +140,7 @@ export function CandidateTally({ candidate }: { candidate: CandidateItem }) {
         <div className="bg-rose-500" style={{ width: pct(a) }} />
         <div className="bg-slate-400" style={{ width: pct(ab) }} />
       </div>
-      <p className="mt-1 flex gap-3 text-[10px] font-medium text-muted-foreground">
+      <p className="mt-1 flex gap-3 text-[10px] font-medium text-foreground/60">
         <span className="text-emerald-600">For {f}</span>
         <span className="text-rose-600">Against {a}</span>
         <span>Abstain {ab}</span>

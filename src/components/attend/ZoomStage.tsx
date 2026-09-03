@@ -173,7 +173,7 @@ export function ZoomStage({ eventId, meetingNumber, passcode, userName }: Props)
   }
 
   return (
-    <div className="relative w-full h-[450px] bg-slate-900 rounded-2xl">
+    <div className="relative w-full h-[450px] bg-slate-900 rounded-xl">
       {/* Overlay: connecting / error / left — hides while joined */}
       {status !== "joined" && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-slate-900 px-6 text-center text-white">

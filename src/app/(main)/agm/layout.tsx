@@ -10,12 +10,12 @@ export default function AgmLayout({ children }: { children: React.ReactNode }) {
   const session = useSession();
 
   // KYC gates voting and proxy appointment, which require a verified shareholder. A guest
-  // can do neither ΓÇö they're view-only ΓÇö and has no KYC record to complete, so this gate
+  // can do neither — they're view-only — and has no KYC record to complete, so this gate
   // was a dead end for them. Middleware already limits guests to /agm/live, so skipping it
   // here only ever grants the live room they were invited to.
   const isGuest = session.type === "GUEST";
 
-  // Guest state lives in sessionStorage, which the server can't read ΓÇö so on the server
+  // Guest state lives in sessionStorage, which the server can't read — so on the server
   // and on the very first client render every visitor looks like a non-guest. Rendering
   // the gate then means shipping it in the SSR HTML and relying on hydration to take it
   // back. Wait until the session is resolved before deciding.
@@ -30,7 +30,7 @@ export default function AgmLayout({ children }: { children: React.ReactNode }) {
           </div>
           <div>
             <h1 className="text-xl font-bold text-foreground">Identity verification required</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-2 text-sm text-foreground/60">
               Complete your KYC to access Annual General Meetings, cast votes on resolutions, and appoint proxies.
             </p>
           </div>

@@ -1,447 +1,392 @@
-﻿"use client";
-import { useState, useEffect, useRef, useMemo } from "react";
+"use client";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  Building2,
-  Rocket,
-  Lightbulb,
-  CalendarDays,
-  AlertCircle,
   ChevronRight,
-  ShieldCheck,
+  Building2,
+  Lightbulb,
+  Rocket,
+  Clock,
   Radio,
 } from "lucide-react";
-import { useGetMe } from "@/api/auth/hooks";
 import { useGetEvents } from "@/api/events/hooks";
-import { EventListItem } from "@/types";
+import { useGetMe } from "@/api/auth/hooks";
 import { useUserStore } from "@/lib/user-store";
-import { accountRoleLabel } from "@/lib/account-role";
-import { cn, formatDate, greetingByHour, initialsFor, formatEventFormat } from "@/lib/utils";
+import { EventListItem } from "@/types";
+import { cn, formatDate } from "@/lib/utils";
 
-const TILES = [
-  {
-    label: "AGM",
-    description: "Vote at shareholder meetings",
-    href: "/agm",
-    icon: Building2,
-    gradient: "from-gray-800 to-gray-950",
-  },
-  {
-    label: "Launches",
-    description: "Product reveals & launches",
-    href: "/events",
-    icon: Rocket,
-    gradient: "from-orange-500 to-rose-500",
-  },
-  {
-    label: "Innovation",
-    description: "Innovation challenges",
-    href: "/hackathon",
-    icon: Lightbulb,
-    gradient: "from-purple-600 to-fuchsia-600",
-  },
-  {
-    label: "General",
-    description: "Roundtables & conferences",
-    href: "/general",
-    icon: CalendarDays,
-    gradient: "from-teal-500 to-cyan-600",
-  },
-];
+// ─────────────────────────────────────────────────────────────────────────────
+// Home / Dashboard — built to the Figma DESIGN (node 777-3136), NOT to the
+// figma-redesign branch's `(main)/page.tsx` (that file ships a stripped-down
+// "All events" list, which is actually a different screen in the design — the
+// flat cross-module browser — and omits this dashboard entirely).
+//
+// Sections, matching the mockup top-to-bottom:
+//   • Greeting hero ("Good <time>, <name>" + "Stay connected to what matters.")
+//   • Live now  — horizontal carousel of LIVE events → the live room.
+//   • Discover Events — AGM / Innovation / Launch Events tiles → each section.
+//   • Upcoming Events — horizontal carousel of not-yet-started events → detail.
+//   • Browse All Events — dark-green CTA banner → the events browser.
+//
+// Data note: the design shows "2,000 watching" and "120 Applied" counts, but
+// those live on EventDetail (registeredCount), NOT on the EventListItem the
+// list endpoint returns — so the cards below show the honest fields we DO have
+// (date/time, live state) rather than fabricate a number. Wire the counts in
+// if/when the list endpoint carries them.
+//
+// All wiring is OUR logic: useGetEvents, useGetMe (greeting name), useUserStore
+// (KYC gate for the verification nudge). No new endpoints.
+// ─────────────────────────────────────────────────────────────────────────────
 
-const CAROUSEL_IMAGES: Record<string, string[]> = {
-  LAUNCH:    ["https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=900&q=80"],
-  HACKATHON: ["https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=900&q=80"],
-  // The deterministic hash (below) picks one of these for any event with no flyer of its
-  // own, so cards aren't all visually identical. All local posters now ΓÇö the Unsplash
-  // coworking-office stock photo was dropped on request. Append a URL here to add more.
-  GENERAL: [
-    "/posters/people-taking-part-high-protocol-event.jpg",
-    "/posters/boardroom-conference-setup.jpg",
-    "/posters/logo_make_11_06_2023_201.jpg",
-  ],
+const isAgm = (t: string) => t === "AGM" || t === "AGM_EGM";
+const isInnovation = (t: string) => t === "HACKATHON" || t === "INNOVATION_CHALLENGE";
+
+const MODULE_ICON: Record<string, typeof Building2> = {
+  agm: Building2,
+  innovation: Lightbulb,
+  launch: Rocket,
 };
-
-/** Pick a random photo from a module's pool (falling back to the GENERAL pool when the
- *  module has none of its own). Called once per event inside a memo ΓÇö never at render
- *  time ΓÇö so the choice is random per visit but doesn't reshuffle mid-view. */
-function randomFallbackImage(module: string): string {
-  const pool = CAROUSEL_IMAGES[module] ?? CAROUSEL_IMAGES.GENERAL;
-  return pool[Math.floor(Math.random() * pool.length)];
+function moduleOf(t: string): "agm" | "innovation" | "launch" {
+  if (isAgm(t)) return "agm";
+  if (isInnovation(t)) return "innovation";
+  return "launch";
 }
 
-const MODULE_BADGE: Record<string, { label: string; bg: string }> = {
-  LAUNCH:   { label: "Product Launch",      bg: "#ea6c00" },
-  HACKATHON:{ label: "Innovation Challenge", bg: "#7c22c9" },
-  GENERAL:  { label: "General Event",        bg: "#0891b2" },
-};
-
-const EVENT_COLOR: Record<string, string> = {
-  AGM: "#1a6b3c",
-  PRODUCT_LAUNCH: "#f97316",
-  LAUNCH: "#f97316",
-  HACKATHON: "#9333ea",
-  INNOVATION_CHALLENGE: "#9333ea",
-  GENERAL_EVENT: "#2563eb",
-  GENERAL: "#2563eb",
-};
-
-// Normalise an API event into the shape the design JSX consumes.
-interface HomeEvent {
-  id: string;
-  module: string;
-  organiser: string;
-  title: string;
-  date: string;
-  format: string;
-  startTime: string;
-  rsvpCount: number;
-  thumbnailColor: string;
-  logoUrl?: string | null;
-  rsvpStatus?: boolean;
-  image?: string;
+// Deterministic pastel tile per organiser, matching the mobile app's approach
+// (used only when an event has no flyer/banner image of its own).
+const TILE_TINTS = ["#f9b6ff", "#8ba6ff", "#c3e1d0", "#dbe1c3", "#f6f6f6", "#e2e2e2"];
+function tileTint(seed: string) {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 997;
+  return TILE_TINTS[h % TILE_TINTS.length];
 }
-function toHomeEvent(e: EventListItem): HomeEvent {
-  const brandColor =
-    e.branding?.brandColor ||
-    e.brandPrimary ||
-    (e as any).organizerPrimaryColor ||
-    (EVENT_COLOR[e.eventType?.toUpperCase()] ?? "#2563eb");
-  const logoUrl = e.branding?.logoUrl || e.organizerLogo || null;
-  return {
-    id: e.id,
-    module: e.eventType,
-    organiser: e.registerName || e.organizerName,
-    title: e.title,
-    date: e.date,
-    format: e.format,
-    startTime: e.startTime,
-    rsvpCount: e.maximumCapacity || 0,
-    thumbnailColor: brandColor,
-    logoUrl,
-    rsvpStatus: e.registered,
-    image: e.flyerUrl || e.bannerUrl || undefined,
-  };
+
+function fmtTime(startTime?: string) {
+  if (!startTime) return "--";
+  const [h, m] = startTime.split(":").map(Number);
+  if (Number.isNaN(h)) return startTime;
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m ?? 0).padStart(2, "0")} ${period}`;
+}
+
+const imageOf = (e: EventListItem) => e.flyerUrl || e.bannerUrl || null;
+
+// Detail route per module. The dedicated `/agm/[id]` route doesn't exist in
+// this repo — AGM detail is served by `/events/[id]` (same as the AGM list).
+function hrefFor(e: EventListItem) {
+  if (isInnovation(e.eventType)) return `/hackathon/${e.id}`;
+  return `/events/${e.id}`;
+}
+// A LIVE event joins its live room: AGMs vote in `/agm/live`, everything else
+// streams in `/events/live` (both take the id as a query param).
+function liveHref(e: EventListItem) {
+  return isAgm(e.eventType)
+    ? `/agm/live?eventId=${e.id}`
+    : `/events/live?eventId=${e.id}`;
 }
 
 export default function HomePage() {
+  const { data: evResp, isLoading } = useGetEvents({ size: 100 });
+  const allEvents = evResp?.data?.events ?? [];
+
   const { data: meResp } = useGetMe();
-  const me = meResp?.data;
-  const displayName = me?.fullName || "there";
-  const firstName = displayName.split(" ")[0];
+  const firstName =
+    meResp?.data?.firstName || meResp?.data?.fullName?.split(" ")[0] || "there";
 
   const { kycStatus } = useUserStore();
   const verified = kycStatus === "full";
 
-  const { data: evResp } = useGetEvents({ size: 100 });
-  const apiEvents = evResp?.data?.events ?? [];
-
-  const liveEvent: HomeEvent | undefined = (() => {
-    const live = apiEvents.find((e) => e.status === "LIVE");
-    return live ? toHomeEvent(live) : undefined;
-  })();
-
-  const upcoming: HomeEvent[] = apiEvents
-    .filter((e) => e.status === "PUBLISHED")
-    .slice(0, 4)
-    .map(toHomeEvent);
-
-  // Featured events come straight from the endpoint (admin marks an event
-  // featured ΓåÆ EventItem.featured === true).
-  const carouselEvents: HomeEvent[] = apiEvents
-    .filter((e) => e.featured)
-    .slice(0, 5)
-    .map(toHomeEvent);
-
-  // Give each featured event its fallback photo at random ΓÇö random so an event isn't pinned
-  // to the same photo on every visit, but memoised on the set of featured ids so it stays
-  // put during a session. The carousel re-renders every 4s as it auto-advances; picking at
-  // render time would reshuffle the photo mid-view.
-  const fallbackImages = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const e of carouselEvents) map[e.id] = randomFallbackImage(e.module);
-    return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [carouselEvents.map((e) => e.id).join(",")]);
-
-  const [activeSlide, setActiveSlide] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
+  // Computed after mount so server/client hours can't mismatch during hydration.
+  const [greeting, setGreeting] = useState("Welcome");
   useEffect(() => {
-    if (carouselEvents.length <= 1) return;
-    timerRef.current = setInterval(() => {
-      setActiveSlide((prev) => (prev + 1) % carouselEvents.length);
-    }, 4000);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [carouselEvents.length]);
+    const h = new Date().getHours();
+    setGreeting(h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening");
+  }, []);
+
+  const liveEvents = useMemo(
+    () => allEvents.filter((e) => e.status === "LIVE"),
+    [allEvents],
+  );
+  const upcoming = useMemo(
+    () =>
+      allEvents.filter(
+        (e) => e.status !== "ENDED" && e.status !== "LIVE" && e.status !== "CANCELLED",
+      ),
+    [allEvents],
+  );
 
   return (
-    <div className="space-y-8">
-      {/* Hero / user card */}
-      <section className="relative overflow-hidden rounded-3xl bg-linear-to-br from-[#111827] via-[#1f2937] to-[#374151] p-6 text-white md:p-8">
-        <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white/10" />
-        <div className="absolute -bottom-20 -left-10 h-56 w-56 rounded-full bg-white/5" />
-        <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 text-xl font-bold backdrop-blur">
-              {me?.initials || initialsFor(displayName)}
-            </div>
-            <div>
-              <p className="text-sm text-white/80">
-                {greetingByHour()},
-              </p>
-              <h1 className="text-2xl font-bold leading-tight md:text-3xl">
-                {firstName}
-              </h1>
-              <p className="mt-0.5 text-xs text-white/70">
-                {accountRoleLabel(me?.role, kycStatus)}
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-col items-start gap-2 md:items-end">
-            {verified ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold backdrop-blur">
-                <ShieldCheck className="h-3.5 w-3.5" /> KYC verified
+    <div className="flex flex-col gap-8">
+      {/* Greeting hero */}
+      <div className="flex flex-col gap-1">
+        <p className="text-sm tracking-[-0.14px] text-foreground/60">
+          {greeting}, {firstName}
+        </p>
+        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">
+          Stay connected to what matters.
+        </h1>
+      </div>
+
+      {/* KYC-pending nudge (our functional re-add) — figma's amber nudge style. */}
+      {!verified && (
+        <Link
+          href="/intro"
+          className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-100"
+        >
+          <span>Complete identity verification to vote in AGMs</span>
+          <ChevronRight className="h-4 w-4 shrink-0" />
+        </Link>
+      )}
+
+      {/* Live now */}
+      {(isLoading || liveEvents.length > 0) && (
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-base font-medium tracking-[-0.32px] text-foreground">
+              <span className="flex h-2 w-2 items-center justify-center">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-red-600" />
               </span>
-            ) : (
-              // Amber has to be carried by the text and border, not a translucent fill:
-              // a low-opacity amber over the near-black hero composites to olive/brown.
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/40 bg-orange-400/10 px-3 py-1.5 text-xs font-semibold text-amber-200 backdrop-blur">
-                <AlertCircle className="h-3.5 w-3.5" /> KYC pending
-              </span>
+              Live now
+            </h2>
+            {liveEvents.length > 0 && (
+              <Link
+                href="/events"
+                className="text-sm font-medium tracking-[-0.14px] text-foreground underline underline-offset-2"
+              >
+                View all
+              </Link>
             )}
           </div>
-        </div>
 
-        {!verified && (
-          // Same gradient as the Launches tile (from-orange-500 to-rose-500) so the one
-          // "action required" element reads in the orange family used by the cards below.
-          // Opaque, not a tint ΓÇö translucent orange over the near-black hero composites to
-          // the olive/brown QA flagged.
-          <Link
-            href="/intro"
-            className="relative mt-5 flex items-center justify-between rounded-2xl bg-linear-to-r from-orange-500 to-amber-300 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition-opacity hover:opacity-90"
-          >
-            <span className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" />
-              Complete verification to vote in AGMs
-            </span>
-            <ChevronRight className="h-4 w-4" />
-          </Link>
-        )}
-      </section>
-
-      {/* Live AGM card */}
-      {liveEvent && (
-        <section>
-          <Link
-            href={(liveEvent.module === "AGM" || liveEvent.module === "AGM_EGM") ? `/agm/live?eventId=${liveEvent.id}` : `/events/${liveEvent.id}`}
-            className="group block overflow-hidden rounded-2xl bg-[#1e293b] p-5 shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <div className="mb-2 flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-                    Live Now
-                  </span>
-                  {(liveEvent.module === "AGM" || liveEvent.module === "AGM_EGM") && (
-                    <span className="text-xs text-white/50">AGM ┬╖ {liveEvent.organiser}</span>
-                  )}
-                </div>
-                <p className="text-base font-bold text-white leading-snug md:text-lg">
-                  {liveEvent.title.split("ΓÇö")[1]?.trim() ?? liveEvent.title}
-                </p>
-                <p className="mt-1 text-xs text-white/50">
-                  {(liveEvent.module === "AGM" || liveEvent.module === "AGM_EGM") ? "Voting is open ┬╖ Click to join and vote" : `${liveEvent.rsvpCount.toLocaleString()} watching`}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur transition-colors group-hover:bg-white/20">
-                <Radio className="h-4 w-4" /> Join
-              </div>
+          {isLoading ? (
+            <CarouselSkeleton />
+          ) : (
+            <div className="flex snap-x gap-4 overflow-x-auto pb-1">
+              {liveEvents.map((e) => (
+                <LiveCard key={e.id} event={e} />
+              ))}
             </div>
-          </Link>
+          )}
         </section>
       )}
 
-      {/* Module tiles */}
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Explore
-        </h2>
-        <div className="grid grid-cols-2 gap-3 md:gap-4">
-          {TILES.map((t) => {
-            const Icon = t.icon;
-            return (
-              <Link
-                key={t.label}
-                href={t.href}
-                className={cn(
-                  "group relative overflow-hidden rounded-2xl bg-linear-to-br p-5 text-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg",
-                  t.gradient,
-                )}
-              >
-                <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
-                <div className="relative flex h-full flex-col">
-                  <Icon className="h-6 w-6" />
-                  <div className="mt-6">
-                    <p className="text-lg font-bold">{t.label}</p>
-                    <p className="text-xs text-white/80">{t.description}</p>
-                  </div>
-                  <ChevronRight className="absolute bottom-0 right-0 h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100" />
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Featured Events Carousel */}
-      {carouselEvents.length > 0 && (
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Featured Events
+      {/* Discover Events */}
+      <section className="flex flex-col gap-3">
+        <div className="flex flex-col gap-0.5">
+          <h2 className="text-base font-medium tracking-[-0.32px] text-foreground">
+            Discover Events
           </h2>
-          <Link href="/events" className="text-xs font-semibold text-primary hover:underline">
-            See all
-          </Link>
+          <p className="text-sm tracking-[-0.14px] text-foreground/60">
+            Find events that interest you
+          </p>
         </div>
-
-        <div className="relative overflow-hidden rounded-3xl" style={{ height: 320 }}>
-          <div
-            className="flex h-full transition-transform duration-500 ease-in-out"
-            style={{ transform: `translateX(-${activeSlide * 100}%)` }}
-          >
-            {carouselEvents.map((event) => {
-              const badge = MODULE_BADGE[event.module] ?? MODULE_BADGE.GENERAL;
-              const imageUri = fallbackImages[event.id];
-              const href = event.module === "HACKATHON" ? "/hackathon" : `/events/${event.id}`;
-              return (
-                <Link
-                  key={event.id}
-                  href={href}
-                  className="relative h-full w-full shrink-0"
-                  style={{ minWidth: "100%" }}
-                >
-                  {/* Photo */}
-                  <img
-                    src={event.image || imageUri}
-                    alt={event.title}
-                    className="h-full w-full object-cover"
-                  />
-                  {/* Gradient overlay */}
-                  <div className="absolute inset-0 bg-linear-to-b from-transparent via-black/20 to-black/80" />
-
-                  {/* Module badge */}
-                  <div className="absolute left-4 top-4">
-                    <span
-                      className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-white"
-                      style={{ backgroundColor: event.thumbnailColor }}
-                    >
-                      {badge.label}
-                    </span>
-                  </div>
-
-                  {/* Bottom content */}
-                  <div className="absolute bottom-0 left-0 right-0 flex items-end justify-between gap-3 p-4">
-                    <div className="min-w-0">
-                      <p className="truncate text-base font-bold text-white leading-snug">
-                        {event.title.split("ΓÇö")[1]?.trim() ?? event.title}
-                      </p>
-                      <p className="mt-0.5 flex items-center gap-1.5 text-xs text-white/75">
-                        {event.logoUrl && (
-                          <img
-                            src={event.logoUrl}
-                            alt=""
-                            className="h-4 w-4 shrink-0 rounded bg-white/95 object-contain"
-                            onError={(ev) => {
-                              (ev.currentTarget as HTMLImageElement).style.display = "none";
-                            }}
-                          />
-                        )}
-                        <span className="truncate">{event.organiser}</span>
-                      </p>
-                      <p className="text-xs text-white/60">
-                        {formatDate(event.date)} ┬╖ {event.format}
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded-xl border border-white/30 bg-white/20 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">
-                      {event.rsvpStatus ? "Registered" : "Register"}
-                    </span>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <DiscoverTile
+            href="/agm"
+            icon={Building2}
+            label="AGM"
+            desc="Join shareholder meetings and vote on resolutions"
+            tint="#c3e1d0"
+          />
+          <DiscoverTile
+            href="/hackathon"
+            icon={Lightbulb}
+            label="Innovation"
+            desc="Compete in innovation challenges and build to win"
+            tint="#f9b6ff"
+          />
+          <DiscoverTile
+            href="/events"
+            icon={Rocket}
+            label="Launch Events"
+            desc="Follow product launches and live company events"
+            tint="#8ba6ff"
+          />
         </div>
-
-        {/* Dot indicators */}
-        {carouselEvents.length > 1 && (
-          <div className="mt-3 flex justify-center gap-1.5">
-            {carouselEvents.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setActiveSlide(i)}
-                className={cn(
-                  "h-1.5 rounded-full transition-all duration-300",
-                  i === activeSlide ? "w-5 bg-foreground" : "w-1.5 bg-gray-300"
-                )}
-              />
-            ))}
-          </div>
-        )}
       </section>
+
+      {/* Upcoming Events */}
+      {(isLoading || upcoming.length > 0) && (
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-medium tracking-[-0.32px] text-foreground">
+              Upcoming Events
+            </h2>
+            {upcoming.length > 0 && (
+              <Link
+                href="/events"
+                className="text-sm font-medium tracking-[-0.14px] text-foreground underline underline-offset-2"
+              >
+                View all
+              </Link>
+            )}
+          </div>
+
+          {isLoading ? (
+            <CarouselSkeleton />
+          ) : (
+            <div className="flex snap-x gap-4 overflow-x-auto pb-1">
+              {upcoming.map((e) => (
+                <UpcomingCard key={e.id} event={e} />
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
-      {/* Upcoming */}
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Upcoming events
-          </h2>
-          <Link href="/events" className="text-xs font-semibold text-primary hover:underline">
-            View all
-          </Link>
+      {/* Browse All Events banner */}
+      <Link
+        href="/events"
+        className="flex items-center justify-between gap-4 rounded-xl px-5 py-5 text-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)] transition-transform hover:-translate-y-0.5"
+        style={{ backgroundColor: "#0A3D2E" }}
+      >
+        <div className="min-w-0">
+          <p className="text-base font-medium tracking-[-0.32px]">Browse All Events</p>
+          <p className="text-sm tracking-[-0.14px] text-white/70">
+            Hundreds of events waiting for you
+          </p>
         </div>
-        <div className="space-y-2">
-          {upcoming.map((e) => (
-            <Link
-              key={e.id}
-              href={`/events/${e.id}`}
-              className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3 transition-colors hover:bg-muted/40"
-            >
-              <div
-                className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl text-xs font-bold text-white shadow-sm"
-                style={{ background: e.thumbnailColor }}
-              >
-                {e.logoUrl ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={e.logoUrl}
-                    alt=""
-                    className="h-full w-full object-cover bg-white/95"
-                    onError={(ev) => {
-                      (ev.currentTarget as HTMLImageElement).style.display = "none";
-                    }}
-                  />
-                ) : (
-                  initialsFor(e.organiser)
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-foreground">
-                  {e.title}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {formatDate(e.date)} ┬╖ {formatEventFormat(e.format)} ┬╖ {e.startTime}
-                </p>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </Link>
-          ))}
-        </div>
-      </section>
+        <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-medium tracking-[-0.14px] text-[#0A3D2E]">
+          Explore
+          <ChevronRight className="h-4 w-4" />
+        </span>
+      </Link>
+    </div>
+  );
+}
+
+// ── Live card ────────────────────────────────────────────────────────────────
+function LiveCard({ event: e }: { event: EventListItem }) {
+  const img = imageOf(e);
+  const organiser = e.registerName || e.organizerName;
+  const Icon = MODULE_ICON[moduleOf(e.eventType)];
+  return (
+    <Link
+      href={liveHref(e)}
+      className="flex w-[300px] shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+    >
+      <div
+        className="relative h-[168px] w-full overflow-hidden"
+        style={{ backgroundColor: tileTint(organiser || e.title) }}
+      >
+        {img ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={img}
+            alt=""
+            className="h-full w-full object-cover"
+            onError={(ev) => ((ev.currentTarget as HTMLImageElement).style.display = "none")}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <Icon className="h-8 w-8 text-foreground/50" strokeWidth={1.75} />
+          </div>
+        )}
+        <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-red-600 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+          Live now
+        </span>
+      </div>
+      <div className="flex flex-col gap-1 p-3">
+        <p className="truncate text-sm font-medium tracking-[-0.14px] text-foreground">
+          {e.title}
+        </p>
+        <p className="flex items-center gap-1.5 text-xs text-foreground/60">
+          <Radio className="h-3.5 w-3.5" />
+          {isAgm(e.eventType) ? "Voting open · Join to vote" : "Happening now · Join"}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+// ── Upcoming card ──────────────────────────────────────────────────────────��─
+function UpcomingCard({ event: e }: { event: EventListItem }) {
+  const img = imageOf(e);
+  const organiser = e.registerName || e.organizerName;
+  const Icon = MODULE_ICON[moduleOf(e.eventType)];
+  return (
+    <Link
+      href={hrefFor(e)}
+      className="flex w-[280px] shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+    >
+      <div
+        className="relative h-[150px] w-full overflow-hidden"
+        style={{ backgroundColor: tileTint(organiser || e.title) }}
+      >
+        {img ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={img}
+            alt=""
+            className="h-full w-full object-cover"
+            onError={(ev) => ((ev.currentTarget as HTMLImageElement).style.display = "none")}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <Icon className="h-8 w-8 text-foreground/50" strokeWidth={1.75} />
+          </div>
+        )}
+      </div>
+      <div className="flex flex-col gap-1 p-3">
+        <p className="truncate text-sm font-medium tracking-[-0.14px] text-foreground">
+          {e.title}
+        </p>
+        <p className="flex items-center gap-1.5 text-xs text-foreground/60">
+          <Clock className="h-3.5 w-3.5" />
+          {formatDate(e.date)}, {fmtTime(e.startTime)}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+// ── Discover tile ──────────────────────────────────────────────────────────��─
+function DiscoverTile({
+  href,
+  icon: Icon,
+  label,
+  desc,
+  tint,
+}: {
+  href: string;
+  icon: typeof Building2;
+  label: string;
+  desc: string;
+  tint: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex flex-col gap-3 rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+    >
+      <span
+        className="flex h-11 w-11 items-center justify-center rounded-[10px]"
+        style={{ backgroundColor: tint }}
+      >
+        <Icon className="h-5 w-5 text-foreground/70" strokeWidth={1.75} />
+      </span>
+      <div className="flex flex-col gap-0.5">
+        <p className="text-sm font-medium tracking-[-0.14px] text-foreground">{label}</p>
+        <p className="text-xs leading-snug text-foreground/60">{desc}</p>
+      </div>
+    </Link>
+  );
+}
+
+// ── Loading skeleton for a carousel row ───────────────────────────────────────
+function CarouselSkeleton() {
+  return (
+    <div className="flex gap-4 overflow-hidden">
+      {[0, 1, 2].map((n) => (
+        <div
+          key={n}
+          className={cn(
+            "h-[232px] w-[280px] shrink-0 animate-pulse rounded-xl border border-foreground/[0.06] bg-foreground/[0.04]",
+          )}
+        />
+      ))}
     </div>
   );
 }
