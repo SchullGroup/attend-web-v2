@@ -2,16 +2,19 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Mail, Phone, Lock, CheckCircle2, AlertCircle } from "lucide-react";
+import { CircleUserRound, Lock, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useLogin } from "@/api/auth/hooks";
 import { getDeviceId } from "@/lib/device-id";
 import { apiErrorMessage } from "@/lib/api-error";
-import { DIAL_CODE, stripDialCode, toE164 } from "@/lib/phone";
-import { cn } from "@/lib/utils";
+import { toE164 } from "@/lib/phone";
 
-type LoginMode = "email" | "phone";
+// Figma has a single "Email or Phone Number" field, so the identifier's shape decides
+// how it is normalised rather than a mode toggle. The payload is unchanged either way —
+// it already sends the same value as identifier/emailOrPhone/email.
+const looksLikePhone = (v: string) => /^\+?[\d\s-]+$/.test(v.trim());
+const looksLikeEmail = (v: string) => /.+@.+\..+/.test(v.trim());
 
 function safeCallbackUrl(raw: string | null): string {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
@@ -21,9 +24,7 @@ function safeCallbackUrl(raw: string | null): string {
 export default function LoginPage() {
   const router = useRouter();
   const { mutate: loginMutation, isPending } = useLogin();
-  const [mode, setMode] = useState<LoginMode>("email");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [needsVerify, setNeedsVerify] = useState(false);
@@ -34,8 +35,7 @@ export default function LoginPage() {
     const verified = sessionStorage.getItem("justVerifiedEmail");
     if (verified) {
       setJustVerifiedEmail(verified);
-      setEmail(verified);
-      setMode("email");
+      setIdentifier(verified);
     }
     sessionStorage.removeItem("justVerifiedEmail");
 
@@ -49,7 +49,7 @@ export default function LoginPage() {
     }
   }, []);
 
-  const cleanId = mode === "phone" ? toE164(phone) : email.trim();
+  const cleanId = looksLikePhone(identifier) ? toE164(identifier) : identifier.trim();
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -78,7 +78,7 @@ export default function LoginPage() {
   }
 
   function goVerify() {
-    if (mode === "email" && cleanId) {
+    if (looksLikeEmail(cleanId) && cleanId) {
       sessionStorage.setItem("pendingVerifyEmail", cleanId);
     }
     router.push("/verify");
@@ -123,56 +123,21 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* Email / Phone Mode Switcher styled with Meristem theme */}
-        <div role="tablist" aria-label="Sign in with" className="flex w-full gap-1 rounded-xl bg-foreground/[0.04] p-1">
-          {(["email", "phone"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="tab"
-              aria-selected={mode === m}
-              onClick={() => {
-                setMode(m);
-                setErrorMsg(null);
-                setNeedsVerify(false);
-              }}
-              className={cn(
-                "flex-1 rounded-lg py-2 text-sm font-medium transition-colors",
-                mode === m
-                  ? "bg-white text-foreground shadow-sm"
-                  : "text-foreground/60 hover:text-foreground"
-              )}
-            >
-              {m === "email" ? "Email" : "Phone"}
-            </button>
-          ))}
-        </div>
-
         <div className="flex w-full flex-col gap-4">
-          {mode === "email" ? (
-            <Input
-              key="email"
-              name="email"
-              type="email"
-              autoComplete="username"
-              leftIcon={<Mail className="h-5 w-5" />}
-              placeholder="Email address"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          ) : (
-            <Input
-              key="phone"
-              name="phone"
-              type="tel"
-              autoComplete="username"
-              leftIcon={<Phone className="h-5 w-5" />}
-              prefix={DIAL_CODE}
-              placeholder="803 123 4567"
-              value={phone}
-              onChange={(e) => setPhone(stripDialCode(e.target.value))}
-            />
-          )}
+          <Input
+            name="identifier"
+            type="text"
+            inputMode="email"
+            autoComplete="username"
+            leftIcon={<CircleUserRound className="h-5 w-5" />}
+            placeholder="Email or Phone Number"
+            value={identifier}
+            onChange={(e) => {
+              setIdentifier(e.target.value);
+              setErrorMsg(null);
+              setNeedsVerify(false);
+            }}
+          />
 
           <Input
             name="password"
@@ -217,13 +182,6 @@ export default function LoginPage() {
           Create an account
         </Link>
       </div>
-
-      <p className="text-sm text-foreground/60">
-        No email or phone on file?{" "}
-        <Link href="/bvn-recover" className="font-semibold text-foreground hover:underline">
-          Sign in with BVN
-        </Link>
-      </p>
     </div>
   );
 }
