@@ -610,6 +610,153 @@ the Zoom live-room wrappers (`agm/live`, `events/live` shells).
   - Added the Agenda tab for all live rooms, not just AGM (equally useful in a launch);
     say the word if it should be AGM-only.
 
+- **2026-09-04 (4)** — Login page matched to Figma (Dashboard.Webview.Desktop), items 1-3.
+  - **Email/Phone toggle removed** in favour of one "Email or Phone Number" field with
+    `CircleUserRound` (the icon the design branch used). Safe because the payload already
+    sent the same value as `identifier` + `emailOrPhone` + `email` — the toggle only chose
+    whether to run `toE164()`. Now the input's shape decides: `looksLikePhone` →
+    `toE164`, else trimmed as-is. **No backend or payload change.**
+  - Carried over the two mode-dependent behaviours: the `pendingVerifyEmail` handoff now
+    gates on `looksLikeEmail(cleanId)` instead of `mode === "email"`, and the
+    `justVerifiedEmail` effect pre-fills the single field. `DIAL_CODE`/`stripDialCode` and
+    the `cn` import dropped with the toggle.
+  - Form area given the light gradient (`(auth)/layout.tsx`) instead of flat white.
+
+  **Item 4 NOT done — blocked on an asset I cannot produce.**
+  - `public/auth/phone-mockup-agm.png` is **305x405 actual pixels** rendered at 305x405 CSS
+    px — a true 1x asset, which is why it looks soft. A 4x export must come out of Figma;
+    upscaling it here would be interpolation and would look worse, not sharper. Drop the
+    4x file into `public/auth/` and pointing `<Image>` at it is a one-line change (keep
+    `width={305} height={405}` so only density changes).
+  - **"Make it slide" is not yet defined.** The user asked for "slide"; they did NOT say
+    carousel — that was an inference of mine, corrected. What prompted it: the layout
+    renders three progress dots (one white, two at `white/10`). It could equally mean a
+    slide-in on load. Confirm before building; a multi-slide reading also needs the other
+    slide images, since the repo has exactly one mockup.
+
+- **2026-09-04 (5)** — "Sign in with BVN" link removed from `login/page.tsx` (user circled it
+  in a screenshot and said "remove this"). Only the link was removed — `/bvn-recover` itself
+  (route + its three API calls) is untouched; it's now unreachable from the UI since nothing
+  else linked to it. Say the word if it should be deleted or relinked elsewhere.
+
+- **2026-09-04 (6)** — Guest join flow (`(guest)/join/*`) matched to the "Guest events" +
+  "Enter code" frames, and a real functional bug found underneath both screens while doing it.
+  - **Bug (confirmed by reading the code + a live curl of the backend):** every event card on
+    `/join` linked to `/join/[event.id]`, which is a **legacy** dynamic route whose own comment
+    says it's "kept only so old links don't dead-end" — it treats that URL segment as a *join
+    code*, not an event id, and redirects to `/guest-join?code=<eventId>` without ever setting
+    `eventId`. `/guest-join` then immediately shows "Incomplete invite link" because it has no
+    `eventId`. The standalone `/join/code` form hit the same dead end from the other direction
+    (bare code, no event). There is no code→event lookup endpoint anywhere in the codebase —
+    the only real call is `POST /guest/events/{eventId}/join`, which needs both eventId and
+    code together — so neither path could ever complete a join as built.
+  - **Fix, per the user's answer** ("it's basically what we have already, just the UI is
+    different — when the guest clicks the event, the second screen appears"): cards on `/join`
+    now link to `/join/code?eventId=...&title=...` (title is display-only, so the guest can
+    see which event they're entering a code for). `/join/code` now reads `eventId` from the
+    query string and calls `useGuestJoin(eventId)` directly — the same working call pattern
+    already used by `/guest`'s inline cards and `/guest-join` — instead of routing through the
+    dead legacy page. Landing on `/join/code` with no `eventId` (e.g. an old bookmark) now
+    shows "Select an event" with a link back to `/join`, instead of a form that could never
+    submit successfully. Removed the "Have an access code instead? Enter it here" footer link
+    from `/join` — it pointed at the same bare-code dead end and there's no backend capability
+    to back it.
+  - **Left alone:** `/guest` (the AGM/General/Launches tabs page) — a separate, already-working
+    implementation of the same idea, reached only via `/guest-join`'s own fallback links, not
+    from `/login`. Not part of the frames shown this round; flagging that it now duplicates
+    `/join`'s purpose in case it should eventually be merged or retired.
+  - **Not built:** per-card "Applied"/"Registered" counts shown in the Figma mock. Verified via
+    a live `curl` against `GET /api/v1/guest/events` that the endpoint returns only
+    `branding{brandColor,logoUrl}`, `date`, `eventType`, `id`, `startTime`, `title` — no
+    capacity/registration numbers, and no `flyerUrl`/`bannerUrl` either (despite one of the two
+    competing `GuestEventListItem`/`GuestEvent` types in this codebase claiming otherwise).
+    Cards keep the existing brand-colour block + logo/initials treatment; grid bumped to 3
+    columns on `lg` to match the frame's density.
+
+- **2026-09-04 (7)** — Login item 4 ("make it slide") finished: it's a 3-slide auto-advancing
+  carousel, confirmed by the user against three new frames. New
+  `components/attend/OnboardingCarousel.tsx` (client component, owns its own timer so
+  `(auth)/layout.tsx` stays a server component) — cycles every 5s through AGM / Launches /
+  Innovation Challenges slides, each with its own headline, subtext, and phone screenshot; the
+  three progress dots (previously hardcoded to the first one lit, decorative only) now track
+  the active slide.
+  - Assets: user dropped `public/auth/onboarding slider image {1,2,3}.png` in; renamed to
+    kebab-case (`onboarding-slide-{1,2,3}.png}`) for URL safety, matching the folder's existing
+    convention. **Caught mid-session:** the first two exports both showed the AGM screen — user
+    re-exported slides 2/3 correctly (Launches, Innovation) before I built against them.
+  - The three exports have two different native aspect ratios (0.795 vs 0.741), so each
+    phone-image slot uses `fill` + `object-cover object-top` in a fixed-size box instead of the
+    old fixed `width`/`height` Image props, which would have distorted one set.
+  - **Slide 3's subtext is a verbatim copy of slide 1's**, per the frame — reads as a
+    Figma copy-paste miss under an innovation-themed headline, but the user explicitly chose
+    "copy the frame verbatim" over writing new copy when asked.
+  - Dots are auto-only (not clickable), matching their original decorative-only markup; say the
+    word if they should become clickable slide controls.
+
+- **2026-09-04 (8)** — AGM identity verification rebuilt to its four new frames as modals, and
+  the old full-page KYC wizard **retired into the same component**. User's call, verbatim:
+  *"lets not have 2 kyc flows, just one. the new modal design."*
+  - New `components/attend/VerifyIdentitySheet.tsx` — three stages in one component:
+    **BVN** (white) → **Face Registration** (dark panel, tap-to-capture per the frame) →
+    **You're Confirmed!** (green `BadgeCheck`, `fill-emerald-500` — *not* `fill-primary`, which
+    is the near-black navy that caused the 2026-09-03 (13) bug).
+  - **API calls are unchanged** — step1 (BVN + DOB) → step2 skip → `bvn-selfie/v2` match →
+    step3, with the same 503 / "already verified" / `data.valid`-is-the-real-result handling
+    the old `/liveness` page had. The BVN for the selfie re-check is still read from
+    `GET /participant/kyc`, never persisted client-side (NDPA).
+  - **DOB kept** per the user's instruction to carry over the info we already collect. The
+    frame shows only a BVN field, but step 1 verifies the BVN *against* a date of birth —
+    dropping it would break the lookup the modal exists to do. NDPA/CBN consent checkbox +
+    disclosure carried over too (it gates submit, as before).
+  - **CHN left out** of the UI per the user's choice, and settled with the existing
+    `step2/skip` endpoint behind the scenes so KYC can still reach "complete".
+  - **Entry points:** the AGM detail page's amber banner "Verify" now opens the sheet in place
+    instead of routing to `/bvn`. Per the LIVE frame's dev note, it also **auto-opens** for an
+    unverified user landing on an AGM already in session, with the LIVE NOW badge and "join
+    immediately" copy; dismissing sets a flag so it doesn't immediately re-open.
+  - **Bug caught before shipping:** the auto-open first read `kycStatus` from the user store,
+    which starts at "none" from localStorage until NavShell syncs it — that would have flashed
+    the modal at already-verified users and then left it stuck open. It now waits on the KYC
+    query itself and only ever opens, never force-closes (closing on "verified" would yank the
+    panel away before the user sees the confirmation stage).
+  - `/intro`, `/bvn`, `/chn`, `/liveness` are now **thin wrappers** (`VerifyIdentityRoute`)
+    around the same sheet, so Profile / Home / the onboarding checklist / the AGM gate all show
+    the new design and **no URL breaks**. `(kyc)/layout.tsx` lost its 3-step progress bubbles
+    (the sheet carries its own stage progression); `/success` keeps the card and is untouched —
+    it still covers the rejected / pending-review states the modal doesn't.
+  - **Now-orphaned, deliberately left in place:** `resumePath`, `completedStepCount`,
+    `KYC_STEP_PATHS`, `getStoredSelfie`, `setStoredSelfie` in `lib/kyc-progress.ts` have no
+    callers any more (the sheet resumes by reading `steps.step1.completed` itself).
+    `purgeLegacyStoredBvn` and `clearKycProgress` are still live. Safe to delete the five dead
+    ones; not done in the same pass as the refactor.
+- **2026-09-04 (9)** — *"we should still make it that a user cant join an AGM without Kyc."*
+  Every path into an AGM now runs through a KYC check that opens the sheet instead of
+  proceeding. On `events/[id]`: `requireKyc()` wraps **Join Live Event** (hero play button,
+  primary CTA, and the side panel's own join), **Pre-Vote** (CTA button — it was ungated, the
+  action tile was already behind the banner), and **RSVP** — an AGM RSVP *is* the attendance
+  confirmation the modal promises ("your AGM attendance is confirmed"), so it can't be handed
+  to an unverified user.
+  - The gate **fails closed**: an unresolved KYC query reads as "not verified", so a click can
+    never slip through while the status is still loading. That's deliberately the opposite of
+    the auto-open in (8), which waits for a real response so it can't flash at verified users.
+    Both conditions now come from the KYC query rather than the localStorage-seeded store, and
+    the AGM Actions banner reads the same `kycFull` so the banner and the gate can't disagree.
+  - `agm/layout.tsx` stays the backstop for direct links (`/agm`, `/agm/live`, pre-vote, proxy,
+    receipt, minutes) — including the Home page's live cards, which link straight to
+    `/agm/live` and never touch the detail page. Its "Start verification" now opens the sheet
+    in place instead of routing to `/intro`, and it reads the query *in addition to* the store
+    so a resolved FULL_KYC unblocks immediately (it can only ever unblock — still fail-closed).
+  - **Checked, no hole:** `/qr-checkin` only *displays* the user's ticket QR — staff scanning
+    it is what records attendance — and the ticket comes from `useGetMyTicket`, which needs an
+    RSVP that is now itself gated. Both links to it already sat behind the KYC banner.
+  - ⚠️ **This is all client-side.** It stops the UI handing out AGM access, not a crafted API
+    call. Whether the backend independently rejects RSVP/stream/vote for a non-FULL_KYC
+    participant is **unverified** — I couldn't test it without an authenticated session. If it
+    doesn't, that's the real fix and this is only the front of it.
+
+  - **Not changed:** nothing else — `agm/layout.tsx`'s link-to-`/intro` complaint from (8) is
+    resolved by this entry.
+
 ## Deltas from the new frames (flag for review)
 
 5. **"Pending Approval" state NOT built** — there is no backend field for it.
