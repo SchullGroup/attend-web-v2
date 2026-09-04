@@ -9,13 +9,16 @@ import {
 } from "lucide-react";
 import {
   useGetEvent, useRsvp, useCancelRsvp, useJoinWaitlist,
-  useGetSavedEvents, useSaveEvent, useUnsaveEvent, useGetPressKit, useGetQuorum,
+  useGetSavedEvents, useSaveEvent, useUnsaveEvent, useGetPressKit, useGetQuorum, useGetStream,
 } from "@/api/events/hooks";
+import { parseZoomUrl } from "@/lib/zoom";
+import { toEmbedUrl } from "@/lib/utils";
 import { useGetResolutions, useSubmitQuestion, useCastVote } from "@/api/agm/hooks";
 import { useGetMyTeam } from "@/api/hackathon/hooks";
 import { PreVoteSheet } from "@/components/attend/PreVoteSheet";
 import { ProxySheet } from "@/components/attend/ProxySheet";
 import { VoteButtons, type VoteChoice } from "@/components/attend/VoteButtons";
+import { AgendaPanel, PanelCard } from "@/components/attend/AgendaPanel";
 import type { AgendaItemDetail, Resolution, SpeakerItem } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -76,6 +79,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   // dimmed behind it), rather than navigating away to /agm/pre-vote.
   const [preVoteOpen, setPreVoteOpen] = useState(false);
   const [proxyOpen, setProxyOpen] = useState(false);
+  // Figma: this page IS the live page — "Join Live Event" swaps the hero for the stream
+  // rather than navigating anywhere.
+  const [joinedLive, setJoinedLive] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -136,6 +142,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     const total = typeof totalRaw === "number" ? totalRaw : null;
     return pct === null ? null : { pct, total };
   })();
+
+  // The playable link. The gated /stream endpoint is the real source (403 if not
+  // registered, 409 if not live); event.streamUrl is the fallback the admin set. Enabled
+  // is read off `event?.…` because the flags below are computed after the early returns.
+  const { data: streamResp } = useGetStream(
+    id,
+    event?.status === "LIVE" && !!(event?.hasRsvped ?? event?.registered),
+  );
 
   // Only meaningful for HACKATHON — useGetMyTeam no-ops (enabled: !!challengeId) otherwise.
   const { data: myTeamResp } = useGetMyTeam(mod === "HACKATHON" ? id : "");
@@ -217,22 +231,31 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   // A VIRTUAL/HYBRID event can now be LIVE with no join link yet — Zoom links are no
   // longer minted at creation time. Show an unavailable state rather than a dead button.
   const needsStreamLink = event.format === "VIRTUAL" || event.format === "HYBRID";
+  // Same precedence LiveRoom uses: the gated /stream link wins, the admin's link is the
+  // fallback. Reading both means a live event whose link only exists behind /stream no
+  // longer shows "Join link not available yet".
+  const streamUrl =
+    ((streamResp?.data as Record<string, unknown> | undefined)?.streamUrl as string) ||
+    event.streamUrl ||
+    "";
   // AGMs keep the in-app live room — the live ballot, quorum and proxy voting only exist
-  // there and have no equivalent on Zoom/YouTube. Every other module goes straight to the
-  // organiser's stream, so for those the link itself is what "Join Live" depends on.
-  const externalLive = mod !== "AGM";
-  const missingStreamLink = externalLive
-    ? !event.streamUrl
-    : needsStreamLink && !event.streamUrl;
+  // there and have no equivalent on Zoom/YouTube.
+  const agmLive = mod === "AGM";
+  const missingStreamLink = agmLive ? needsStreamLink && !streamUrl : !streamUrl;
+  // Zoom needs the page cross-origin isolated, which costs a full ?coi=1 reload — so Zoom
+  // goes to the dedicated room. Everything else (YouTube/Vimeo) plays in the hero.
+  const zoomStream = parseZoomUrl(streamUrl);
 
   function joinLive() {
-    if (!externalLive) {
+    if (agmLive) {
       router.push(`/agm/live?eventId=${id}`);
       return;
     }
-    if (event?.streamUrl) {
-      window.open(event.streamUrl, "_blank", "noopener,noreferrer");
+    if (zoomStream) {
+      router.push(`/events/live?eventId=${id}`);
+      return;
     }
+    if (streamUrl) setJoinedLive(true);
   }
   const FormatIcon = FORMAT_ICON[event.format] ?? MapPin;
   const fill = event.maximumCapacity
@@ -282,25 +305,40 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         )}
         style={{ background: color }}
       >
-        <div className="absolute -bottom-10 -right-8 select-none text-[160px] font-black leading-none text-white/10">
-          {initialsFor(organiser)}
-        </div>
-        {isLive && (
-          <span className="absolute left-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
-            <span className="h-1.5 w-1.5 rounded-full bg-white" /> Live
-          </span>
-        )}
-        {/* The play control is only real when the session can actually be joined. */}
-        {isLive && hasRsvped && !missingStreamLink && (
-          <button
-            onClick={joinLive}
-            aria-label="Join live session"
-            className="group absolute inset-0 z-10 flex items-center justify-center bg-black/20 transition-colors hover:bg-black/30"
-          >
-            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm transition-transform group-hover:scale-105">
-              <Play className="h-6 w-6 fill-white text-white" />
-            </span>
-          </button>
+        {joinedLive && streamUrl ? (
+          // Same embed LiveRoom uses. `credentialless` keeps this cross-origin iframe
+          // loading if the page is ever cross-origin isolated (see next.config headers).
+          <iframe
+            {...({ credentialless: "" } as any)}
+            src={toEmbedUrl(streamUrl)}
+            title={event.title}
+            className="absolute inset-0 h-full w-full"
+            allow="autoplay; fullscreen; picture-in-picture"
+            allowFullScreen
+          />
+        ) : (
+          <>
+            <div className="absolute -bottom-10 -right-8 select-none text-[160px] font-black leading-none text-white/10">
+              {initialsFor(organiser)}
+            </div>
+            {isLive && (
+              <span className="absolute left-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+                <span className="h-1.5 w-1.5 rounded-full bg-white" /> Live
+              </span>
+            )}
+            {/* The play control is only real when the session can actually be joined. */}
+            {isLive && hasRsvped && !missingStreamLink && (
+              <button
+                onClick={joinLive}
+                aria-label="Join live session"
+                className="group absolute inset-0 z-10 flex items-center justify-center bg-black/20 transition-colors hover:bg-black/30"
+              >
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm transition-transform group-hover:scale-105">
+                  <Play className="h-6 w-6 fill-white text-white" />
+                </span>
+              </button>
+            )}
+          </>
         )}
       </header>
 
@@ -685,13 +723,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <Button className="w-full gap-2" variant="outline" disabled>
               <Radio className="h-4 w-4" /> Join link not available yet
             </Button>
+          ) : joinedLive ? (
+            // Already playing in the hero — Figma shows no CTA in this state.
+            null
           ) : (
             <Button
               className="w-full gap-2"
               style={{ backgroundColor: color }}
               onClick={joinLive}
             >
-              <Radio className="h-4 w-4" /> Join Live Session →
+              <Radio className="h-4 w-4" /> Join Live Event
             </Button>
           )
         ) : isLive && !hasRsvped ? (
@@ -912,53 +953,7 @@ function AgmSidePanel({
         ))}
       </div>
 
-      {tab === "agenda" && (
-        <>
-          {speakers.length > 0 && (
-            <PanelCard title="Speakers">
-              <div className="flex flex-col">
-                {speakers.map((spk, i) => (
-                  <div
-                    key={spk.id}
-                    className={cn("py-2.5", i > 0 && "border-t border-foreground/[0.06]")}
-                  >
-                    <p className="text-sm font-medium tracking-[-0.14px] text-foreground">{spk.name}</p>
-                    {spk.roleTitle && <p className="text-xs text-foreground/60">{spk.roleTitle}</p>}
-                  </div>
-                ))}
-              </div>
-            </PanelCard>
-          )}
-          {agenda.length > 0 ? (
-            <PanelCard title="Agenda">
-              <ol className="flex flex-col">
-                {[...agenda]
-                  .sort((a, b) => a.orderIndex - b.orderIndex)
-                  .map((item, i) => (
-                    <li
-                      key={item.id}
-                      className={cn("flex gap-2 py-2.5", i > 0 && "border-t border-foreground/[0.06]")}
-                    >
-                      <span className="text-sm text-foreground/60">{i + 1}.</span>
-                      <div className="min-w-0">
-                        <p className="text-sm tracking-[-0.14px] text-foreground">{item.title}</p>
-                        {(item.time || item.durationMinutes || item.speaker) && (
-                          <p className="text-xs text-foreground/60">
-                            {[item.time, item.durationMinutes ? `${item.durationMinutes} min` : null, item.speaker]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </p>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-              </ol>
-            </PanelCard>
-          ) : (
-            speakers.length === 0 && <PanelEmpty>The organiser hasn&apos;t published an agenda yet.</PanelEmpty>
-          )}
-        </>
-      )}
+      {tab === "agenda" && <AgendaPanel speakers={speakers} agenda={agenda} />}
 
       {tab === "qa" && (
         <div className="flex flex-col gap-3">
@@ -1076,24 +1071,6 @@ function AgmSidePanel({
       )}
 
     </aside>
-  );
-}
-
-function PanelCard({ title, children }: { title: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(true);
-  return (
-    <section className="rounded-xl border border-foreground/[0.06] bg-white px-4 py-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-2 text-left"
-      >
-        <span className="text-sm font-medium tracking-[-0.14px] text-foreground/70">{title}</span>
-        <ChevronDown
-          className={cn("h-4 w-4 shrink-0 text-foreground/40 transition-transform", !open && "-rotate-90")}
-        />
-      </button>
-      {open && <div className="mt-1">{children}</div>}
-    </section>
   );
 }
 

@@ -446,6 +446,170 @@ the Zoom live-room wrappers (`agm/live`, `events/live` shells).
   - `/hackathon/resources` route left intact for direct links; `NavRow` still used by the
     "My Application" row.
 
+- **2026-09-03 (10)** — Innovation apply flow finished against its last two frames.
+  - Step 1 shell moved off the bespoke `#f6f6f6` drawer onto the shared right-anchored
+    `Dialog` (`side="right"` + pinned `footer`), and the Pathway select is now hidden when
+    `tracks.length <= 1` (nothing to choose; the single track is still submitted).
+  - **Bug fixed:** step 2 member rows were `bg-white`, which was invisible once the shell
+    became a white sheet. Leader + member rows are now `bg-foreground/[0.04]` per the frame;
+    the "Add new member" block takes a border instead of a fill so its grey inputs read.
+  - "+ Invite members" uses a real `Plus` icon; success modal uses the frame's scalloped
+    `BadgeCheck` (fill-primary + white stroke) instead of a circle wrapping `Check`.
+  - Success modal deliberately stays a plain fixed overlay, NOT a nested `Dialog` — a second
+    `Dialog` would double-bind Escape and the body-scroll lock and close both layers.
+  - **Not matched (no data):** "judging begins on 20 Nov" — there is no judging-date field;
+    `applicationDeadline` is the *application* deadline, so the copy stays generic.
+  - **Not matched (deliberate):** desktop frame keeps "Apply to challenge" as the step-2
+    title while mobile says "Add team members" + "Step 2 of 2"; the mobile version is
+    self-consistent so `STEP_TITLES[step]` is kept. The "N–M members per team" helper is
+    kept too — the only place the limit is stated, and `canSubmit` enforces it.
+
+- **2026-09-03 (11)** — "My application details" modal added to the My Applications cards.
+  - Clicking a card now opens a centred `Dialog` (`side="center"`, `max-w-lg` — `cn` runs
+    `twMerge` so that overrides the variant's `max-w-md`) instead of routing to the brief.
+    Header is inline (title + × on one row) rather than `DialogHeader`, which stacks a
+    control row above the title.
+  - **No backend work needed:** Team name / Idea title / Team members / Description are all
+    already on `MyApplicationSummary` from `useGetMyApplications()`, which this page already
+    loads. The card-grid rebuild had trimmed them out of the `apps` map; they are carried
+    through again. No extra request, nothing persisted locally.
+  - Each section is a bordered read-only `DetailCard` (the modal is white, so a fill would
+    not read — same lesson as the apply step-2 rows). Optional sections render only when
+    present.
+  - **"(You)"** is matched on the signed-in user's email via `useGetMe()`, falling back to
+    the member `lead` flag. `TeamMemberItem.lead` means team *lead*, not current user, so
+    using it alone would mislabel a member who is not the lead.
+  - **Flag:** the card no longer routes to the challenge brief (the frame's modal has no
+    link there). The brief stays reachable from the **All** tab.
+
+- **2026-09-03 (12)** — Attendance Certificate rebuilt to its frame — both the sheet shell
+  and the artwork itself.
+  - Extracted to **`components/attend/CertificateSheet.tsx`** ({challengeId, open, onClose}),
+  following the established Sheet convention (`MinutesSheet`/`ReceiptSheet`): `Dialog`
+  `side="right"`, Download PDF pinned via `footer` so it never lands in the PDF snapshot.
+  `hackathon/certificate/page.tsx` is now a thin wrapper for direct links.
+  - **Opens in place** from My Applications' "View certificate" (local state, not a route
+  change) — same pattern as every other sheet this session; the corrected right-anchored
+  positioning applies here too (not centred).
+  - **Old purple card artwork replaced** with the frame's cream/gold design: Attend
+  wordmark (`/attend-logo.png`, not retyped text — avoids guessing the brand green hex),
+  "Certificate" + "of attendance"/"of achievement", presented-to name, participation line,
+  a decorative teal/orange chevron corner, and a circular medal seal.
+  - **Fixed an existing fabrication, not just carried it over:** the old artwork's
+  signature line was a hardcoded fictitious name ("Dr. Yewande Adeyemi, Chief Innovation
+  Officer") with no backing field. Replaced with the challenge's real `organizerName`
+  (`useGetChallenge`), falling back to a generic "Event Organiser" label — never a made-up
+  person. The frame's two illegible signature names were not reproduced for the same reason.
+  - **Share button dropped** — not present in the frame's Download-only footer. Flag if the
+  share flow is still wanted elsewhere.
+
+- **2026-09-03 (13)** — Bug: two success badges rendered near-black instead of green.
+  `--primary` is `hsl(222 39% 11%)` — a near-black navy, NOT green — so `fill-primary` on
+  the `BadgeCheck` icons in the apply flow's "Application Submitted" modal and
+  `ReceiptSheet`'s "Vote receipt" header rendered dark, not the green both frames show.
+  Fixed both to `fill-emerald-500`, matching the app's existing success-state colour
+  (`Badge` variant `success` already uses emerald). Confirmed via
+  `grep -rn "fill-primary"` that no other instance remains. Worth a broader check if
+  `text-primary`/`bg-primary` shows up anywhere else expecting green rather than the
+  actual near-black brand colour — not swept here, only these two confirmed instances.
+
+- **2026-09-04 — Three bug reports, investigated with background Explore agents first,**
+  **then fixed against verified findings (not guesses):**
+  1. **Zoom: only admin sees others' video — NOT fixable in this repo.** Investigated fully:
+     production video is the Zoom Web Client View SDK (`ZoomMtg`, not Component View — that
+     only exists in the unused `zoom-test` spike), embedded wholesale via an iframe with no
+     custom per-participant rendering anywhere. The one real code finding —
+     `ZoomStage.tsx` hardcodes `role: 0` for every user, so this app never grants anyone
+     host role — turned out not to be the cause: confirmed with the user that the
+     admin/organizer joins via the native Zoom app, not through attend-web. This is a Zoom
+     account/meeting configuration issue (attendee video-visibility restriction, or the
+     meeting being a Webinar instead of a Meeting) that must be fixed wherever that meeting
+     is configured, outside this codebase. **No code changed for this item.**
+  2. **Ended events now excluded from every normal browse surface.** Client-side
+     `.filter(e => e.status !== "ENDED")` added to: `agm/page.tsx` ("All" tab — Live/Upcoming
+     were already correct), `hackathon/page.tsx`, `general/page.tsx`, `search/page.tsx`,
+     `events/page.tsx` ("Bookmarked" tab only — All/Past were already correct),
+     `profile/saved-events`, and `profile/my-events` (user chose a plain filter over an
+     Upcoming/Past tab split — AGMs included). Left untouched, confirmed correct or
+     intentional archives: Home's carousels, `events/archive`, `agm/proxy-history`,
+     `agm/receipt`, `agm/minutes`, `hackathon/my-applications`.
+  3. **Back buttons restored to real history navigation.** New shared
+     **`src/hooks/useGoBack.ts`** — `router.back()` when `window.history.length > 1`, else
+     `router.push(fallbackHref)` (same guard `NavShell` already used, generalized with a
+     fallback). Applied to every control found hardcoded to a fixed route during the
+     redesign pass: `events/archive`, `events/gallery`, all five `profile/*` subpages,
+     `hackathon/apply` (step-0 back, the sheet's `Dialog onClose`, and the `Gate` helper),
+     `hackathon/[id]`'s load-failure state, and the `agm/pre-vote` / `agm/proxy` /
+     `hackathon/certificate` sheet route-wrappers' `onClose`. Each keeps its old hardcoded
+     target as the fallback, so a cold/direct hit still lands somewhere sane.
+     - **Deliberately left alone:** `LiveRoom` "Leave meeting" (should land somewhere known,
+       not wherever history points from before joining), guest cross-flow links ("Back to
+       sign in", `join`/`join/code`), KYC step wizard (forward/back is step navigation, not
+       "previous page"), and dead code (`AgmBackButton` — zero call sites;
+       `events/qr-checkin` — confirmed nothing links to it, the real entry point
+       `/qr-checkin` already used `router.back()` correctly).
+
+- **2026-09-04 (2)** — Section header pattern + Launches module.
+  - **Duplicate heading bug:** the app bar showed a short section label ("Innovation",
+    "Launches") while the page ALSO rendered its own near-identical `<h1>` just below,
+    so the two stacked and collided with the bar's border. Per Figma, those sections put
+    a two-line title block IN the bar. `SECTION_TITLE` in `NavShell` now takes an optional
+    `sub`; the bar renders title + tagline, and the duplicate headings were removed from
+    `hackathon/page.tsx`, `hackathon/my-applications/page.tsx` and `events/page.tsx`.
+    Bar switched `h-16` → `min-h-16` + padding so it grows only for those sections
+    (verified nothing offsets against a 64px header). The `sub` is scoped to `p === "/events"`
+    so event *detail* routes keep the short "Launches" label.
+  - **Sticky header bled content:** it was `bg-black/[0.02]` — a 2% tint, i.e. 98%
+    transparent — so scrolled cards showed through it. Now opaque, using the exact opaque
+    equivalents of that tint per breakpoint (`#fafafa` mobile / `#f1f1f1` desktop) so the
+    tone is unchanged. Comment added so the tint is not reintroduced. Sidebar left as a
+    tint (nothing scrolls under it — `main` is offset by `md:pl-[259px]`); mobile bottom
+    nav left as `bg-white/95` + blur (deliberate frosted effect).
+  - **Launches cards rebuilt to the frame:** extracted an `EventRow` child component (the
+    save/unsave hooks bind the event id at call time, so they cannot be looped in the
+    parent). Adds a working **bookmark toggle** (top-right, wired to
+    `useSaveEvent`/`useUnsaveEvent` — it now actually populates the existing "Bookmarked
+    Events" tab) and a **circular chevron** (bottom-right), and prefers real artwork
+    (`flyerUrl → bannerUrl → organizerLogo → Rocket`) over the logo-only thumbnail.
+  - **"120 Registered" NOT built — no backend field.** `EventListItem` has no
+    `registeredCount` (only `EventDetail` does), so the frame's count would need an N+1
+    fetch per card or a new list field. Same documented gap as Home's "N watching" and the
+    challenge list's "120 Applied".
+  - **Kept, not in the frame (flag):** the page-level search box and the
+    All/Virtual/Hybrid/In-Person format chips. The frame shows neither on desktop (search
+    appears on its mobile frame only). Kept because they are real filtering; one-line
+    removal if they should go.
+
+- **2026-09-04 (3)** — Launch detail page IS the live page; details panel added to the
+  live room.
+  - **Reverses the 2026-09-03 decision** that non-AGM live opens `streamUrl` in a new tab.
+    Now: `joinedLive` state swaps the hero for an inline iframe, reusing LiveRoom's exact
+    embed (`toEmbedUrl` + the `credentialless` spread + the same `allow` list). CTA reads
+    **"Join Live Event"** and disappears once playing, per the frame.
+  - **Zoom deliberately excluded from the hero** (user decision): Zoom needs the page
+    cross-origin isolated, which forces a full `?coi=1` reload that would wipe the
+    "joined" React state. `parseZoomUrl(streamUrl)` truthy → route to `/events/live`,
+    which already handles that isolation. AGM still routes to `/agm/live`.
+  - **Stream URL now resolved properly:** added `useGetStream(id, live && rsvped)` and
+    folded it into `missingStreamLink`, which previously only checked `event.streamUrl` —
+    so a live event whose link exists only behind the gated `/stream` endpoint no longer
+    shows "Join link not available yet".
+  - `NavShell.SECTION_TITLE` now shows **"About event"** on `/events/{id}` (regex excludes
+    archive/gallery/live/qr-checkin).
+  - **Details panel in the live room:** Speakers + Agenda extracted to shared
+    **`components/attend/AgendaPanel.tsx`** (with `PanelCard`, removing the page-local
+    copy), now rendered both by the detail side panel and by a new **Agenda tab** in
+    `LiveRoom` — so guests and proxies, who land straight in the room and never see the
+    detail page, can read the running order. Default tab unchanged
+    (`showBallot ? "ballot" : "qa"`); the tab only appears when data exists.
+  - **UNVERIFIED (needs a real guest session):** the guest `/view` endpoint is typed
+    `ApiResponse<EventDetail>` so agenda/speakers *should* arrive, but that payload is
+    known to diverge from the type (it sends `eventTitle`, not `title`). The panel reads
+    defensively and hides when empty, but whether guests actually get agenda data is
+    untested — the whole point of the request, so worth confirming.
+  - Added the Agenda tab for all live rooms, not just AGM (equally useful in a launch);
+    say the word if it should be AGM-only.
+
 ## Deltas from the new frames (flag for review)
 
 5. **"Pending Approval" state NOT built** — there is no backend field for it.

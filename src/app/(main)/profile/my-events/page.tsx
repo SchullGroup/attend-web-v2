@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { ArrowLeft, ChevronRight } from "lucide-react";
+import { useGoBack } from "@/hooks/useGoBack";
 import { useGetMyEvents } from "@/api/events/hooks";
 import { EventListItem } from "@/types";
 import { Badge } from "@/components/ui/Badge";
@@ -28,10 +29,13 @@ interface MyEventRow {
 const fmtFormat = (f: string) => (f || "").toLowerCase().replace(/_/g, "-");
 
 export default function MyEventsPage() {
+  const goBack = useGoBack("/profile");
   const { data, isLoading } = useGetMyEvents();
   const apiEvents = data?.data?.events ?? [];
 
-  const events: MyEventRow[] = apiEvents.map((e: EventListItem) => ({
+  const events: MyEventRow[] = apiEvents
+    .filter((e: EventListItem) => e.status !== "ENDED")
+    .map((e: EventListItem) => ({
     id: e.id,
     organiser: e.registerName || e.organizerName,
     title: e.title,
@@ -42,12 +46,12 @@ export default function MyEventsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href="/profile"
+      <button
+        onClick={goBack}
         className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Back
-      </Link>
+      </button>
 
       <header>
         <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">My events</h1>

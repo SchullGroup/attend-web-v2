@@ -48,7 +48,7 @@ export default function AgmPage() {
   // too, in case the backend returns mixed types for an unrecognised value.
   const { data, isLoading } = useGetEvents({ eventType: "AGM_EGM", size: 50 });
   const agms = (data?.data?.events ?? []).filter(
-    (e) => e.eventType === "AGM_EGM" && e.status !== "CANCELLED",
+    (e) => e.eventType === "AGM_EGM" && e.status !== "CANCELLED" && e.status !== "ENDED",
   );
 
   const visible = useMemo(() => {

@@ -1,8 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, Rocket, Clock } from "lucide-react";
-import { useGetEvents, useGetSavedEvents } from "@/api/events/hooks";
+import { Search, Rocket, Clock, Bookmark, ChevronRight } from "lucide-react";
+import { useGetEvents, useGetSavedEvents, useSaveEvent, useUnsaveEvent } from "@/api/events/hooks";
 import { EventListItem } from "@/types";
 import { cn, formatDate } from "@/lib/utils";
 
@@ -68,7 +68,7 @@ export default function EventsPage() {
       .filter((e) => (fmt === "All" ? true : norm(e.format) === fmtKey))
       .filter((e) => {
         if (tab === "past") return e.status === "ENDED";
-        if (tab === "bookmarked") return savedIds.has(e.id);
+        if (tab === "bookmarked") return savedIds.has(e.id) && e.status !== "ENDED";
         return e.status !== "ENDED";
       });
   }, [apiEvents, fmt, tab, savedIds]);
@@ -82,14 +82,8 @@ export default function EventsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">
-          Launches &amp; Events
-        </h1>
-        <p className="text-sm tracking-[-0.14px] text-foreground/60">
-          Product launches &amp; live events
-        </p>
-      </div>
+      {/* Title + tagline live in the app bar for this section (NavShell SECTION_TITLE),
+          per Figma — repeating them here stacked two near-identical headings. */}
 
       <div className="-mx-4 flex gap-2 overflow-x-auto border-b border-foreground/10 px-4 md:-mx-8 md:px-8">
         {TABS.map((t) => (
@@ -145,42 +139,78 @@ export default function EventsPage() {
       )}
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-        {visible.map((e) => {
-          const organiser = e.registerName || e.organizerName;
-          return (
-            <Link
-              key={e.id}
-              href={`/events/${e.id}`}
-              className="flex gap-2.5 rounded-xl border border-foreground/[0.06] bg-white p-1.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
-            >
-              <div
-                className="flex h-[60px] w-[60px] shrink-0 items-center justify-center overflow-hidden rounded-[10px]"
-                style={{ backgroundColor: tileTint(organiser || e.title) }}
-              >
-                {e.organizerLogo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={e.organizerLogo} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <Rocket className="h-6 w-6 text-foreground/60" strokeWidth={1.75} />
-                )}
-              </div>
-              <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-1 pr-2">
-                <p className="truncate text-sm font-medium tracking-[-0.14px] text-foreground">
-                  {e.title}
-                </p>
-                <p className="flex items-center gap-1 text-xs text-foreground/60">
-                  <span>By:</span>
-                  <span className="text-foreground/80">{organiser}</span>
-                </p>
-                <p className="flex items-center gap-1 text-xs text-foreground/80">
-                  <Clock className="h-3.5 w-3.5" />
-                  {formatDate(e.date)}, {fmtTime(e.startTime)}
-                </p>
-              </div>
-            </Link>
-          );
-        })}
+        {visible.map((e) => (
+          <EventRow key={e.id} event={e} saved={savedIds.has(e.id)} />
+        ))}
       </div>
+    </div>
+  );
+}
+
+// One card, per Figma: thumbnail, title, "By:", the date/time line, a bookmark toggle
+// top-right and a circular chevron bottom-right. It owns its own save/unsave mutations
+// because those hooks bind the event id at call time, so they can't be looped over in
+// the parent — a child component per row is the right shape for that.
+function EventRow({ event: e, saved }: { event: EventListItem; saved: boolean }) {
+  const organiser = e.registerName || e.organizerName;
+  const { mutate: save, isPending: saving } = useSaveEvent(e.id);
+  const { mutate: unsave, isPending: unsaving } = useUnsaveEvent(e.id);
+  const art = e.flyerUrl || e.bannerUrl || e.organizerLogo || null;
+
+  return (
+    <div className="relative flex gap-2.5 rounded-xl border border-foreground/[0.06] bg-white p-1.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]">
+      <Link href={`/events/${e.id}`} className="flex min-w-0 flex-1 gap-2.5">
+        <div
+          className="flex h-[60px] w-[60px] shrink-0 items-center justify-center overflow-hidden rounded-[10px]"
+          style={{ backgroundColor: tileTint(organiser || e.title) }}
+        >
+          {art ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={art}
+              alt=""
+              className="h-full w-full object-cover"
+              onError={(ev) => {
+                (ev.currentTarget as HTMLImageElement).style.display = "none";
+              }}
+            />
+          ) : (
+            <Rocket className="h-6 w-6 text-foreground/60" strokeWidth={1.75} />
+          )}
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-1 pr-16">
+          <p className="truncate text-sm font-medium tracking-[-0.14px] text-foreground">
+            {e.title}
+          </p>
+          <p className="flex items-center gap-1 text-xs text-foreground/60">
+            <span>By:</span>
+            <span className="truncate text-foreground/80">{organiser}</span>
+          </p>
+          <p className="flex items-center gap-1 text-xs text-foreground/80">
+            <Clock className="h-3.5 w-3.5 shrink-0" />
+            {formatDate(e.date)}, {fmtTime(e.startTime)}
+          </p>
+        </div>
+      </Link>
+
+      {/* Sits outside the Link so it toggles instead of navigating. */}
+      <button
+        type="button"
+        onClick={() => (saved ? unsave() : save())}
+        disabled={saving || unsaving}
+        aria-label={saved ? "Remove bookmark" : "Bookmark event"}
+        className="absolute right-3 top-3 text-foreground/40 transition-colors hover:text-foreground disabled:opacity-50"
+      >
+        <Bookmark className={cn("h-4 w-4", saved && "fill-foreground text-foreground")} />
+      </button>
+
+      <Link
+        href={`/events/${e.id}`}
+        aria-label={`Open ${e.title}`}
+        className="absolute bottom-3 right-3 flex h-7 w-7 items-center justify-center rounded-full border border-foreground/10 text-foreground/60 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Link>
     </div>
   );
 }

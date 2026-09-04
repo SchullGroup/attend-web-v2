@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-import Link from "next/link";
 import { ArrowLeft, Download, FileText, FileBarChart2, FileCheck2, FileSignature, Loader2 } from "lucide-react";
+import { useGoBack } from "@/hooks/useGoBack";
 import { useGetDocuments } from "@/api/documents/hooks";
 import { documentsClient } from "@/api/documents/client";
 import type { ParticipantDocument } from "@/types";
@@ -56,6 +56,7 @@ interface DocRow {
 }
 
 export default function DocumentsPage() {
+  const goBack = useGoBack("/profile");
   const { data, isLoading } = useGetDocuments();
   const apiDocs = data?.data?.documents ?? [];
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -99,12 +100,12 @@ export default function DocumentsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href="/profile"
+      <button
+        onClick={goBack}
         className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Back
-      </Link>
+      </button>
 
       <header className="flex flex-wrap items-center gap-2">
         <div>

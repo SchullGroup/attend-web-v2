@@ -1,9 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, CheckCircle2, Award, Lightbulb } from "lucide-react";
+import { ChevronRight, CheckCircle2, Award, Lightbulb, X } from "lucide-react";
 import { useGetMyApplications } from "@/api/innovation/hooks";
 import { useGetChallenges } from "@/api/hackathon/hooks";
+import { useGetMe } from "@/api/auth/hooks";
+import { Dialog } from "@/components/ui/Dialog";
+import { CertificateSheet } from "@/components/attend/CertificateSheet";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +56,7 @@ function tileTint(seed: string) {
 
 export default function MyApplicationsPage() {
   const { data, isLoading } = useGetMyApplications();
+  const { data: meResp } = useGetMe();
   const [justSubmitted, setJustSubmitted] = useState<string | null>(null);
 
   // The application summary carries no artwork, so the card thumbnails come from the
@@ -75,14 +79,26 @@ export default function MyApplicationsPage() {
     challengeId: a.challengeId,
     challengeName: a.challengeName,
     statusKey: (a.status || "").toLowerCase().replace(/[\s-]+/g, "_"),
+    // Everything the details modal shows already rides along on the list response.
+    teamName: a.teamName,
+    ideaTitle: a.ideaTitle,
+    ideaDescription: a.ideaDescription,
+    teamMembers: a.teamMembers ?? [],
+    lead: a.lead,
   }));
+  type AppRow = (typeof apps)[number];
+  const [selected, setSelected] = useState<AppRow | null>(null);
+  const [certificateFor, setCertificateFor] = useState<string | null>(null);
+
+  // "(You)" marks the signed-in user, matched on email. TeamMemberItem.lead means team
+  // *lead*, not current user, so it is only a fallback for when emails aren't comparable.
+  const myEmail = (meResp?.data?.email || "").trim().toLowerCase();
+  const isYou = (m: { email?: string; lead?: boolean }, app: AppRow) =>
+    myEmail && m.email ? m.email.trim().toLowerCase() === myEmail : !!(app.lead && m.lead);
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Innovation Challenges</h1>
-        <p className="text-sm tracking-[-0.14px] text-foreground/60">Compete, build and win</p>
-      </div>
+      {/* Title + tagline live in the app bar for this section (NavShell SECTION_TITLE). */}
 
       {/* Same underline tab row as /hackathon, with this tab active. */}
       <div className="-mx-4 flex gap-2 overflow-x-auto border-b border-foreground/10 px-4 md:-mx-8 md:px-8">
@@ -125,7 +141,11 @@ export default function MyApplicationsPage() {
                 key={a.id}
                 className="overflow-hidden rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
               >
-                <Link href={`/hackathon/${a.challengeId}`} className="flex items-center gap-3 p-2">
+                <button
+                  type="button"
+                  onClick={() => setSelected(a)}
+                  className="flex w-full items-center gap-3 p-2 text-left"
+                >
                   <span
                     className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg"
                     style={{ backgroundColor: tileTint(a.challengeName || a.challengeId) }}
@@ -160,23 +180,114 @@ export default function MyApplicationsPage() {
                   >
                     <ChevronRight className="h-4 w-4" />
                   </span>
-                </Link>
+                </button>
 
                 {/* Kept from our version — this page is the only entry point to a
-                    certificate; Figma's card has no slot for it. */}
+                    certificate; Figma's card has no slot for it. Opens in place
+                    (this page stays visible dimmed behind it), same as every other
+                    sheet in this pass; /hackathon/certificate still works standalone. */}
                 {mayHaveCertificate(a.statusKey) && (
-                  <Link
-                    href={`/hackathon/certificate?challengeId=${a.challengeId}`}
-                    className="flex items-center gap-1 border-t border-foreground/[0.06] px-4 py-2.5 text-xs font-medium text-primary transition-colors hover:bg-foreground/[0.02]"
+                  <button
+                    type="button"
+                    onClick={() => setCertificateFor(a.challengeId)}
+                    className="flex w-full items-center gap-1 border-t border-foreground/[0.06] px-4 py-2.5 text-left text-xs font-medium text-primary transition-colors hover:bg-foreground/[0.02]"
                   >
                     <Award className="h-3.5 w-3.5" /> View certificate
-                  </Link>
+                  </button>
                 )}
               </div>
             );
           })}
         </div>
       )}
+
+      {/* Figma's "My application details" — every field here already rides along on the
+          list response, so opening it needs no extra request. */}
+      {selected && (
+        <Dialog open onClose={() => setSelected(null)} side="right" className="max-w-md">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-base font-medium tracking-[-0.32px] text-foreground">
+              My application details
+            </h2>
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              aria-label="Close"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <DetailCard label="Team name">
+              <p className="text-sm tracking-[-0.14px] text-foreground">{selected.teamName || "—"}</p>
+            </DetailCard>
+
+            {selected.ideaTitle && (
+              <DetailCard label="Idea title">
+                <p className="text-sm tracking-[-0.14px] text-foreground">{selected.ideaTitle}</p>
+              </DetailCard>
+            )}
+
+            {selected.teamMembers.length > 0 && (
+              <DetailCard label="Team members">
+                <div className="flex flex-col">
+                  {selected.teamMembers.map((m, i) => (
+                    <div
+                      key={`${m.email || m.name}-${i}`}
+                      className={cn("py-2", i > 0 && "border-t border-foreground/[0.06]")}
+                    >
+                      <p className="text-sm font-medium tracking-[-0.14px] text-foreground">
+                        {m.name}
+                        {isYou(m, selected) && (
+                          <span className="ml-1 font-normal text-foreground/40">(You)</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-foreground/60">
+                        {m.role}
+                        {m.email && (
+                          <>
+                            <span className="mx-1 inline-block h-1 w-1 rounded-full bg-foreground/20 align-middle" />
+                            {m.email}
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </DetailCard>
+            )}
+
+            {selected.ideaDescription && (
+              <DetailCard label="Description">
+                <p className="whitespace-pre-line text-sm leading-relaxed tracking-[-0.14px] text-foreground/80">
+                  {selected.ideaDescription}
+                </p>
+              </DetailCard>
+            )}
+          </div>
+        </Dialog>
+      )}
+
+      {certificateFor && (
+        <CertificateSheet
+          challengeId={certificateFor}
+          open
+          onClose={() => setCertificateFor(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// A read-only field in the details modal: small muted label above the value. Bordered
+// because the modal itself is white.
+function DetailCard({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-foreground/[0.06] p-3.5">
+      <p className="mb-1 text-[11px] tracking-[-0.11px] text-foreground/50">{label}</p>
+      {children}
     </div>
   );
 }

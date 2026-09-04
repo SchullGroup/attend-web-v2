@@ -164,7 +164,9 @@ export function ReceiptSheet({
         {/* docRef wraps the document → the PDF is an exact snapshot of it. */}
         <div ref={docRef} className="flex flex-col gap-6">
           <div className="flex flex-col items-center gap-2 text-center">
-            <BadgeCheck className="h-12 w-12 fill-primary text-white" />
+            {/* fill-emerald-500, not fill-primary — --primary is a near-black navy in
+                this app, not green; the app's other success states use emerald. */}
+            <BadgeCheck className="h-12 w-12 fill-emerald-500 text-white" />
             <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Vote receipt</h1>
             <p className="text-sm tracking-[-0.14px] text-foreground/60">{statusLine}</p>
           </div>

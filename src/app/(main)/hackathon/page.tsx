@@ -56,20 +56,14 @@ export default function HackathonPage() {
   );
   const apiChallenges = Array.from(
     new Map([...challengeEvents, ...eventInnovation].map((e) => [e.id, e])).values(),
-  );
+  ).filter((e) => e.status !== "ENDED");
 
   const isLoading = chLoading || evLoading;
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">
-          Innovation Challenges
-        </h1>
-        <p className="text-sm tracking-[-0.14px] text-foreground/60">
-          Compete, build and win
-        </p>
-      </div>
+      {/* Title + tagline live in the app bar for this section (NavShell SECTION_TITLE),
+          per Figma — repeating them here stacked two near-identical headings. */}
 
       {/* Tabs — "My Application" is a real route (hackathon/my-applications), not a
           local filter, so the tab bar is just links between the two pages. */}

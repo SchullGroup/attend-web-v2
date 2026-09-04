@@ -1,12 +1,15 @@
 "use client";
-import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { useGoBack } from "@/hooks/useGoBack";
 import { useGetSavedEvents } from "@/api/events/hooks";
 import { EventCard, EventCardData } from "@/components/attend/EventCard";
 
 export default function SavedEventsPage() {
+  const goBack = useGoBack("/profile");
   const { data, isLoading } = useGetSavedEvents();
-  const saved: EventCardData[] = (data?.data?.events ?? []).map((e) => ({
+  const saved: EventCardData[] = (data?.data?.events ?? [])
+    .filter((e) => e.status !== "ENDED")
+    .map((e) => ({
     id: e.id,
     title: e.title,
     organiser: e.registerName || e.organizerName,
@@ -30,12 +33,12 @@ export default function SavedEventsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href="/profile"
+      <button
+        onClick={goBack}
         className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Back
-      </Link>
+      </button>
 
       <header>
         <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Saved events</h1>
