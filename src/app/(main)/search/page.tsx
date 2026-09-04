@@ -19,10 +19,10 @@ function SearchInner() {
   const isLoading = !!q && (evLoading || chLoading);
   const events = evData?.data?.events ?? [];
   const challenges = chData?.data?.events ?? [];
-  // Merge events + challenges, de-duplicated by id.
+  // Merge events + challenges, de-duplicated by id. Ended items don't belong in search.
   const results = Array.from(
     new Map([...events, ...challenges].map((e) => [e.id, e])).values(),
-  );
+  ).filter((e) => e.status !== "ENDED");
 
   return (
     <div className="flex flex-col gap-6">

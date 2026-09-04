@@ -1,14 +1,15 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { ArrowLeft, Lock } from "lucide-react";
+import { useGoBack } from "@/hooks/useGoBack";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useChangePassword } from "@/api/auth/hooks";
 import Cookies from "js-cookie";
 
 export default function ChangePasswordPage() {
+  const goBack = useGoBack("/profile");
   const router = useRouter();
   const { mutate: changePassword, isPending } = useChangePassword();
   const [form, setForm] = useState({ current: "", next: "", confirm: "" });
@@ -49,12 +50,12 @@ export default function ChangePasswordPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href="/profile"
+      <button
+        onClick={goBack}
         className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Back
-      </Link>
+      </button>
 
       <header>
         <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Change password</h1>

@@ -56,6 +56,7 @@ export default function GeneralEventsPage() {
         );
       })
       .filter((e) => (fmt === "All" ? true : norm(e.format) === fmtKey))
+      .filter((e) => e.status !== "ENDED")
       .map(apiToCard);
   }, [apiEvents, fmt]);
 

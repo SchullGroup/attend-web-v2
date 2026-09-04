@@ -21,10 +21,12 @@ import {
   BarChart2,
   FileBox,
   DownloadCloud,
+  CalendarDays,
 } from "lucide-react";
 import { useGetEvent, useGetStream, useGetCountdown, useGetQuorum, useGetActivePoll, useRespondToPoll, useGetPressKit, useGuestEventView, useGuestResolutions, useGuestQuestions, useGuestSubmitQuestion, useGuestUpvoteQuestion, useGuestPolls, useGuestRespondToPoll, useGuestProxyVote, useGuestVote } from "@/api/events/hooks";
 import { useGetMe } from "@/api/auth/hooks";
 import { ZoomStage } from "@/components/attend/ZoomStage";
+import { AgendaPanel } from "@/components/attend/AgendaPanel";
 import { parseZoomUrl } from "@/lib/zoom";
 import {
   useGetResolutions,
@@ -37,14 +39,14 @@ import { useQaSocket } from "@/api/agm/qa-socket";
 import { Button } from "@/components/ui/Button";
 import { cn, toEmbedUrl, fileDisplayName } from "@/lib/utils";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { Resolution } from "@/types";
+import { Resolution, type AgendaItemDetail, type SpeakerItem } from "@/types";
 import { useSession } from "@/hooks/useSession";
 import { GUEST_TOKEN_KEY, getGuestName } from "@/lib/guest-session";
 import { NomineeBallot, CandidateTally } from "@/components/attend/NomineeBallot";
 import { SourceBreakdown } from "@/components/attend/SourceBreakdown";
 import Cookies from "js-cookie";
 
-type Tab = "qa" | "ballot" | "poll" | "presskit";
+type Tab = "qa" | "ballot" | "poll" | "presskit" | "agenda";
 type VoteChoice = "FOR" | "AGAINST" | "ABSTAIN";
 
 function fmtCountdown(total: number): string {
@@ -354,6 +356,14 @@ export function LiveRoom({
     myUpvote: !!x.myUpvote,
     status: (x.status || "PENDING").toUpperCase(),
   }));
+
+  // Guests and proxies land straight in this room and never see the event detail page,
+  // so the running order has to be reachable from here too. The guest /view payload is
+  // typed as EventDetail but is known to diverge (it sends eventTitle, not title), so
+  // read defensively and only offer the tab when data actually arrived.
+  const agendaItems = (event as { agenda?: AgendaItemDetail[] } | undefined)?.agenda ?? [];
+  const speakerItems = (event as { speakers?: SpeakerItem[] } | undefined)?.speakers ?? [];
+  const hasAgenda = agendaItems.length > 0 || speakerItems.length > 0;
 
   const [tab, setTab] = useState<Tab>(showBallot ? "ballot" : "qa");
   const [pollChoice, setPollChoice] = useState<string | null>(null);
@@ -764,6 +774,7 @@ export function LiveRoom({
             <div className="flex border-b border-foreground/[0.06]">
               {[
                 { id: "qa" as Tab, label: "Q&A", icon: MessageSquare },
+                ...(hasAgenda ? [{ id: "agenda" as Tab, label: "Agenda", icon: CalendarDays }] : []),
                 ...(isLaunch ? [{ id: "presskit" as Tab, label: "Press Kit", icon: FileBox }] : []),
                 ...(showBallot ? [{ id: "ballot" as Tab, label: "Ballot", icon: Vote }] : []),
                 ...(!showBallot ? [{ id: "poll" as Tab, label: "Polls", icon: BarChart2 }] : []),
@@ -782,6 +793,12 @@ export function LiveRoom({
             </div>
 
             <div className="max-h-105 overflow-y-auto p-4">
+              {tab === "agenda" && (
+                <div className="flex flex-col gap-3">
+                  <AgendaPanel speakers={speakerItems} agenda={agendaItems} />
+                </div>
+              )}
+
               {tab === "qa" && (
                 <div className="flex flex-col gap-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">

@@ -2,7 +2,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Trash2, ChevronDown, Check, Video, Code2, Globe } from "lucide-react";
+import { ArrowLeft, Trash2, ChevronDown, BadgeCheck, Plus, Video, Code2, Globe } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FilePickField } from "@/components/attend/FilePickField";
@@ -13,11 +13,12 @@ import { useGetChallenge } from "@/api/hackathon/hooks";
 import { useGetMe } from "@/api/auth/hooks";
 import { InnovationApplicationRequest } from "@/types/innovation";
 import { cn } from "@/lib/utils";
+import { useGoBack } from "@/hooks/useGoBack";
 
-// Laid out to Figma's apply flow: a right-side drawer over a scrim, two steps with a
-// thin progress bar, a sticky footer button, invite-style member rows, and a success
-// modal. OUR logic is grafted on: the "already on a team" gate, the 3,000-character
-// limit + counters, and the one-time "just submitted" banner handoff.
+// Laid out to Figma's apply flow: the shared right-anchored `Dialog` sheet (side="right"
+// with a pinned `footer`), two steps with a thin progress bar, invite-style member rows,
+// and a success modal. OUR logic is grafted on: the "already on a team" gate, the
+// 3,000-character limit + counters, and the one-time "just submitted" banner handoff.
 
 type Member = { id: string; name: string; role: string; email?: string; isLeader?: boolean };
 
@@ -30,6 +31,7 @@ function ApplyPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const challengeId = searchParams.get("challengeId") ?? "";
+  const goBackToChallenge = useGoBack(`/hackathon/${challengeId}`);
 
   const { data: cfgResp, isLoading: cfgLoading } = useApplicationConfig(challengeId);
   const config = cfgResp?.data;
@@ -237,7 +239,7 @@ function ApplyPageInner() {
   return (
     <Dialog
       open
-      onClose={() => router.push(`/hackathon/${challengeId}`)}
+      onClose={goBackToChallenge}
       side="right"
       footer={
         step === 0 ? (
@@ -255,7 +257,7 @@ function ApplyPageInner() {
           <div className="flex items-center justify-between">
             <button
               type="button"
-              onClick={() => (step === 0 ? router.push(`/hackathon/${challengeId}`) : setStep(0))}
+              onClick={() => (step === 0 ? goBackToChallenge() : setStep(0))}
               aria-label="Back"
               className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground/10 text-foreground/70 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
             >
@@ -419,7 +421,7 @@ function ApplyPageInner() {
           {step === 1 && (
             <div className="mt-5 flex flex-col gap-3">
               {leader && (
-                <div className="rounded-xl bg-white p-4">
+                <div className="rounded-xl bg-foreground/[0.04] p-4">
                   <p className="text-sm font-medium text-foreground">
                     {leader.name || "You"} <span className="font-normal text-foreground/40">(You)</span>
                   </p>
@@ -431,7 +433,7 @@ function ApplyPageInner() {
               )}
 
               {otherMembers.map((m) => (
-                <div key={m.id} className="flex items-center justify-between gap-3 rounded-xl bg-white p-4">
+                <div key={m.id} className="flex items-center justify-between gap-3 rounded-xl bg-foreground/[0.04] p-4">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-foreground">{m.name}</p>
                     <p className="truncate text-xs text-foreground/50">
@@ -451,7 +453,7 @@ function ApplyPageInner() {
               ))}
 
               {members.length < teamSize.max && (
-                <div className="rounded-xl bg-white p-4">
+                <div className="rounded-xl border border-foreground/[0.06] p-4">
                   <button
                     type="button"
                     onClick={() => setMemberDraftOpen((v) => !v)}
@@ -492,7 +494,7 @@ function ApplyPageInner() {
                 disabled={!memberDraft.name.trim() || !memberDraft.role.trim() || !memberDraft.email.trim()}
                 className="flex h-[50px] w-full items-center justify-center gap-2 rounded-[10px] bg-foreground/[0.04] text-sm font-medium text-foreground transition-colors hover:bg-foreground/[0.08] disabled:opacity-50"
               >
-                + Invite members
+                <Plus className="h-4 w-4" /> Invite members
               </button>
 
               <p className="text-xs text-foreground/50">
@@ -505,9 +507,9 @@ function ApplyPageInner() {
       {justSubmitted && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-xl">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary">
-              <Check className="h-8 w-8 text-white" strokeWidth={3} />
-            </div>
+            {/* fill-emerald-500, not fill-primary — --primary is a near-black navy in
+                this app, not green; the app's other success states use emerald. */}
+            <BadgeCheck className="mx-auto h-16 w-16 fill-emerald-500 text-white" strokeWidth={1.75} />
             <h2 className="mt-5 text-xl font-medium tracking-[-0.4px] text-foreground">Application Submitted</h2>
             <p className="mt-2 text-sm text-foreground/60">
               Your application has been received. We&apos;ll notify you once judging begins.
@@ -529,11 +531,12 @@ function Gate({
   body: string;
   action?: { label: string; href: string };
 }) {
+  const goBack = useGoBack("/hackathon");
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/hackathon" className="inline-flex w-fit items-center gap-1 text-sm text-foreground/60 hover:text-foreground">
+      <button onClick={goBack} className="inline-flex w-fit items-center gap-1 text-sm text-foreground/60 hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> Back to Innovation
-      </Link>
+      </button>
       <div className="mx-auto w-full max-w-md rounded-xl border border-foreground/[0.06] bg-white p-8 text-center shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
         <h1 className="text-xl font-medium text-foreground">{title}</h1>
         <p className="mt-2 text-sm text-foreground/60">{body}</p>

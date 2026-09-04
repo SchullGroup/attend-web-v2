@@ -11,6 +11,7 @@ import { ChallengeDetailData } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { cn, formatDate } from "@/lib/utils";
+import { useGoBack } from "@/hooks/useGoBack";
 
 // Laid out to Figma's challenge-detail frame: a purely decorative banner (no text or
 // controls inside it), the title/meta on the page beneath it, Overview | Prizes tabs,
@@ -39,6 +40,7 @@ export default function HackathonDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const goBack = useGoBack("/hackathon");
   const [tab, setTab] = useState<TabKey>("overview");
   // Figma reveals resources as a panel beside the brief on this same page, rather
   // than navigating to /hackathon/resources (that route stays for direct links).
@@ -106,9 +108,9 @@ export default function HackathonDetailPage({
   if (!challenge) {
     return (
       <div className="flex flex-col gap-6">
-        <Link href="/hackathon" className="inline-flex w-fit items-center gap-1 text-sm text-foreground/60 hover:text-foreground">
+        <button onClick={goBack} className="inline-flex w-fit items-center gap-1 text-sm text-foreground/60 hover:text-foreground">
           <ArrowLeft className="h-4 w-4" /> Back to Innovation
-        </Link>
+        </button>
         <div className="rounded-xl border border-foreground/[0.06] bg-white p-10 text-center text-sm text-foreground/50">
           This challenge could not be loaded right now. Please try again shortly.
         </div>

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-import Link from "next/link";
 import { ArrowLeft, ChevronDown, Mail, MessageCircle } from "lucide-react";
+import { useGoBack } from "@/hooks/useGoBack";
 import { cn } from "@/lib/utils";
 
 const FAQ = [
@@ -13,16 +13,17 @@ const FAQ = [
 ];
 
 export default function HelpPage() {
+  const goBack = useGoBack("/profile");
   const [open, setOpen] = useState<number | null>(0);
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href="/profile"
+      <button
+        onClick={goBack}
         className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Back
-      </Link>
+      </button>
 
       <header>
         <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Help &amp; FAQ</h1>
