@@ -17,6 +17,8 @@ import { useGetResolutions, useSubmitQuestion, useCastVote } from "@/api/agm/hoo
 import { useGetMyTeam } from "@/api/hackathon/hooks";
 import { PreVoteSheet } from "@/components/attend/PreVoteSheet";
 import { ProxySheet } from "@/components/attend/ProxySheet";
+import { VerifyIdentitySheet } from "@/components/attend/VerifyIdentitySheet";
+import { useGetKycStatus } from "@/api/kyc/hooks";
 import { VoteButtons, type VoteChoice } from "@/components/attend/VoteButtons";
 import { AgendaPanel, PanelCard } from "@/components/attend/AgendaPanel";
 import type { AgendaItemDetail, Resolution, SpeakerItem } from "@/types";
@@ -30,7 +32,6 @@ import {
   parseEventStart,
   formatWindowTime,
 } from "@/lib/rsvp";
-import { useUserStore } from "@/lib/user-store";
 
 // Laid out to Figma's event-detail frame; OUR logic is preserved wholesale (every hook,
 // RSVP/waitlist/cancel handler, KYC gate, module switching, resolutions, press-kit, and
@@ -69,7 +70,6 @@ const MODULE_COLOR: Record<string, string> = {
 export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const { kycStatus } = useUserStore();
 
   const { data, isLoading, error } = useGetEvent(id);
   const event = data?.data;
@@ -79,6 +79,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   // dimmed behind it), rather than navigating away to /agm/pre-vote.
   const [preVoteOpen, setPreVoteOpen] = useState(false);
   const [proxyOpen, setProxyOpen] = useState(false);
+  // Identity verification is a modal over this page now, not a trip to the /bvn wizard.
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const [verifyDismissed, setVerifyDismissed] = useState(false);
   // Figma: this page IS the live page — "Join Live Event" swaps the hero for the stream
   // rather than navigating anywhere.
   const [joinedLive, setJoinedLive] = useState(false);
@@ -113,6 +116,42 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const saved = !!savedResp?.data?.events?.some((e) => e.id === id);
 
   const mod = event ? moduleOf(event.eventType) : "GENERAL";
+
+  // Figma dev note on the LIVE frame: an unverified user landing on an AGM that is already
+  // in session gets the verification modal straight away, rather than having to find the
+  // banner first. Dismissing it must not immediately re-open it, hence verifyDismissed.
+  //
+  // The decision reads the KYC query rather than the store's `kycStatus`, which starts at
+  // "none" from localStorage until NavShell syncs it — acting on that would flash the modal
+  // at users who are already verified. Waiting for the response means it only ever opens on
+  // a real answer. It deliberately only ever opens: once open, completing verification
+  // must not yank the panel away before the user has seen the confirmation stage.
+  const agmInSession = mod === "AGM" && event?.status === "LIVE";
+  const { data: kycResp } = useGetKycStatus(mod === "AGM");
+  const kycFull = kycResp?.data?.kycStatus === "FULL_KYC";
+
+  // No unverified user gets into an AGM — not the live room, not an RSVP. Every path into
+  // the meeting runs through requireKyc() below, and /agm/* keeps its own layout gate as the
+  // backstop for anyone arriving by direct link.
+  //
+  // Note the two conditions differ on purpose. This one fails CLOSED (an unresolved query
+  // reads as "not verified", so a click can never slip through), while the auto-open below
+  // waits for a real response — opening on a not-yet-loaded status would flash the modal at
+  // users who are already verified.
+  const agmNeedsKyc = mod === "AGM" && !kycFull;
+  function requireKyc(action: () => void) {
+    if (agmNeedsKyc) {
+      setVerifyOpen(true);
+      return;
+    }
+    action();
+  }
+
+  const agmLiveUnverified = agmInSession && !!kycResp && !kycFull;
+  useEffect(() => {
+    if (agmLiveUnverified && !verifyDismissed) setVerifyOpen(true);
+  }, [agmLiveUnverified, verifyDismissed]);
+
   const { data: pressKitResp } = useGetPressKit(id, undefined, mod === "LAUNCH");
   const pressKit = pressKitResp?.data;
 
@@ -173,6 +212,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   function handleRsvp() {
+    // An AGM RSVP *is* the attendance confirmation the verification modal talks about
+    // ("your AGM attendance is confirmed"), so it can't be granted to an unverified user.
+    if (agmNeedsKyc) {
+      setVerifyOpen(true);
+      return;
+    }
     setRsvpError(null);
     rsvp(undefined, {
       onError: (err: any) =>
@@ -248,7 +293,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
   function joinLive() {
     if (agmLive) {
-      router.push(`/agm/live?eventId=${id}`);
+      requireKyc(() => router.push(`/agm/live?eventId=${id}`));
       return;
     }
     if (zoomStream) {
@@ -474,13 +519,19 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           )}
 
           <h2 className="text-base font-medium tracking-[-0.32px] text-foreground">AGM Actions</h2>
-          {kycStatus !== "full" ? (
+          {!kycFull ? (
             <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5">
               <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
               <div className="flex-1">
                 <p className="text-sm text-amber-800">Identity verification required to access AGM actions</p>
               </div>
-              <Link href="/bvn" className="shrink-0 text-xs font-semibold text-amber-600 hover:underline">Verify</Link>
+              <button
+                type="button"
+                onClick={() => setVerifyOpen(true)}
+                className="shrink-0 text-xs font-semibold text-amber-600 hover:underline"
+              >
+                Verify
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -709,7 +760,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             resolutions={resolutions}
             isLive={isLive}
             canJoinLive={isLive && hasRsvped && !missingStreamLink}
-            onJoinLive={() => router.push(`/agm/live?eventId=${id}`)}
+            onJoinLive={() => requireKyc(() => router.push(`/agm/live?eventId=${id}`))}
           />
         )}
 
@@ -781,7 +832,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               <Button
                 className="flex-1"
                 style={{ backgroundColor: color }}
-                onClick={() => setPreVoteOpen(true)}
+                onClick={() => requireKyc(() => setPreVoteOpen(true))}
               >
                 Pre-Vote
               </Button>
@@ -835,6 +886,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       )}
       {proxyOpen && (
         <ProxySheet eventId={id} open onClose={() => setProxyOpen(false)} />
+      )}
+      {verifyOpen && (
+        <VerifyIdentitySheet
+          open
+          live={isLive}
+          onClose={() => {
+            setVerifyOpen(false);
+            setVerifyDismissed(true);
+          }}
+        />
       )}
     </div>
   );

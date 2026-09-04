@@ -693,6 +693,70 @@ the Zoom live-room wrappers (`agm/live`, `events/live` shells).
   - Dots are auto-only (not clickable), matching their original decorative-only markup; say the
     word if they should become clickable slide controls.
 
+- **2026-09-04 (8)** — AGM identity verification rebuilt to its four new frames as modals, and
+  the old full-page KYC wizard **retired into the same component**. User's call, verbatim:
+  *"lets not have 2 kyc flows, just one. the new modal design."*
+  - New `components/attend/VerifyIdentitySheet.tsx` — three stages in one component:
+    **BVN** (white) → **Face Registration** (dark panel, tap-to-capture per the frame) →
+    **You're Confirmed!** (green `BadgeCheck`, `fill-emerald-500` — *not* `fill-primary`, which
+    is the near-black navy that caused the 2026-09-03 (13) bug).
+  - **API calls are unchanged** — step1 (BVN + DOB) → step2 skip → `bvn-selfie/v2` match →
+    step3, with the same 503 / "already verified" / `data.valid`-is-the-real-result handling
+    the old `/liveness` page had. The BVN for the selfie re-check is still read from
+    `GET /participant/kyc`, never persisted client-side (NDPA).
+  - **DOB kept** per the user's instruction to carry over the info we already collect. The
+    frame shows only a BVN field, but step 1 verifies the BVN *against* a date of birth —
+    dropping it would break the lookup the modal exists to do. NDPA/CBN consent checkbox +
+    disclosure carried over too (it gates submit, as before).
+  - **CHN left out** of the UI per the user's choice, and settled with the existing
+    `step2/skip` endpoint behind the scenes so KYC can still reach "complete".
+  - **Entry points:** the AGM detail page's amber banner "Verify" now opens the sheet in place
+    instead of routing to `/bvn`. Per the LIVE frame's dev note, it also **auto-opens** for an
+    unverified user landing on an AGM already in session, with the LIVE NOW badge and "join
+    immediately" copy; dismissing sets a flag so it doesn't immediately re-open.
+  - **Bug caught before shipping:** the auto-open first read `kycStatus` from the user store,
+    which starts at "none" from localStorage until NavShell syncs it — that would have flashed
+    the modal at already-verified users and then left it stuck open. It now waits on the KYC
+    query itself and only ever opens, never force-closes (closing on "verified" would yank the
+    panel away before the user sees the confirmation stage).
+  - `/intro`, `/bvn`, `/chn`, `/liveness` are now **thin wrappers** (`VerifyIdentityRoute`)
+    around the same sheet, so Profile / Home / the onboarding checklist / the AGM gate all show
+    the new design and **no URL breaks**. `(kyc)/layout.tsx` lost its 3-step progress bubbles
+    (the sheet carries its own stage progression); `/success` keeps the card and is untouched —
+    it still covers the rejected / pending-review states the modal doesn't.
+  - **Now-orphaned, deliberately left in place:** `resumePath`, `completedStepCount`,
+    `KYC_STEP_PATHS`, `getStoredSelfie`, `setStoredSelfie` in `lib/kyc-progress.ts` have no
+    callers any more (the sheet resumes by reading `steps.step1.completed` itself).
+    `purgeLegacyStoredBvn` and `clearKycProgress` are still live. Safe to delete the five dead
+    ones; not done in the same pass as the refactor.
+- **2026-09-04 (9)** — *"we should still make it that a user cant join an AGM without Kyc."*
+  Every path into an AGM now runs through a KYC check that opens the sheet instead of
+  proceeding. On `events/[id]`: `requireKyc()` wraps **Join Live Event** (hero play button,
+  primary CTA, and the side panel's own join), **Pre-Vote** (CTA button — it was ungated, the
+  action tile was already behind the banner), and **RSVP** — an AGM RSVP *is* the attendance
+  confirmation the modal promises ("your AGM attendance is confirmed"), so it can't be handed
+  to an unverified user.
+  - The gate **fails closed**: an unresolved KYC query reads as "not verified", so a click can
+    never slip through while the status is still loading. That's deliberately the opposite of
+    the auto-open in (8), which waits for a real response so it can't flash at verified users.
+    Both conditions now come from the KYC query rather than the localStorage-seeded store, and
+    the AGM Actions banner reads the same `kycFull` so the banner and the gate can't disagree.
+  - `agm/layout.tsx` stays the backstop for direct links (`/agm`, `/agm/live`, pre-vote, proxy,
+    receipt, minutes) — including the Home page's live cards, which link straight to
+    `/agm/live` and never touch the detail page. Its "Start verification" now opens the sheet
+    in place instead of routing to `/intro`, and it reads the query *in addition to* the store
+    so a resolved FULL_KYC unblocks immediately (it can only ever unblock — still fail-closed).
+  - **Checked, no hole:** `/qr-checkin` only *displays* the user's ticket QR — staff scanning
+    it is what records attendance — and the ticket comes from `useGetMyTicket`, which needs an
+    RSVP that is now itself gated. Both links to it already sat behind the KYC banner.
+  - ⚠️ **This is all client-side.** It stops the UI handing out AGM access, not a crafted API
+    call. Whether the backend independently rejects RSVP/stream/vote for a non-FULL_KYC
+    participant is **unverified** — I couldn't test it without an authenticated session. If it
+    doesn't, that's the real fix and this is only the front of it.
+
+  - **Not changed:** nothing else — `agm/layout.tsx`'s link-to-`/intro` complaint from (8) is
+    resolved by this entry.
+
 ## Deltas from the new frames (flag for review)
 
 5. **"Pending Approval" state NOT built** — there is no backend field for it.
