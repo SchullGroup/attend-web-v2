@@ -13,13 +13,23 @@ import { PanelShell, PanelEmpty, PanelSkeleton } from "./PanelShell";
 // "MEETING_MINUTES" or "certificate_of_attendance" still lands in the right tab.
 const TABS = ["All", "Notices", "Agendas", "Minutes", "Certificates"] as const;
 type Tab = (typeof TABS)[number];
+type Category = Exclude<Tab, "All">;
 
-const TAB_MATCH: Record<Exclude<Tab, "All">, string> = {
-  Notices: "notice",
-  Agendas: "agenda",
-  Minutes: "minute",
-  Certificates: "certificat",
-};
+// Order matters: the first keyword that matches wins, so a documentType carrying more than one
+// (e.g. "meeting_notice_minutes") lands in exactly one tab. Filtering each tab independently
+// with .includes() put that same document under both Notices and Minutes, where it read as two
+// separate documents. Most specific first.
+const CATEGORY_RULES: { category: Category; keyword: string }[] = [
+  { category: "Certificates", keyword: "certificat" },
+  { category: "Minutes", keyword: "minute" },
+  { category: "Agendas", keyword: "agenda" },
+  { category: "Notices", keyword: "notice" },
+];
+
+function resolveCategory(documentType?: string): Category | null {
+  const t = (documentType || "").toLowerCase();
+  return CATEGORY_RULES.find((r) => t.includes(r.keyword))?.category ?? null;
+}
 
 /**
  * The name to show for a document.
@@ -42,10 +52,7 @@ export function DocumentVaultPanel({ onBack }: { onBack: () => void }) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const all = data?.data?.documents ?? [];
-  const docs =
-    tab === "All"
-      ? all
-      : all.filter((d) => (d.documentType || "").toLowerCase().includes(TAB_MATCH[tab]));
+  const docs = tab === "All" ? all : all.filter((d) => resolveCategory(d.documentType) === tab);
 
   // Unchanged from the old /profile/documents page: goes through /documents/{id}/download so
   // the backend's counter actually increments — the row's own downloadUrl/fileUrl is a bare
@@ -115,7 +122,10 @@ export function DocumentVaultPanel({ onBack }: { onBack: () => void }) {
                 <button
                   type="button"
                   onClick={() => hasFile && handleDownload(d.id, title, fallbackUrl)}
-                  disabled={!hasFile || downloadingId === d.id}
+                  // Every row is disabled while any download runs, not just the active one.
+                  // Otherwise the other buttons stayed clickable but hit the re-entrancy guard
+                  // and did nothing at all — no spinner, no error, no feedback.
+                  disabled={!hasFile || downloadingId !== null}
                   aria-label={hasFile ? `Download ${title}` : "Download unavailable"}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-emerald-600 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:text-foreground/25 disabled:hover:bg-transparent"
                 >

@@ -102,8 +102,17 @@ export function VerifyIdentitySheet({
 
   // A BVN already on file has nothing to re-enter — open on the face step rather than asking
   // for a number the backend has already accepted. NIN has no backend state to resume from.
+  //
+  // This effect depends on step1Done, so it re-runs when the KYC query resolves. If that lands
+  // while the user is already typing (the query was still in flight when the sheet opened),
+  // jumping the stage would throw their input away — so once they've started, leave them alone.
+  const userStartedTyping = useRef(false);
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      userStartedTyping.current = false;
+      return;
+    }
+    if (userStartedTyping.current) return;
     setStage(!isNin && step1Done ? "face" : "id");
     setErrorMsg(null);
   }, [open, isNin, step1Done]);
@@ -287,8 +296,12 @@ export function VerifyIdentitySheet({
   }
 
   function finish() {
-    close();
+    // onVerified BEFORE close, deliberately. The host's onClose treats a close as a dismissal
+    // and discards whatever action the gate was holding; running it the other way round would
+    // clear that action before this callback could use it, which is exactly the bug where
+    // verifying an AGM never actually submitted the RSVP it was gating.
     onVerified?.();
+    close();
   }
 
   // ── Stage 3: confirmed ──────────────────────────────────────────────────────
@@ -441,7 +454,10 @@ export function VerifyIdentitySheet({
             placeholder={idLabel}
             leftIcon={<CreditCard className="h-4 w-4" />}
             value={idNumber}
-            onChange={(e) => setIdNumber(e.target.value.replace(/\D/g, "").slice(0, 11))}
+            onChange={(e) => {
+              userStartedTyping.current = true;
+              setIdNumber(e.target.value.replace(/\D/g, "").slice(0, 11));
+            }}
           />
           <p className="mt-1.5 text-xs text-foreground/60">
             Dial{" "}
@@ -460,7 +476,10 @@ export function VerifyIdentitySheet({
             placeholder="DD/MM/YYYY"
             leftIcon={<Calendar className="h-4 w-4" />}
             value={dob}
-            onChange={(e) => handleDobChange(e.target.value)}
+            onChange={(e) => {
+              userStartedTyping.current = true;
+              handleDobChange(e.target.value);
+            }}
           />
         )}
 

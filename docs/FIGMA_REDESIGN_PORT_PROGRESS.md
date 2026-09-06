@@ -894,6 +894,57 @@ the Zoom live-room wrappers (`agm/live`, `events/live` shells).
     `organizerLogo` directly, but neither module has a registrar — the organiser there *is* the
     company, so the value is already correct.
 
+- **2026-09-06 (14)** — Post-redesign audit (three parallel read-only reviews of gating, the
+  Settings rebuild, and routing). Routing came back **clean** — every `?section=` link resolves,
+  the KYC URLs all still work through `VerifyIdentityRoute`, and a repo-wide grep found zero
+  references to the deleted profile sub-routes. Seven real defects found and fixed:
+  1. ⚠️ **Verifying never ran the action it gated** (found independently by two reviews).
+     `events/[id]/page.tsx` mounted the BVN sheet with **no `onVerified`**, and `requireKyc()`
+     discarded the callback it was handed. A user could complete BVN + selfie, be told *"your
+     AGM attendance is confirmed"*, and **no RSVP was ever sent** — same for Join Live and
+     Pre-Vote. Fixed with a `pendingKycAction` ref that `requireKyc()` stores and the sheet's
+     `onVerified` runs; dismissing clears it so it can't fire later against an unverified account.
+     - This also required reordering `VerifyIdentitySheet.finish()` to call `onVerified` **before**
+       `close()`. The old order fired `onClose` first, which (now) clears the pending action —
+       my first cut of the fix was silently broken by that until the ordering changed.
+  2. ⚠️ **Stale localStorage bypassed the `/agm` gate.** `agm/layout.tsx` accepted
+     `kycStatus === "full"` from the user store, which seeds **synchronously from
+     `localStorage["attend:demo:kyc"]`** and which `useLogout` never cleared. User A verifies and
+     logs out → User B signs in on the same browser → waved into AGM content on first render,
+     before B's own KYC was ever checked. Same hole kept access open after a KYC revocation. The
+     comment there claimed "fail-closed"; it wasn't. Now gates purely on the layout's own query,
+     returning `null` while it loads (which is what prevents the flash the store value was
+     papering over). `useLogout` also now clears both `attend:demo:*` keys as defence in depth.
+  3. **Notification toggles clobbered each other.** `toggle()` snapshotted the whole `Prefs`
+     object, so a failed save reverted to a state captured *before* other rows were touched —
+     flip two rows quickly and a failure on the first silently undid the second, even though the
+     second had saved. Now reverts only its own key, builds the payload from the freshest state,
+     and tracks in-flight rows in a `Set` instead of a single key.
+  4. **Document Vault: duplicates + a dead click.** Independent per-tab `.includes()` put a
+     `documentType` like `"meeting_notice_minutes"` under both Notices *and* Minutes. Replaced
+     with `resolveCategory()` — first matching keyword wins, most specific first — so a document
+     lands in exactly one tab. Download buttons on other rows also stayed enabled during a
+     download but hit the re-entrancy guard and did nothing; all rows now disable while any
+     download runs.
+  5. **My Profile: unsaved avatar looked saved.** The Cloudinary upload succeeds independently of
+     Save, so a failed save left the new photo on screen — disagreeing with the avatar in the
+     left pane, which reads the shared cache. Now reverts on error. The form also re-seeded on
+     every `me` change, so the post-save invalidation could overwrite a fresh edit mid-typing;
+     it now seeds once per mount.
+  6. **Verify sheet wiped typed input.** The stage effect depends on `step1Done`; a late-resolving
+     KYC query jumped an already-typing user from the BVN stage to the face stage. Now skipped
+     once the user has started typing.
+  7. **Dead code removed** — `KYC_STEP_PATHS`, `resumePath()`, `completedStepCount()`,
+     `KycStepPath` in `lib/kyc-progress.ts`, orphaned when the wizard became a sheet.
+  - **Flagged, not changed:** an ended event that is `registered: true` but `hasRsvped: false`
+    (on the register, never actually RSVP'd) is invisible in every My Events tab. Per the type's
+    own docs `hasRsvped` is the authority on real attendance, so excluding it from "Attended" is
+    right, and its absence from "All" follows the hide-ended-events rule. Say the word if such
+    events should count as attended.
+  - **Verification:** `tsc --noEmit` clean, dev server compiles. **None of this was exercised in
+    a browser** — `/agm` and `/profile` both redirect to login without a session, so the RSVP
+    resume, the gate's loading beat, and the toggle race all still need a real signed-in pass.
+
 ## Deltas from the new frames (flag for review)
 
 5. **"Pending Approval" state NOT built** — there is no backend field for it.

@@ -29,9 +29,16 @@ export function MyProfilePanel({ onBack }: { onBack: () => void }) {
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
 
-  // Seed once the profile lands (and re-seed if it changes underneath, e.g. after a save).
+  // Seed the form once, when the profile first arrives — not on every `me` change.
+  //
+  // Re-seeding on each change looked harmless but raced the user: a successful save invalidates
+  // `me`, and if they started a fresh edit before that refetch landed, the effect fired again
+  // and overwrote what they had just typed. Local state is the source of truth for an
+  // in-progress edit; a background refetch has no business touching it.
+  const seeded = useRef(false);
   useEffect(() => {
-    if (!me) return;
+    if (!me || seeded.current) return;
+    seeded.current = true;
     setFullName(me.fullName || "");
     setPhone(me.phoneNumber || "");
     setAvatarUrl(me.avatarUrl ?? null);
@@ -71,8 +78,14 @@ export function MyProfilePanel({ onBack }: { onBack: () => void }) {
       },
       {
         onSuccess: () => setStatus({ tone: "ok", text: "Your profile has been updated." }),
-        onError: () =>
-          setStatus({ tone: "err", text: "Couldn't save your changes. Please try again later." }),
+        onError: () => {
+          // Put the picture back to what's actually stored. The upload succeeds on its own
+          // (it's a separate Cloudinary call), so without this the panel kept showing a new
+          // photo that was never persisted — and disagreed with the avatar in the left pane,
+          // which reads from the shared profile cache.
+          setAvatarUrl(me?.avatarUrl ?? null);
+          setStatus({ tone: "err", text: "Couldn't save your changes. Please try again later." });
+        },
       }
     );
   }

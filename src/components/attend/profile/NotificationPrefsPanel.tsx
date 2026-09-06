@@ -47,8 +47,18 @@ export function NotificationPrefsPanel({ onBack }: { onBack: () => void }) {
     document: false,
     email: false,
   });
-  const [saving, setSaving] = useState<keyof Prefs | null>(null);
+  // A Set, not a single key: two rows can be in flight at once, and tracking only one meant
+  // the second toggle re-enabled the first row's switch while its save was still running.
+  const [saving, setSaving] = useState<ReadonlySet<keyof Prefs>>(new Set());
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const markSaving = (key: keyof Prefs, active: boolean) =>
+    setSaving((s) => {
+      const next = new Set(s);
+      if (active) next.add(key);
+      else next.delete(key);
+      return next;
+    });
 
   useEffect(() => {
     const p = prefResp?.data;
@@ -63,31 +73,43 @@ export function NotificationPrefsPanel({ onBack }: { onBack: () => void }) {
   }, [prefResp]);
 
   function toggle(key: keyof Prefs, value: boolean) {
-    const next = { ...prefs, [key]: value };
-    const previous = prefs;
-    setPrefs(next);
-    setErrorMsg(null);
-    setSaving(key);
+    // Only this row's own previous value is remembered. Snapshotting the whole object meant a
+    // failed save reverted to a state captured before *other* rows were toggled, wiping changes
+    // that had already saved successfully — flip two rows quickly and a failure on the first
+    // silently undid the second.
+    const previousValue = prefs[key];
 
-    const anyInApp = next.rsvp || next.reminder || next.document;
+    // Build the payload from the freshest state rather than a value captured at call time, so
+    // two overlapping toggles don't send each other's stale fields.
+    let payloadSource: Prefs = prefs;
+    setPrefs((p) => {
+      payloadSource = { ...p, [key]: value };
+      return payloadSource;
+    });
+
+    setErrorMsg(null);
+    markSaving(key, true);
+
+    const anyInApp = payloadSource.rsvp || payloadSource.reminder || payloadSource.document;
 
     savePreferences(
       {
-        inAppRsvpConfirmation: next.rsvp,
-        inAppEventReminder: next.reminder,
-        inAppNewDocument: next.document,
+        inAppRsvpConfirmation: payloadSource.rsvp,
+        inAppEventReminder: payloadSource.reminder,
+        inAppNewDocument: payloadSource.document,
         // Master switch — the three email flags move together.
-        emailRsvpConfirmation: next.email,
-        emailEventReminder: next.email,
-        emailNewDocument: next.email,
+        emailRsvpConfirmation: payloadSource.email,
+        emailEventReminder: payloadSource.email,
+        emailNewDocument: payloadSource.email,
         pushEnabled: anyInApp,
       },
       {
-        onSuccess: () => setSaving(null),
+        onSuccess: () => markSaving(key, false),
         onError: (err: any) => {
-          // Revert — leaving the switch flipped would claim a setting that wasn't saved.
-          setPrefs(previous);
-          setSaving(null);
+          // Revert just this key — leaving the switch flipped would claim a setting that
+          // wasn't saved, but touching any other key would undo a save that did succeed.
+          setPrefs((p) => ({ ...p, [key]: previousValue }));
+          markSaving(key, false);
           const code = err?.response?.data?.code;
           setErrorMsg(
             code === "UNAUTHORIZED"
@@ -141,7 +163,7 @@ export function NotificationPrefsPanel({ onBack }: { onBack: () => void }) {
               </div>
               <Switch
                 checked={prefs[key]}
-                disabled={saving === key}
+                disabled={saving.has(key)}
                 onChange={() => toggle(key, !prefs[key])}
                 label={label}
               />
