@@ -82,7 +82,7 @@ function MinutesPicker({ onSelect }: { onSelect: (id: string) => void }) {
               key={e.id}
               type="button"
               onClick={() => onSelect(e.id)}
-              className="flex items-center gap-2.5 rounded-xl border border-foreground/[0.06] bg-white p-1.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+              className="flex items-center gap-2.5 rounded-xl border border-foreground/6 bg-white p-1.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
             >
               <span className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-[10px] bg-primary/10">
                 <Building2 className="h-6 w-6 text-primary" strokeWidth={1.75} />

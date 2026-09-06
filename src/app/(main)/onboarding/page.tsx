@@ -67,7 +67,7 @@ export default function OnboardingPage() {
           <Link
             key={title}
             href={href}
-            className="group rounded-xl border border-foreground/[0.06] bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+            className="group rounded-xl border border-foreground/6 bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
           >
             <div
               className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-[10px]"

@@ -15,14 +15,25 @@ import {
 } from "@/api/kyc/hooks";
 import { clearKycProgress } from "@/lib/kyc-progress";
 
-// Figma AGM frames — identity verification as three stacked modals over the page the user
-// is already on, replacing the old full-page /bvn → /chn → /liveness wizard. The API calls
-// underneath are unchanged: step1 (BVN + DOB) → step2 skip → BVN/selfie match → step3.
+// Figma's identity frames — verification as three stacked modals over the page the user is
+// already on, replacing the old full-page /bvn → /chn → /liveness wizard.
 //
-// CHN (step 2) has no field here by design — the frames don't show one and it was always
-// optional. It's settled with the existing skip endpoint so KYC can still reach "complete";
-// users add a CHN later from Profile.
-type Stage = "bvn" | "face" | "done";
+// Two identity types share this component because the frames are the same design twice over;
+// only the first stage differs.
+//
+//   "bvn" — AGM shareholders. Real KYC: step1 (BVN + DOB) → step2 skip → BVN/selfie match →
+//           step3. CHN has no field by design (it was always optional and the frames don't
+//           show one); it's settled with the skip endpoint so KYC can still reach "complete".
+//
+//   "nin" — Innovation / Launch attendees at the RSVP point. There is NO backend for this
+//           yet, so it collects the NIN, plays the same three stages, and resolves locally.
+//           It must never be the reason someone can't RSVP.
+//
+// Neither identity number is persisted on the device. The BVN needed for the selfie re-check
+// is read back from GET /participant/kyc; the NIN lives in component state for the life of
+// the modal and is then gone.
+type Stage = "id" | "face" | "done";
+type Mode = "bvn" | "nin";
 
 // The capture is downscaled before encoding — a modern phone camera is 8-12MP, which is a
 // multi-megabyte base64 string for a match that only needs a few hundred pixels.
@@ -37,25 +48,32 @@ export function VerifyIdentitySheet({
   onClose,
   live = false,
   onVerified,
+  mode = "bvn",
+  contextLabel,
 }: {
   open: boolean;
   onClose: () => void;
-  /** AGM is in session — the frame swaps in a LIVE NOW badge and "join immediately" copy. */
+  /** Event is in session — the frame adds a LIVE NOW badge. */
   live?: boolean;
   onVerified?: () => void;
+  mode?: Mode;
+  /** Fills "confirm your attendance at ___" — e.g. "this product launch". */
+  contextLabel?: string;
 }) {
+  const isNin = mode === "nin";
+  const idLabel = isNin ? "NIN" : "BVN";
+  const where = contextLabel || (isNin ? "this event" : "this year's AGM");
+
   const { data: meData } = useGetMe();
   const currentUser = meData?.data;
 
-  const { data: kycResp } = useGetKycStatus();
+  const { data: kycResp } = useGetKycStatus(!isNin);
   const kyc = kycResp?.data;
   const step1Done = !!kyc?.steps?.step1?.completed;
-  // The BVN for the selfie re-check comes from the record the backend already holds — it is
-  // never persisted on the device (a BVN in localStorage outlives the session on a shared machine).
   const verifiedBvn = kyc?.bvn;
 
-  const [stage, setStage] = useState<Stage>("bvn");
-  const [bvn, setBvn] = useState("");
+  const [stage, setStage] = useState<Stage>("id");
+  const [idNumber, setIdNumber] = useState("");
   const [dob, setDob] = useState("");
   const [hasConsented, setHasConsented] = useState(false);
   const [showDisclosure, setShowDisclosure] = useState(false);
@@ -72,22 +90,23 @@ export function VerifyIdentitySheet({
   const { mutate: bvnSelfieCheck } = useBvnSelfieCheck();
   const { mutate: submitStep3 } = useKycStep3();
 
-  const isBvnValid = /^\d{11}$/.test(bvn);
+  // Both numbers are 11 digits.
+  const isIdValid = /^\d{11}$/.test(idNumber);
   const isDobValid = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/.test(dob);
-  const canSubmitBvn = isBvnValid && isDobValid && hasConsented;
+  const canSubmitId = isNin ? isIdValid : isIdValid && isDobValid && hasConsented;
 
   function stopCamera() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
   }
 
-  // Someone resuming with the BVN already on file has nothing to re-enter — open on the
-  // face step instead of asking for a BVN the backend has already accepted.
+  // A BVN already on file has nothing to re-enter — open on the face step rather than asking
+  // for a number the backend has already accepted. NIN has no backend state to resume from.
   useEffect(() => {
     if (!open) return;
-    setStage(step1Done ? "face" : "bvn");
+    setStage(!isNin && step1Done ? "face" : "id");
     setErrorMsg(null);
-  }, [open, step1Done]);
+  }, [open, isNin, step1Done]);
 
   useEffect(() => stopCamera, []);
   useEffect(() => {
@@ -101,14 +120,21 @@ export function VerifyIdentitySheet({
     else setDob(`${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`);
   }
 
-  function onSubmitBvn(e: React.FormEvent) {
+  function onSubmitId(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmitBvn) return;
+    if (!canSubmitId) return;
     setErrorMsg(null);
+
+    // No NIN endpoint exists yet. Advance rather than inventing a call that would fail and
+    // strand the user short of the RSVP this modal is standing in front of.
+    if (isNin) {
+      setStage("face");
+      return;
+    }
 
     const [day, month, year] = dob.split("/");
     const payload = {
-      bvn,
+      bvn: idNumber,
       dob: `${year}-${month}-${day}`,
       ...(currentUser?.firstName ? { firstName: currentUser.firstName } : {}),
       ...(currentUser?.lastName ? { lastName: currentUser.lastName } : {}),
@@ -119,9 +145,9 @@ export function VerifyIdentitySheet({
     };
 
     submitStep1(payload, {
-      // Step 2 (CHN) is optional and has no field in this flow, but it still has to be
-      // settled or KYC never reaches "complete". A failure here isn't worth blocking on —
-      // the face step is what the user came for.
+      // Step 2 (CHN) is optional and has no field here, but it still has to be settled or KYC
+      // never reaches "complete". A failure isn't worth blocking on — the face step is what
+      // the user came for.
       onSuccess: () => skipStep2(undefined, { onSettled: () => setStage("face") }),
       onError: (err: any) => {
         const msg = err?.response?.data?.message || err?.message || "";
@@ -183,6 +209,12 @@ export function VerifyIdentitySheet({
 
     if (!selfieImage) {
       setErrorMsg("We couldn't capture a clear image. Please try again.");
+      return;
+    }
+
+    // Nothing to send a NIN selfie to yet — the stage is played for the flow, not stored.
+    if (isNin) {
+      setStage("done");
       return;
     }
     submitSelfie(selfieImage);
@@ -270,7 +302,8 @@ export function VerifyIdentitySheet({
               You&apos;re Confirmed!
             </h2>
             <p className="mt-1.5 text-sm leading-relaxed tracking-[-0.14px] text-foreground/60">
-              Your identity has been verified and your AGM attendance is confirmed. See you there!
+              Your identity has been verified and your{isNin ? "" : " AGM"} attendance is
+              confirmed. See you there!
             </p>
           </div>
           <Button fullWidth size="lg" onClick={finish}>
@@ -342,16 +375,32 @@ export function VerifyIdentitySheet({
                 : "Ensure your face is well-lit and clearly visible"}
           </p>
 
+          {/* NIN verification isn't wired to anything yet, so a camera that won't open must
+              not be what stops someone RSVPing. The AGM/BVN path has no such escape. */}
+          {isNin && !submitting && (
+            <button
+              type="button"
+              onClick={() => {
+                stopCamera();
+                setCapturing(false);
+                setStage("done");
+              }}
+              className="mt-3 text-xs text-white/40 underline underline-offset-2 transition-colors hover:text-white/70"
+            >
+              I&apos;ll do this later
+            </button>
+          )}
+
           <canvas ref={canvasRef} className="hidden" />
         </div>
       </Dialog>
     );
   }
 
-  // ── Stage 1: BVN + DOB + consent ────────────────────────────────────────────
+  // ── Stage 1: identity number (+ DOB and consent, BVN only) ──────────────────
   return (
     <Dialog open={open} onClose={close} className="max-w-[420px]">
-      <form onSubmit={onSubmitBvn} className="flex flex-col gap-4">
+      <form onSubmit={onSubmitId} className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             {live && (
@@ -363,16 +412,16 @@ export function VerifyIdentitySheet({
               Verify your identity
             </h2>
             <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
-              {live
+              {!isNin && live
                 ? "This AGM is currently in session. Verify your BVN to join immediately."
-                : "Enter your BVN to confirm your attendance at this year's AGM."}
+                : `Enter your ${idLabel} to confirm your attendance at ${where}.`}
             </p>
           </div>
           <button
             type="button"
             onClick={close}
             aria-label="Close"
-            className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-foreground/50 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+            className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-foreground/50 transition-colors hover:bg-foreground/4 hover:text-foreground"
           >
             <span aria-hidden className="text-lg leading-none">&times;</span>
           </button>
@@ -386,97 +435,103 @@ export function VerifyIdentitySheet({
 
         <div>
           <Input
-            name="bvn"
-            label="BVN"
+            name={isNin ? "nin" : "bvn"}
+            label={idLabel}
             inputMode="numeric"
-            placeholder="BVN"
+            placeholder={idLabel}
             leftIcon={<CreditCard className="h-4 w-4" />}
-            value={bvn}
-            onChange={(e) => setBvn(e.target.value.replace(/\D/g, "").slice(0, 11))}
+            value={idNumber}
+            onChange={(e) => setIdNumber(e.target.value.replace(/\D/g, "").slice(0, 11))}
           />
           <p className="mt-1.5 text-xs text-foreground/60">
-            Dial <span className="font-semibold text-emerald-600">*565*0#</span> to retrieve it.
+            Dial{" "}
+            <span className="font-semibold text-emerald-600">{isNin ? "*346#" : "*565*0#"}</span> to
+            retrieve it.
           </p>
         </div>
 
-        {/* Not in the frame, but the backend's step 1 verifies BVN *against* a date of
-            birth — dropping it would break the lookup the modal exists to perform. */}
-        <Input
-          name="dob"
-          label="Date of Birth"
-          inputMode="numeric"
-          placeholder="DD/MM/YYYY"
-          leftIcon={<Calendar className="h-4 w-4" />}
-          value={dob}
-          onChange={(e) => handleDobChange(e.target.value)}
-        />
+        {/* BVN only. Step 1 verifies the BVN *against* a date of birth, so the lookup needs it
+            even though the frame shows a lone field; NIN has no such lookup to satisfy. */}
+        {!isNin && (
+          <Input
+            name="dob"
+            label="Date of Birth"
+            inputMode="numeric"
+            placeholder="DD/MM/YYYY"
+            leftIcon={<Calendar className="h-4 w-4" />}
+            value={dob}
+            onChange={(e) => handleDobChange(e.target.value)}
+          />
+        )}
 
-        {/* Mandatory NDPA/CBN consent — un-ticked by default, gates submit. */}
-        <div className="space-y-2.5 rounded-xl border border-foreground/[0.06] bg-foreground/[0.03] p-3">
-          <label
-            htmlFor="bvnConsent"
-            className="flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-foreground"
-          >
-            <input
-              id="bvnConsent"
-              name="bvnConsent"
-              type="checkbox"
-              checked={hasConsented}
-              onChange={(e) => setHasConsented(e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-foreground/20 accent-primary"
-            />
-            <span>
-              I consent to the processing of my BVN and Date of Birth for identity verification.
-            </span>
-          </label>
+        {/* Mandatory NDPA/CBN consent for the BVN lookup — un-ticked by default, gates submit. */}
+        {!isNin && (
+          <div className="space-y-2.5 rounded-xl border border-foreground/6 bg-foreground/3 p-3">
+            <label
+              htmlFor="bvnConsent"
+              className="flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-foreground"
+            >
+              <input
+                id="bvnConsent"
+                name="bvnConsent"
+                type="checkbox"
+                checked={hasConsented}
+                onChange={(e) => setHasConsented(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-foreground/20 accent-primary"
+              />
+              <span>
+                I consent to the processing of my BVN and Date of Birth for identity verification.
+              </span>
+            </label>
 
-          <button
-            type="button"
-            onClick={() => setShowDisclosure((v) => !v)}
-            aria-expanded={showDisclosure}
-            className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
-          >
-            <ShieldCheck className="h-3.5 w-3.5" />
-            Read regulatory disclosure
-            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showDisclosure && "rotate-180")} />
-          </button>
+            <button
+              type="button"
+              onClick={() => setShowDisclosure((v) => !v)}
+              aria-expanded={showDisclosure}
+              className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Read regulatory disclosure
+              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showDisclosure && "rotate-180")} />
+            </button>
 
-          {showDisclosure && (
-            <div className="space-y-2 rounded-lg border border-foreground/[0.06] bg-white p-3 text-[11px] leading-relaxed text-foreground/60">
-              <p className="font-semibold text-foreground">
-                Pursuant to the Nigeria Data Protection Act (NDPA 2023) &amp; CBN Regulations:
-              </p>
-              <ul className="list-disc space-y-1 pl-4">
-                <li>
-                  We require your explicit consent to retrieve and validate your BVN biodata via our
-                  licensed verification partners (Dojah / NIBSS).
-                </li>
-                <li>
-                  Your identity details are used <strong>solely</strong> to verify your eligibility for
-                  shareholder participation and voting.
-                </li>
-                <li>
-                  Your BVN will <strong>never</strong> be shared with unauthorized third parties or used
-                  to access your bank accounts.
-                </li>
-              </ul>
-              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-amber-900">
-                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
-                <span>
-                  By ticking the box above, you authorize Attend and its licensed partners to verify
-                  your BVN details.
-                </span>
+            {showDisclosure && (
+              <div className="space-y-2 rounded-lg border border-foreground/6 bg-white p-3 text-[11px] leading-relaxed text-foreground/60">
+                <p className="font-semibold text-foreground">
+                  Pursuant to the Nigeria Data Protection Act (NDPA 2023) &amp; CBN Regulations:
+                </p>
+                <ul className="list-disc space-y-1 pl-4">
+                  <li>
+                    We require your explicit consent to retrieve and validate your BVN biodata via our
+                    licensed verification partners (Dojah / NIBSS).
+                  </li>
+                  <li>
+                    Your identity details are used <strong>solely</strong> to verify your eligibility for
+                    shareholder participation and voting.
+                  </li>
+                  <li>
+                    Your BVN will <strong>never</strong> be shared with unauthorized third parties or used
+                    to access your bank accounts.
+                  </li>
+                </ul>
+                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-amber-900">
+                  <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                  <span>
+                    By ticking the box above, you authorize Attend and its licensed partners to verify
+                    your BVN details.
+                  </span>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
-        <Button type="submit" fullWidth size="lg" loading={step1Pending} disabled={!canSubmitBvn}>
+        <Button type="submit" fullWidth size="lg" loading={step1Pending} disabled={!canSubmitId}>
           {step1Pending ? "Verifying…" : "Verify & Confirm"}
         </Button>
 
         <p className="text-center text-xs text-foreground/50">
-          Your BVN is encrypted and used only to verify your identity.
+          Your {idLabel} is encrypted and used only to verify your identity.
         </p>
       </form>
     </Dialog>

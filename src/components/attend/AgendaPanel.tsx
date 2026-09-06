@@ -30,7 +30,7 @@ export function AgendaPanel({
             {speakers.map((spk, i) => (
               <div
                 key={spk.id ?? `${spk.name}-${i}`}
-                className={cn("py-2.5", i > 0 && "border-t border-foreground/[0.06]")}
+                className={cn("py-2.5", i > 0 && "border-t border-foreground/6")}
               >
                 <p className="text-sm font-medium tracking-[-0.14px] text-foreground">{spk.name}</p>
                 {spk.roleTitle && <p className="text-xs text-foreground/60">{spk.roleTitle}</p>}
@@ -48,7 +48,7 @@ export function AgendaPanel({
               .map((item, i) => (
                 <li
                   key={item.id ?? `${item.title}-${i}`}
-                  className={cn("flex gap-2 py-2.5", i > 0 && "border-t border-foreground/[0.06]")}
+                  className={cn("flex gap-2 py-2.5", i > 0 && "border-t border-foreground/6")}
                 >
                   <span className="text-sm text-foreground/60">{i + 1}.</span>
                   <div className="min-w-0">
@@ -73,7 +73,7 @@ export function AgendaPanel({
 export function PanelCard({ title, children }: { title: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(true);
   return (
-    <section className="rounded-xl border border-foreground/[0.06] bg-white px-4 py-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+    <section className="rounded-xl border border-foreground/6 bg-white px-4 py-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between gap-2 text-left"

@@ -82,7 +82,7 @@ export default function ResetPasswordPage() {
         </p>
         {/* Same delivery problem as the signup code — this screen waits on an emailed OTP
             too, so it needs the same spam-folder hint rather than only /verify having it. */}
-        <p className="mt-3 rounded-lg bg-foreground/[0.04] px-3 py-2 text-xs leading-relaxed text-foreground/60">
+        <p className="mt-3 rounded-lg bg-foreground/4 px-3 py-2 text-xs leading-relaxed text-foreground/60">
           It usually arrives within a minute. If it doesn&apos;t, check your spam or junk
           folder.
         </p>

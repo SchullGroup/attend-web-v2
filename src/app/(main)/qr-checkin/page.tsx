@@ -57,7 +57,7 @@ function QrCheckinInner() {
       </header>
 
       <div className="mx-auto max-w-sm">
-        <div className="rounded-xl border border-foreground/[0.06] bg-white p-6 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+        <div className="rounded-xl border border-foreground/6 bg-white p-6 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
           {isCheckedIn ? (
             <div className="flex aspect-square w-full flex-col items-center justify-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-6 text-center">
               <CheckCircle2 className="h-16 w-16 text-emerald-600" />
@@ -69,9 +69,9 @@ function QrCheckinInner() {
               )}
             </div>
           ) : (
-            <div className="aspect-square w-full overflow-hidden rounded-xl border border-foreground/[0.06] bg-white p-3">
+            <div className="aspect-square w-full overflow-hidden rounded-xl border border-foreground/6 bg-white p-3">
               {ticketLoading ? (
-                <div className="h-full w-full animate-pulse rounded-lg bg-foreground/[0.04]" />
+                <div className="h-full w-full animate-pulse rounded-lg bg-foreground/4" />
               ) : code ? (
                 <div className="flex h-full w-full items-center justify-center">
                   <QRCodeSVG value={code} size={232} level="M" />
@@ -96,7 +96,7 @@ function QrCheckinInner() {
 
           {/* Status, not an action. Nothing on this page can change it. */}
           {!isCheckedIn && code && (
-            <div className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-foreground/[0.06] bg-foreground/[0.04] px-4 py-3 text-xs font-medium text-foreground/60">
+            <div className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-foreground/6 bg-foreground/4 px-4 py-3 text-xs font-medium text-foreground/60">
               <Clock3 className="h-4 w-4 shrink-0" />
               Waiting for the event team to scan
             </div>

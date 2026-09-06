@@ -59,7 +59,7 @@ export function Dialog({ open, onClose, children, className, side = "center", fo
         role="dialog"
         aria-modal="true"
         className={cn(
-          "relative flex w-full flex-col border border-foreground/[0.06] bg-white shadow-[0px_20px_60px_0px_rgba(0,0,0,0.25)]",
+          "relative flex w-full flex-col border border-foreground/6 bg-white shadow-[0px_20px_60px_0px_rgba(0,0,0,0.25)]",
           // With a pinned footer the panel itself must not scroll — the body does.
           footer ? "overflow-hidden" : "overflow-y-auto",
           isRight
@@ -104,7 +104,7 @@ export function DialogHeader({
           <button
             onClick={onBack}
             aria-label="Back"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground/10 text-foreground/70 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground/10 text-foreground/70 transition-colors hover:bg-foreground/4 hover:text-foreground"
           >
             <ArrowLeft className="h-[18px] w-[18px]" />
           </button>
@@ -115,7 +115,7 @@ export function DialogHeader({
           <button
             onClick={onClose}
             aria-label="Close"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-foreground/4 hover:text-foreground"
           >
             <X className="h-[18px] w-[18px]" />
           </button>

@@ -49,7 +49,7 @@ export const Input = forwardRef<HTMLInputElement, Props>(function Input(
           id={inputId}
           type={inputType}
           className={cn(
-            "h-[50px] w-full rounded-[10px] border border-transparent bg-foreground/[0.04] px-3.5 text-sm tracking-[-0.14px] text-foreground placeholder:font-light placeholder:text-foreground/40",
+            "h-[50px] w-full rounded-[10px] border border-transparent bg-foreground/4 px-3.5 text-sm tracking-[-0.14px] text-foreground placeholder:font-light placeholder:text-foreground/40",
             "focus-visible:outline-none focus-visible:border-primary",
             "disabled:opacity-50 transition-colors",
             leftIcon && "pl-10",

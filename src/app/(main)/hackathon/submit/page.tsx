@@ -9,9 +9,9 @@ import { useSubmitProject, useGetMyTeam, useGetChallenge } from "@/api/hackathon
 import { cn } from "@/lib/utils";
 
 // Shared figma field style for the raw <textarea> — mirrors the Input component
-// (rounded-[10px], bg-foreground/[0.04] fill, primary focus).
+// (rounded-[10px], bg-foreground/4 fill, primary focus).
 const FIELD =
-  "w-full rounded-[10px] border border-transparent bg-foreground/[0.04] p-3 text-sm tracking-[-0.14px] text-foreground outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white";
+  "w-full rounded-[10px] border border-transparent bg-foreground/4 p-3 text-sm tracking-[-0.14px] text-foreground outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white";
 
 function SubmitPageInner() {
   const router = useRouter();
@@ -134,7 +134,7 @@ function SubmitPageInner() {
         </p>
       </header>
 
-      <form onSubmit={submit} className="flex flex-col gap-5 rounded-xl border border-foreground/[0.06] bg-white p-6 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+      <form onSubmit={submit} className="flex flex-col gap-5 rounded-xl border border-foreground/6 bg-white p-6 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
         {errorMsg && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
             {errorMsg}
@@ -172,7 +172,7 @@ function SubmitPageInner() {
         {/* Links */}
         {showLinks && (
           <>
-            <hr className="border-foreground/[0.06]" />
+            <hr className="border-foreground/6" />
             <p className="text-xs font-semibold uppercase tracking-wide text-foreground/50">
               Links
             </p>
@@ -204,7 +204,7 @@ function SubmitPageInner() {
         {/* Pitch deck */}
         {show.pitchDeck && (
           <>
-            <hr className="border-foreground/[0.06]" />
+            <hr className="border-foreground/6" />
             <p className="text-xs font-semibold uppercase tracking-wide text-foreground/50">
               Presentation
             </p>
@@ -222,7 +222,7 @@ function SubmitPageInner() {
         {/* Demo video */}
         {show.demoVideo && (
           <>
-            <hr className="border-foreground/[0.06]" />
+            <hr className="border-foreground/6" />
             <p className="text-xs font-semibold uppercase tracking-wide text-foreground/50">
               Demo
             </p>
@@ -241,7 +241,7 @@ function SubmitPageInner() {
         {/* Additional documents */}
         {show.additionalDocs && (
           <>
-            <hr className="border-foreground/[0.06]" />
+            <hr className="border-foreground/6" />
             <p className="text-xs font-semibold uppercase tracking-wide text-foreground/50">
               Supporting documents
             </p>

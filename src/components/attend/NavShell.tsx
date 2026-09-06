@@ -50,7 +50,7 @@ const NAV = [
   { label: "Innovation", href: "/hackathon", icon: Lightbulb, match: (p: string, m?: string) => p.startsWith("/hackathon") || isInnovation(m) },
   { label: "Launches", href: "/events", icon: Rocket, match: (p: string, m?: string) => p.startsWith("/events") && !p.startsWith("/events/qr-checkin") && !isAgm(m) && !isInnovation(m) && !isGeneral(m) },
   { label: "General", href: "/general", icon: CalendarDays, match: (p: string, m?: string) => p.startsWith("/general") || isGeneral(m) },
-  { label: "Profile", href: "/profile", icon: UserIcon, match: (p: string, m?: string) => p.startsWith("/profile") },
+  { label: "Account", href: "/profile", icon: UserIcon, match: (p: string, m?: string) => p.startsWith("/profile") },
 ];
 
 // Figma titles the top bar per-section ("Events" on Home, "AGM" on /agm, etc.)
@@ -72,7 +72,7 @@ const SECTION_TITLE: { test: (p: string) => boolean; label: string; sub?: string
   // routes that live under /events/.
   { test: (p) => /^\/events\/(?!archive|gallery|live|qr-checkin)[^/]+$/.test(p), label: "About event" },
   { test: (p) => p.startsWith("/events"), label: "Launches" },
-  { test: (p) => p.startsWith("/profile"), label: "Profile" },
+  { test: (p) => p.startsWith("/profile"), label: "Settings" },
   { test: (p) => p.startsWith("/notifications"), label: "Notifications" },
   { test: (p) => p.startsWith("/search"), label: "Search" },
   { test: (p) => p.startsWith("/qr-checkin"), label: "Check-in" },
@@ -184,7 +184,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-white md:bg-[#f6f6f6]">
       {/* Sidebar (desktop) */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[259px] flex-col border-r border-foreground/10 bg-black/[0.02] md:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[259px] flex-col border-r border-foreground/10 bg-black/2 md:flex">
         <div className="px-8 pt-6">
           <img src="/attend-logo.png" alt="Attend" style={{ height: 22, width: "auto" }} />
         </div>
@@ -210,7 +210,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 className={cn(
                   "flex items-center gap-2.5 rounded-full px-3 py-3 text-[15px] tracking-[-0.3px] transition-colors",
-                  active ? "bg-primary/10 font-medium text-primary" : "text-foreground/70 hover:bg-foreground/[0.04]",
+                  active ? "bg-primary/10 font-medium text-primary" : "text-foreground/70 hover:bg-foreground/4",
                 )}
               >
                 <Icon className="h-[18px] w-[18px]" strokeWidth={active ? 2.25 : 1.75} />
@@ -232,7 +232,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
                   <Link
                     href="/profile"
                     onClick={() => setAccountMenuOpen(false)}
-                    className="block px-4 py-3 text-sm text-foreground hover:bg-foreground/[0.04]"
+                    className="block px-4 py-3 text-sm text-foreground hover:bg-foreground/4"
                   >
                     View profile
                   </Link>
@@ -269,7 +269,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
 
       {/* Top header */}
       {/* The background MUST be opaque — this bar is sticky, so a translucent fill
-          (it was bg-black/[0.02]) let page content scroll visibly through it. These are
+          (it was bg-black/2) let page content scroll visibly through it. These are
           the opaque equivalents of that 2% tint over each breakpoint's page background:
           white → #fafafa, #f6f6f6 → #f1f1f1. */}
       <header className="sticky top-0 z-20 border-b border-foreground/10 bg-[#fafafa] md:bg-[#f1f1f1] md:pl-[259px]">
@@ -286,7 +286,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex min-h-16 max-w-[1152px] items-center justify-between gap-4 px-4 py-3 md:px-8">
           <div className="flex items-center gap-3 md:hidden">
             {!isExactRoot && (
-              <button onClick={handleBack} aria-label="Go back" className="-ml-2 rounded-lg p-2 text-foreground/60 transition-colors hover:bg-foreground/[0.05] hover:text-foreground">
+              <button onClick={handleBack} aria-label="Go back" className="-ml-2 rounded-lg p-2 text-foreground/60 transition-colors hover:bg-foreground/5 hover:text-foreground">
                 <ArrowLeft className="h-5 w-5" />
               </button>
             )}
@@ -307,7 +307,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearch}
-                className="h-10 w-[255px] rounded-full border border-foreground/5 bg-foreground/[0.03] pl-10 pr-3 text-sm tracking-[-0.14px] placeholder:text-foreground/40 focus-visible:border-primary focus-visible:outline-none"
+                className="h-10 w-[255px] rounded-full border border-foreground/5 bg-foreground/3 pl-10 pr-3 text-sm tracking-[-0.14px] placeholder:text-foreground/40 focus-visible:border-primary focus-visible:outline-none"
                 placeholder="Search events, companies, challenges…"
               />
             </div>

@@ -82,6 +82,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   // Identity verification is a modal over this page now, not a trip to the /bvn wizard.
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [verifyDismissed, setVerifyDismissed] = useState(false);
+  // NIN — the Innovation/Launch equivalent, shown at the RSVP point.
+  const [ninOpen, setNinOpen] = useState(false);
   // Figma: this page IS the live page — "Join Live Event" swaps the hero for the stream
   // rather than navigating anywhere.
   const [joinedLive, setJoinedLive] = useState(false);
@@ -147,6 +149,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     action();
   }
 
+  // NIN stands where BVN stands for an AGM, but for the other two attendee-facing modules.
+  // Nothing is verified server-side yet, so this decides when to *show* the sheet, never
+  // whether the RSVP is allowed.
+  const needsNin = mod === "HACKATHON" || mod === "LAUNCH";
+  const ninContext = mod === "HACKATHON" ? "this challenge" : "this product launch";
+
   const agmLiveUnverified = agmInSession && !!kycResp && !kycFull;
   useEffect(() => {
     if (agmLiveUnverified && !verifyDismissed) setVerifyOpen(true);
@@ -211,6 +219,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     }
   }
 
+  function doRsvp() {
+    setRsvpError(null);
+    rsvp(undefined, {
+      onError: (err: any) =>
+        setRsvpError(err?.response?.data?.message || err?.message || "RSVP failed. Please try again."),
+    });
+  }
+
   function handleRsvp() {
     // An AGM RSVP *is* the attendance confirmation the verification modal talks about
     // ("your AGM attendance is confirmed"), so it can't be granted to an unverified user.
@@ -218,11 +234,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       setVerifyOpen(true);
       return;
     }
-    setRsvpError(null);
-    rsvp(undefined, {
-      onError: (err: any) =>
-        setRsvpError(err?.response?.data?.message || err?.message || "RSVP failed. Please try again."),
-    });
+    // Innovation and Launch RSVPs collect a NIN first, per the NIN frames. There's no NIN
+    // endpoint yet, so this can't gate on a verification result — the sheet resolves locally
+    // and hands control back here, and the RSVP then goes through exactly as before.
+    if (needsNin) {
+      setNinOpen(true);
+      return;
+    }
+    doRsvp();
   }
 
   function handleJoinWaitlist() {
@@ -244,10 +263,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   if (isLoading) {
     return (
       <div className="flex flex-col gap-6">
-        <div className="h-6 w-24 animate-pulse rounded-lg bg-foreground/[0.04]" />
-        <div className="h-64 animate-pulse rounded-2xl bg-foreground/[0.04]" />
-        <div className="h-4 w-full animate-pulse rounded bg-foreground/[0.04]" />
-        <div className="h-4 w-3/4 animate-pulse rounded bg-foreground/[0.04]" />
+        <div className="h-6 w-24 animate-pulse rounded-lg bg-foreground/4" />
+        <div className="h-64 animate-pulse rounded-2xl bg-foreground/4" />
+        <div className="h-4 w-full animate-pulse rounded bg-foreground/4" />
+        <div className="h-4 w-3/4 animate-pulse rounded bg-foreground/4" />
       </div>
     );
   }
@@ -398,14 +417,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               <button
                 onClick={toggleSave}
                 title={saved ? "Remove from saved" : "Save event"}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-foreground/4 hover:text-foreground"
               >
                 <Bookmark className={cn("h-[18px] w-[18px]", saved && "fill-foreground text-foreground")} />
               </button>
               <button
                 onClick={handleShare}
                 title={shared ? "Link copied!" : "Share event"}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-foreground/4 hover:text-foreground"
               >
                 {shared ? <Check className="h-[18px] w-[18px]" /> : <Share2 className="h-[18px] w-[18px]" />}
               </button>
@@ -451,7 +470,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           {mod !== "AGM" && !isVirtual && (
             <Link
               href={`/qr-checkin?eventId=${id}`}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-foreground/10 px-3 py-1.5 text-xs font-medium tracking-[-0.12px] text-foreground/70 transition-colors hover:bg-foreground/[0.04]"
+              className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-foreground/10 px-3 py-1.5 text-xs font-medium tracking-[-0.12px] text-foreground/70 transition-colors hover:bg-foreground/4"
             >
               <QrCode className="h-3.5 w-3.5" /> QR check-in
             </Link>
@@ -484,7 +503,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           flyer to fill their header (object-cover); this view uses object-contain + a capped
           height so the whole poster stays visible whatever its aspect ratio. */}
       {(event.flyerUrl || event.bannerUrl) && (
-        <section className="overflow-hidden rounded-xl border border-foreground/[0.06] bg-foreground/[0.03]">
+        <section className="overflow-hidden rounded-xl border border-foreground/6 bg-foreground/3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={event.flyerUrl || event.bannerUrl || undefined}
@@ -652,7 +671,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           </h2>
           <div className="flex flex-col gap-2">
             {event.speakers.map((spk) => (
-              <div key={spk.id} className="flex items-center gap-3 rounded-xl border border-foreground/[0.06] bg-white px-4 py-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+              <div key={spk.id} className="flex items-center gap-3 rounded-xl border border-foreground/6 bg-white px-4 py-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
                 <div
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
                   style={{ backgroundColor: color }}
@@ -710,14 +729,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 <div
                   key={file.id}
                   className={cn(
-                    "flex items-center justify-between gap-3 rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]",
+                    "flex items-center justify-between gap-3 rounded-xl border border-foreground/6 bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]",
                     !isReleased && "opacity-60",
                   )}
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <div className={cn(
                       "flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]",
-                      isReleased ? "bg-primary/10 text-primary" : "bg-foreground/[0.04] text-foreground/60"
+                      isReleased ? "bg-primary/10 text-primary" : "bg-foreground/4 text-foreground/60"
                     )}>
                       <FileBox className="h-5 w-5" />
                     </div>
@@ -733,7 +752,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                       href={file.downloadUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="shrink-0 rounded-[10px] bg-foreground/[0.04] p-2 transition-colors hover:bg-foreground/[0.08]"
+                      className="shrink-0 rounded-[10px] bg-foreground/4 p-2 transition-colors hover:bg-foreground/8"
                       title="Download"
                     >
                       <DownloadCloud className="h-4 w-4 text-foreground" />
@@ -897,6 +916,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           }}
         />
       )}
+      {ninOpen && (
+        <VerifyIdentitySheet
+          open
+          mode="nin"
+          live={isLive}
+          contextLabel={ninContext}
+          onClose={() => setNinOpen(false)}
+          onVerified={doRsvp}
+        />
+      )}
     </div>
   );
 }
@@ -905,7 +934,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 // list treatment which the other modules keep.
 function ActionTile({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl border border-foreground/[0.06] bg-white px-2 py-3.5 text-center transition-colors hover:bg-foreground/[0.02]">
+    <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl border border-foreground/6 bg-white px-2 py-3.5 text-center transition-colors hover:bg-foreground/2">
       {icon}
       <span className="text-xs font-medium leading-tight tracking-[-0.12px] text-foreground">{label}</span>
     </div>
@@ -1030,7 +1059,7 @@ function AgmSidePanel({
             }}
             rows={4}
             placeholder="Type your question"
-            className="w-full rounded-xl border border-transparent bg-foreground/[0.04] p-3.5 text-sm tracking-[-0.14px] text-foreground outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
+            className="w-full rounded-xl border border-transparent bg-foreground/4 p-3.5 text-sm tracking-[-0.14px] text-foreground outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
           />
           {qaError && <p className="text-xs text-red-600">{qaError}</p>}
           {qaSent && (
@@ -1158,7 +1187,7 @@ function ResolutionPanelCard({
 }) {
   const [expanded, setExpanded] = useState(true);
   return (
-    <article className="rounded-xl border border-foreground/[0.06] bg-white p-4">
+    <article className="rounded-xl border border-foreground/6 bg-white p-4">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
@@ -1216,7 +1245,7 @@ function ActionRow({
 }) {
   return (
     <div
-      className={cn("flex items-center justify-between rounded-xl border border-foreground/[0.06] px-4 py-3.5 transition-colors hover:bg-foreground/[0.06] cursor-pointer", bg)}
+      className={cn("flex items-center justify-between rounded-xl border border-foreground/6 px-4 py-3.5 transition-colors hover:bg-foreground/6 cursor-pointer", bg)}
       style={style}
     >
       <div className="flex items-center gap-3">

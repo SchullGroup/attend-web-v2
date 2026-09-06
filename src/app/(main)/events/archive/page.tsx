@@ -42,7 +42,7 @@ export default function ArchivePage() {
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((n) => (
-            <div key={n} className="h-28 animate-pulse rounded-xl border border-foreground/[0.06] bg-foreground/[0.03]" />
+            <div key={n} className="h-28 animate-pulse rounded-xl border border-foreground/6 bg-foreground/3" />
           ))}
         </div>
       ) : events.length === 0 ? (
@@ -56,7 +56,7 @@ export default function ArchivePage() {
             return (
               <li
                 key={e.id}
-                className="flex flex-col gap-3 rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] md:flex-row md:items-center md:gap-5"
+                className="flex flex-col gap-3 rounded-xl border border-foreground/6 bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] md:flex-row md:items-center md:gap-5"
               >
                 <Link
                   href={`/events/${e.id}`}

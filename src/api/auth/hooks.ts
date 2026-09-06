@@ -64,6 +64,16 @@ export const useGetMe = (enabled = true) => {
   });
 };
 
+// Settings → My profile. Invalidating `me` refreshes the profile header and the NavShell
+// account chip together. See authClient.updateProfile: the endpoint is assumed, not built.
+export const useUpdateProfile = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: authClient.updateProfile,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: authKeys.me() }),
+  });
+};
+
 export const useRegister = () => {
   return useMutation({
     mutationFn: authClient.register,

@@ -45,7 +45,7 @@ function ResourcesInner() {
       {isLoading ? (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((n) => (
-            <div key={n} className="h-40 animate-pulse rounded-xl bg-foreground/[0.04]" />
+            <div key={n} className="h-40 animate-pulse rounded-xl bg-foreground/4" />
           ))}
         </div>
       ) : resources.length === 0 ? (
@@ -62,7 +62,7 @@ function ResourcesInner() {
                 href={r.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group flex flex-col gap-3 rounded-xl border border-foreground/[0.06] bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+                className="group flex flex-col gap-3 rounded-xl border border-foreground/6 bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
               >
                 <div className={`inline-flex h-10 w-10 items-center justify-center rounded-[10px] ${r.isVideo ? "bg-rose-50 text-rose-600" : "bg-purple-50 text-purple-600"}`}>
                   <Icon className="h-5 w-5" />

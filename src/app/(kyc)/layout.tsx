@@ -13,8 +13,8 @@ export default function KycLayout({ children }: { children: React.ReactNode }) {
   const isSuccess = pathname?.endsWith("/success");
 
   return (
-    <div className="min-h-screen bg-foreground/[0.02]">
-      <header className="border-b border-foreground/[0.06] bg-white">
+    <div className="min-h-screen bg-foreground/2">
+      <header className="border-b border-foreground/6 bg-white">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-6 py-3">
           <div className="flex flex-col gap-0.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -31,7 +31,7 @@ export default function KycLayout({ children }: { children: React.ReactNode }) {
 
       <main className="mx-auto max-w-lg px-6 py-10">
         {isSuccess ? (
-          <div className="rounded-xl border border-foreground/[0.06] bg-white p-8 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+          <div className="rounded-xl border border-foreground/6 bg-white p-8 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
             {children}
           </div>
         ) : (

@@ -111,7 +111,7 @@ export default function HackathonDetailPage({
         <button onClick={goBack} className="inline-flex w-fit items-center gap-1 text-sm text-foreground/60 hover:text-foreground">
           <ArrowLeft className="h-4 w-4" /> Back to Innovation
         </button>
-        <div className="rounded-xl border border-foreground/[0.06] bg-white p-10 text-center text-sm text-foreground/50">
+        <div className="rounded-xl border border-foreground/6 bg-white p-10 text-center text-sm text-foreground/50">
           This challenge could not be loaded right now. Please try again shortly.
         </div>
       </div>
@@ -170,7 +170,7 @@ export default function HackathonDetailPage({
       {isLive && (
         <Link
           href={`/events/live?eventId=${id}`}
-          className="flex items-center justify-between gap-3 rounded-xl border border-foreground/10 bg-foreground/[0.03] px-5 py-3.5 text-foreground transition-colors hover:bg-foreground/[0.05]"
+          className="flex items-center justify-between gap-3 rounded-xl border border-foreground/10 bg-foreground/3 px-5 py-3.5 text-foreground transition-colors hover:bg-foreground/5"
         >
           <div className="flex items-center gap-2.5">
             <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
@@ -305,7 +305,7 @@ export default function HackathonDetailPage({
           {/* Your team — kept from our version (real state figma had no slot for), in
               the same card language as the InfoBlocks around it. */}
           {myTeam && (
-            <section className="rounded-xl border border-foreground/[0.06] bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+            <section className="rounded-xl border border-foreground/6 bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
               <div className="mb-2 flex items-center gap-2 text-foreground/50">
                 <Users className="h-4 w-4" />
                 <p className="text-xs font-semibold uppercase tracking-wide">Your team</p>
@@ -323,7 +323,7 @@ export default function HackathonDetailPage({
 
           {/* How to apply — steps read real challenge data (pathway count, organiser
               name), collapsed by default since it sits just above the CTA it explains. */}
-          <section className="rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+          <section className="rounded-xl border border-foreground/6 bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
             <button
               type="button"
               onClick={() => setShowHowTo((v) => !v)}
@@ -390,7 +390,7 @@ export default function HackathonDetailPage({
           {challenge.prizeTiers && challenge.prizeTiers.length > 0 ? (
             <section className="grid gap-3 sm:grid-cols-3">
               {challenge.prizeTiers.map((p) => (
-                <div key={p.position} className="rounded-xl border border-foreground/[0.06] bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+                <div key={p.position} className="rounded-xl border border-foreground/6 bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
                   <div className="flex items-center gap-2 text-(--brand-primary)">
                     <Trophy className="h-4 w-4" />
                     <p className="text-xs font-semibold uppercase tracking-wide">{p.position}</p>
@@ -442,7 +442,7 @@ export default function HackathonDetailPage({
               type="button"
               onClick={() => setResourcesOpen(false)}
               aria-label="Close resources"
-              className="flex h-7 w-7 items-center justify-center rounded-full text-foreground/50 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+              className="flex h-7 w-7 items-center justify-center rounded-full text-foreground/50 transition-colors hover:bg-foreground/4 hover:text-foreground"
             >
               <X className="h-4 w-4" />
             </button>
@@ -458,9 +458,9 @@ export default function HackathonDetailPage({
               return (
                 <div
                   key={res.id}
-                  className="flex items-center gap-3 rounded-xl border border-foreground/[0.06] bg-white p-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]"
+                  className="flex items-center gap-3 rounded-xl border border-foreground/6 bg-white p-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]"
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-foreground/[0.04] text-[10px] font-semibold uppercase text-foreground/50">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-foreground/4 text-[10px] font-semibold uppercase text-foreground/50">
                     {isFile ? (res.fileType || "Doc").slice(0, 3) : "Link"}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -476,7 +476,7 @@ export default function HackathonDetailPage({
                     href={res.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="shrink-0 rounded-lg bg-foreground/[0.04] px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-foreground/[0.08]"
+                    className="shrink-0 rounded-lg bg-foreground/4 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-foreground/8"
                   >
                     {isFile ? "Download" : "Open"}
                   </a>
@@ -497,12 +497,12 @@ function NavRowButton({ onClick, label, className }: { onClick: () => void; labe
       type="button"
       onClick={onClick}
       className={cn(
-        "flex items-center justify-between gap-3 rounded-xl border border-foreground/10 bg-white px-5 py-4 text-left text-sm font-medium tracking-[-0.14px] text-foreground transition-colors hover:bg-foreground/[0.02]",
+        "flex items-center justify-between gap-3 rounded-xl border border-foreground/10 bg-white px-5 py-4 text-left text-sm font-medium tracking-[-0.14px] text-foreground transition-colors hover:bg-foreground/2",
         className,
       )}
     >
       {label}
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foreground/[0.04]">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foreground/4">
         <ArrowRight className="h-4 w-4" />
       </span>
     </button>
@@ -514,12 +514,12 @@ function NavRow({ href, label, className }: { href: string; label: string; class
     <Link
       href={href}
       className={cn(
-        "flex items-center justify-between gap-3 rounded-xl border border-foreground/10 bg-white px-5 py-4 text-sm font-medium tracking-[-0.14px] text-foreground transition-colors hover:bg-foreground/[0.02]",
+        "flex items-center justify-between gap-3 rounded-xl border border-foreground/10 bg-white px-5 py-4 text-sm font-medium tracking-[-0.14px] text-foreground transition-colors hover:bg-foreground/2",
         className,
       )}
     >
       {label}
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foreground/[0.04]">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foreground/4">
         <ArrowRight className="h-4 w-4" />
       </span>
     </Link>
@@ -536,7 +536,7 @@ function InfoBlock({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-foreground/[0.06] bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+    <div className="rounded-xl border border-foreground/6 bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
       <div className="mb-2 flex items-center gap-2 text-foreground/50">
         <Icon className="h-4 w-4" />
         <p className="text-xs font-semibold uppercase tracking-wide">{title}</p>
