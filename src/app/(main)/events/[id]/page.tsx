@@ -1,5 +1,5 @@
 "use client";
-import { use, useState } from "react";
+import { use, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -141,12 +141,28 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   // waits for a real response — opening on a not-yet-loaded status would flash the modal at
   // users who are already verified.
   const agmNeedsKyc = mod === "AGM" && !kycFull;
+
+  // Whatever the user was trying to do when the gate stopped them. Verification used to throw
+  // this away: you'd finish BVN + selfie, be told "your AGM attendance is confirmed", and the
+  // RSVP would never have been sent. The sheet's onVerified runs it once verification lands.
+  // Stored in a ref, not state — a re-render between the click and the callback shouldn't be
+  // able to lose it, and nothing renders off it.
+  const pendingKycAction = useRef<(() => void) | null>(null);
+
   function requireKyc(action: () => void) {
     if (agmNeedsKyc) {
+      pendingKycAction.current = action;
       setVerifyOpen(true);
       return;
     }
     action();
+  }
+
+  function runPendingKycAction() {
+    const action = pendingKycAction.current;
+    pendingKycAction.current = null;
+    // The live-AGM auto-open has no pending action — it prompts rather than gating a click.
+    action?.();
   }
 
   // NIN stands where BVN stands for an AGM, but for the other two attendee-facing modules.
@@ -229,9 +245,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
   function handleRsvp() {
     // An AGM RSVP *is* the attendance confirmation the verification modal talks about
-    // ("your AGM attendance is confirmed"), so it can't be granted to an unverified user.
+    // ("your AGM attendance is confirmed"), so it can't be granted to an unverified user —
+    // and once they verify, the RSVP has to actually fire, or that copy is a lie.
     if (agmNeedsKyc) {
-      setVerifyOpen(true);
+      requireKyc(doRsvp);
       return;
     }
     // Innovation and Launch RSVPs collect a NIN first, per the NIN frames. There's no NIN
@@ -911,9 +928,13 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           open
           live={isLive}
           onClose={() => {
+            // Dismissed without verifying — drop whatever they were trying to do, so it can't
+            // fire later against a still-unverified account.
+            pendingKycAction.current = null;
             setVerifyOpen(false);
             setVerifyDismissed(true);
           }}
+          onVerified={runPendingKycAction}
         />
       )}
       {ninOpen && (

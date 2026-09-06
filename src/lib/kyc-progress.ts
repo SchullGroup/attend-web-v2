@@ -1,5 +1,3 @@
-import { KycStatusData } from "@/types";
-
 // The KYC step pages hand one value forward: a selfie already matched during step 1, so
 // step 3 doesn't ask the user to pose for the camera a second time.
 //
@@ -67,36 +65,8 @@ export function clearKycProgress() {
   purgeLegacyStoredBvn();
 }
 
-export const KYC_STEP_PATHS = ["/bvn", "/chn", "/liveness"] as const;
-export type KycStepPath = (typeof KYC_STEP_PATHS)[number];
-
-/**
- * The path a user should land on when they resume verification.
- *
- * A step counts as done when the backend says it's completed, skipped, or awaiting
- * officer review — in all three cases there is nothing left for the user to do, so
- * sending them back to re-enter it would be wrong. The first step that is none of
- * those is where they left off. If every step is done, they belong on the summary.
- */
-export function resumePath(kyc?: KycStatusData): string {
-  if (!kyc) return "/bvn";
-  if (kyc.kycComplete || kyc.pendingOfficerReview) return "/success";
-
-  const steps = [kyc.steps?.step1, kyc.steps?.step2, kyc.steps?.step3];
-  const firstOutstanding = steps.findIndex(
-    (s) => !s?.completed && !s?.skipped && !s?.pendingReview,
-  );
-
-  return firstOutstanding === -1 ? "/success" : KYC_STEP_PATHS[firstOutstanding];
-}
-
-/**
- * How far along the step indicator should sit — the count of steps the backend
- * considers settled, which is also the index of the step currently in progress.
- */
-export function completedStepCount(kyc?: KycStatusData): number {
-  if (!kyc) return 0;
-  return [kyc.steps?.step1, kyc.steps?.step2, kyc.steps?.step3].filter(
-    (s) => s?.completed || s?.skipped || s?.pendingReview,
-  ).length;
-}
+// `KYC_STEP_PATHS`, `resumePath()` and `completedStepCount()` lived here to drive the old
+// full-page /bvn → /chn → /liveness wizard and its step indicator. That wizard is gone —
+// verification is one sheet now (VerifyIdentitySheet), which works out its own starting stage
+// from `steps.step1.completed` — so all three were left without a single caller and have been
+// removed. `clearKycProgress` and `purgeLegacyStoredBvn` above are still in use.

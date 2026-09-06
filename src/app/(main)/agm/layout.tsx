@@ -2,14 +2,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
-import { useUserStore } from "@/lib/user-store";
 import { Button } from "@/components/ui/Button";
 import { useSession } from "@/hooks/useSession";
 import { useGetKycStatus } from "@/api/kyc/hooks";
 import { VerifyIdentitySheet } from "@/components/attend/VerifyIdentitySheet";
 
 export default function AgmLayout({ children }: { children: React.ReactNode }) {
-  const { kycStatus } = useUserStore();
   const session = useSession();
   const [verifyOpen, setVerifyOpen] = useState(false);
 
@@ -19,19 +17,28 @@ export default function AgmLayout({ children }: { children: React.ReactNode }) {
   // here only ever grants the live room they were invited to.
   const isGuest = session.type === "GUEST";
 
-  // The store's kycStatus is seeded from localStorage as "none" and only becomes real once
-  // NavShell has synced it, which on a cold load straight onto /agm briefly shows this gate
-  // to people who are already verified. Reading the query too lets a resolved FULL_KYC
-  // unblock immediately. It can only ever *unblock* — an unresolved query still gates, so
-  // this stays fail-closed.
-  const { data: kycResp } = useGetKycStatus(!session.loading && !isGuest);
-  const kycFull = kycStatus === "full" || kycResp?.data?.kycStatus === "FULL_KYC";
+  // Only the server's answer opens this gate.
+  //
+  // This used to also accept the store's `kycStatus === "full"`, to avoid flashing the gate at
+  // verified users on a cold load. That wasn't fail-closed, despite the comment claiming it
+  // was: the store seeds itself synchronously from localStorage["attend:demo:kyc"], which
+  // useLogout never clears. So a verified user could log out, someone else could log in on the
+  // same browser, and that second person was waved straight through on first render — before
+  // their own KYC had been checked at all. Same hole kept access open for anyone whose KYC was
+  // later revoked. The flash is now prevented by waiting on the query below instead, which
+  // costs a beat of blank space and gives up nothing.
+  const { data: kycResp, isLoading: kycLoading } = useGetKycStatus(!session.loading && !isGuest);
+  const kycFull = kycResp?.data?.kycStatus === "FULL_KYC";
 
   // Guest state lives in sessionStorage, which the server can't read — so on the server
   // and on the very first client render every visitor looks like a non-guest. Rendering
   // the gate then means shipping it in the SSR HTML and relying on hydration to take it
   // back. Wait until the session is resolved before deciding.
   if (session.loading) return null;
+
+  // Likewise, don't decide anything until the KYC answer is actually in — rendering either
+  // branch on a pending query shows somebody the wrong screen.
+  if (!isGuest && kycLoading) return null;
 
   if (!isGuest && !kycFull) {
     return (
