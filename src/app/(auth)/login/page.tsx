@@ -171,13 +171,13 @@ export default function LoginPage() {
 
         <Link
           href="/join"
-          className="flex h-[50px] w-full items-center justify-center rounded-xl bg-foreground/[0.05] text-sm font-medium tracking-[-0.14px] text-foreground transition-colors hover:bg-foreground/[0.08]"
+          className="flex h-[50px] w-full items-center justify-center rounded-xl bg-foreground/5 text-sm font-medium tracking-[-0.14px] text-foreground transition-colors hover:bg-foreground/8"
         >
           Join as a Guest/Regulator
         </Link>
         <Link
           href="/register"
-          className="flex h-[50px] w-full items-center justify-center rounded-xl bg-foreground/[0.05] text-sm font-medium tracking-[-0.14px] text-foreground transition-colors hover:bg-foreground/[0.08]"
+          className="flex h-[50px] w-full items-center justify-center rounded-xl bg-foreground/5 text-sm font-medium tracking-[-0.14px] text-foreground transition-colors hover:bg-foreground/8"
         >
           Create an account
         </Link>

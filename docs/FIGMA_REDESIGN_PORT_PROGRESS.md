@@ -757,6 +757,143 @@ the Zoom live-room wrappers (`agm/live`, `events/live` shells).
   - **Not changed:** nothing else — `agm/layout.tsx`'s link-to-`/intro` complaint from (8) is
     resolved by this entry.
 
+- **2026-09-06 (10)** — NIN verification at the Innovation / Launch RSVP point, per the four
+  new frames. Same three-modal design as BVN, so it is the **same component**:
+  `VerifyIdentitySheet` gained `mode: "bvn" | "nin"` (+ `contextLabel`) rather than a second
+  copy of a flow we just finished de-duplicating.
+  - `mode="nin"` collects **only the 11-digit NIN** — no DOB, no consent block (both exist for
+    BVN because step 1 verifies the BVN *against* a date of birth under an NDPA/CBN consent;
+    NIN has no such lookup to satisfy). USSD hint is `*346#` vs BVN's `*565*0#`, and the
+    confirmation drops the word "AGM" to match the frame exactly.
+  - **No backend exists for NIN yet**, so nothing is submitted: stage 1 advances locally,
+    the face capture is played and discarded, and the sheet resolves to "You're Confirmed!".
+    Per *"keep it so it doesnt block users"*, completing it hands control back to
+    `doRsvp()` and the RSVP proceeds exactly as before — the sheet decides **when it is
+    shown**, never whether the RSVP is allowed. Closing it cancels, as a modal should.
+  - **The NIN is never persisted** — component state for the life of the modal, then gone.
+    Same rule the BVN follows (NDPA); no localStorage, no sessionStorage.
+  - **Added beyond the frames:** an "I'll do this later" link on the NIN face stage only. A
+    camera that won't open must not be what stops someone RSVPing to an event whose
+    verification isn't wired up yet. The AGM/BVN path deliberately has **no** such escape.
+    Remove it if unwanted — it's one block in the face stage.
+  - **Trigger set** (confirmed with the user, whose message said "innovations" while the
+    frames read "product launch" — it's both): `mod === "HACKATHON" || mod === "LAUNCH"`.
+    AGM keeps BVN; GENERAL events RSVP unverified as before. Copy follows the module
+    ("this challenge" / "this product launch").
+  - **Coverage checked:** `useRsvp` has exactly one call site in the whole app
+    (`events/[id]/page.tsx`), and the hackathon list's "RSVP to Apply" routes to that page
+    rather than RSVPing itself — so there is no second RSVP path that skips this.
+  - ⚠️ **Unrelated, found while working:** `public/auth/SpotifySetup.exe` — a 1MB Windows
+    executable sitting in the public folder, untracked and *not* gitignored. It would be
+    committed and then served at `/auth/SpotifySetup.exe`. Left in place (not mine to
+    delete); almost certainly a stray download that wants removing.
+    **Resolved** — the user moved it to `Downloads/SpotifySetup (1).exe`.
+
+- **2026-09-06 (11)** — Profile rebuilt as **Settings**, to the five new frames. Two panes on
+  desktop (list left, section right), and per the user's explicit ask it is **all one page**:
+  *"Can we keep them all in the same page?"*
+  - **Six sub-routes deleted** (`profile/{my-events,saved-events,documents,notification-preferences,change-password,help}`)
+    and their bodies moved into `src/components/attend/profile/*Panel.tsx` — the same
+    extract-to-component pattern used for the AGM sheets and VerifyIdentitySheet. **All logic
+    carried over verbatim**: the documents download still goes through the counted
+    `/documents/{id}/download` with its bare-URL fallback, and notification prefs keep the dirty
+    baseline, the `beforeunload` guard and the `UNAUTHORIZED` code branch.
+  - Selection lives in **`?section=`**, not plain state, so browser back still steps between
+    sections and a section stays linkable. Only one link in the app pointed into the old
+    sub-routes (`notifications/page.tsx`) — repointed at `/profile?section=notifications`.
+  - **Bookmarks to the old sub-paths now 404.** Nothing in-app links to them; add redirect
+    wrappers if that matters.
+  - New `PanelShell` (circular back arrow + heading + underline tabs), `EventRowList` (the
+    frame's compact row; chevron on My Events, filled green bookmark on Saved), and
+    `eventTabs.ts` (shared tab filter).
+  - `NavShell`: sidebar item `Profile` → **Account**, app-bar title `Profile` → **Settings**.
+
+  **Three gaps the frames assume and the backend doesn't have** — all settled with the user:
+  - **No profile-update endpoint.** Added `authClient.updateProfile` → `PUT /api/v1/auth/me`
+    plus `useUpdateProfile`, **marked ⚠️ ASSUMED in the client**. It 404s until backend adds the
+    route; per the user's instruction the form shows *"Couldn't save your changes. Please try
+    again later."* rather than a raw error. `UpdateProfileRequest` sends `fullName` **and** the
+    split `firstName`/`lastName` since the accepted shape is unknown. The avatar picker works
+    today (`uploadClient.upload` → Cloudinary) but persisting the URL needs the same endpoint.
+  - **No `username`.** `MeResponse` has none and nothing in the app references one. The frame's
+    `@handle` and Username field are **omitted**; the header shows the **email** instead.
+  - **No `attended`/`checkedIn` on `EventListItem`.** "Attended" is approximated as
+    **ENDED + `hasRsvped`** — which over-counts a no-show who RSVP'd. It is also the **only**
+    place ended events are shown since the hide-ended pass; every other tab keeps that filter.
+    See the comment on `filterEventsByTab`.
+
+  - **Kept though the frames omit them:** the **Sign out** row (the sidebar menu carrying
+    sign-out is `hidden md:block`, so on mobile this row is the only way out of a session) and
+    the amber **KYC nudge**.
+  - **Added beyond the frames:** a discard-confirm when leaving Notification Preferences dirty.
+    Closing a panel is no longer a navigation, so the existing `beforeunload` guard can't fire —
+    without it, unsaved toggles vanished silently.
+  - ⚠️ **Minutes / Certificates tabs may sit empty.** Filtering is on `documentType`, and the
+    real values the backend sends are unconfirmed (the old page only ever matched
+    notice/agenda/report/proxy). Matching is substring + case-insensitive so `MEETING_MINUTES`
+    would still land correctly.
+  - **Verification:** `tsc --noEmit` clean; dev server compiles. `/profile` redirects to login
+    before rendering, so **the page was not rendered with a real session** — the two-pane
+    layout, tabs, avatar upload and save-failure copy all still need a browser pass.
+
+- **2026-09-06 (12)** — The three remaining Settings panels finished to their own frames.
+  - **Notification Preference — rebuilt, and it is now lossy by design.** The frame shows four
+    rows and no save button. Mapping agreed with the user: RSVP / Event Reminder / New Document
+    drive the three `inApp*` flags, and **"Email Notification" is a single master over all three
+    `email*` flags**. ⚠️ Consequence: the email flags can no longer be set individually here, so
+    a user with a mixed email setup (say reminders on, receipts off) will see it collapse to
+    all-on or all-off the first time they touch that switch. Nothing is dropped silently — all
+    six flags are still sent on every save.
+    - **Saving is now per-toggle** (the frame has no button), replacing the dirty-baseline,
+      `beforeunload` guard and the discard-confirm added in (11) — all now unnecessary since
+      nothing is ever left unsaved. A failed save **reverts the switch** so it can't display a
+      value the server rejected; the `UNAUTHORIZED` branch is kept.
+    - Switches are **`bg-emerald-500`**, per the frame — deliberately not `bg-primary`, which is
+      the near-black navy behind the 2026-09-03 (13) bug.
+    - ⚠️ **Caught while wiring:** my first pass had the in-app toggles trigger the browser push
+      subscription. That was wrong — `NEXT_PUBLIC_VAPID_KEY` is **unset in every env file**, so
+      `usePushSubscription.toggle(true)` always bails at the "not available on this environment"
+      branch, *but only after firing a `Notification.requestPermission()` prompt*. Flipping
+      "RSVP" would have popped an unexplained OS permission dialog that then did nothing. The
+      panel now writes only the stored `pushEnabled` preference (it follows "any in-app row is
+      on"); the real subscribe UI stays on `/notifications`, which has room to explain itself.
+  - **Change Password** — frame copy ("Enter your current password and proceed to creating a new
+    one"), Title Case labels, "Password" placeholders, `Update Password`. The eye toggle was
+    already built into `Input`. All logic untouched, including the sign-out-after-change.
+  - **Help** — panel title is **"Help & FAQ"** (the settings *row* stays "Help & Support", as the
+    frames show). The two contact cards became `Email us` / `Call us` rows with chevrons.
+    Contact details **differed between the desktop and mobile frames**
+    (`contact@meristemng.com` vs `hello@experienceattend.com`); the user chose
+    **hello@experienceattend.com**, phone `0800MERISTEM` (dialled as `0800637478` — the letters
+    keypad-mapped, otherwise `tel:` does nothing).
+  - **Help & Support row subtitle** — the frames repeat *"Change your account password"* here,
+    duplicating the row above. Raised it as a likely copy-paste slip; **the user chose verbatim**,
+    so that is what ships. Comment in `profile/page.tsx` records why.
+
+- **2026-09-06 (13)** — AGM list cards showed the **registrar's** logo, not the company's.
+  User: *"can this carry register logo instead and not registrar?"*
+  - `AgmListCard` (`agm/page.tsx`) picked `e.organizerLogo` on its own, while taking its *name*
+    from `registerName || organizerName`. So every row paired the company's name with Meristem's
+    mark. Now `e.branding?.logoUrl || e.organizerLogo`.
+  - **Evidence this is the right field**, not a guess: every other surface in the app already
+    resolves logos in that order (`guest/page`, `join/page`, `general/page`, `LiveRoom`,
+    `MinutesSheet`, `EventRowList`) — the AGM card was the sole outlier. `MinutesSheet` settles
+    it outright: its hero uses `branding.logoUrl` for the company, and `organizerLogo` appears
+    only in the small *"Registered by {organizerName}"* attribution credit, with a comment
+    saying so. **`organizerLogo` is the registrar; `branding.logoUrl` is the company.**
+  - ⚠️ **No dedicated register-logo field exists.** `EventListItem` declares only
+    `organizerLogo` and `branding.logoUrl` — there is no `registerLogo`. If `branding.logoUrl`
+    turns out not to be the company mark either, this needs a backend field; the fix above is
+    the best available with the data we have.
+  - ⚠️ **Not verified against a live payload.** The public `/api/v1/guest/events` response is
+    trimmed to `{branding, date, eventType, id, startTime, title}` (and `branding.logoUrl` came
+    back `null` on the sample), and the participant endpoint needs a session I don't have. So
+    whether real AGM rows actually carry `branding.logoUrl` is **unconfirmed** — if the cards
+    now fall back to the building icon, that's the field being empty, and it's a backend fix.
+  - **Left alone:** `events/page.tsx` (Launches artwork chain) and `hackathon/page.tsx` also use
+    `organizerLogo` directly, but neither module has a registrar — the organiser there *is* the
+    company, so the value is already correct.
+
 ## Deltas from the new frames (flag for review)
 
 5. **"Pending Approval" state NOT built** — there is no backend field for it.

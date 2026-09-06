@@ -85,7 +85,7 @@ export default function HackathonPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search innovation challenges or organisers"
-          className="h-[50px] w-full rounded-[10px] border border-transparent bg-foreground/[0.04] pl-10 pr-3.5 text-sm tracking-[-0.14px] text-foreground placeholder:font-light placeholder:text-foreground/40 transition-colors focus-visible:border-primary focus-visible:outline-none"
+          className="h-[50px] w-full rounded-[10px] border border-transparent bg-foreground/4 pl-10 pr-3.5 text-sm tracking-[-0.14px] text-foreground placeholder:font-light placeholder:text-foreground/40 transition-colors focus-visible:border-primary focus-visible:outline-none"
         />
       </div>
 
@@ -116,7 +116,7 @@ export default function HackathonPage() {
           return (
             <div
               key={c.id}
-              className="flex flex-col gap-3 rounded-xl border border-foreground/[0.06] bg-white p-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]"
+              className="flex flex-col gap-3 rounded-xl border border-foreground/6 bg-white p-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]"
             >
               <div className="flex gap-2.5">
                 <div
@@ -161,7 +161,7 @@ export default function HackathonPage() {
                     size="lg"
                     variant="ghost"
                     fullWidth
-                    className="bg-foreground/[0.04] font-medium hover:bg-foreground/[0.08]"
+                    className="bg-foreground/4 font-medium hover:bg-foreground/8"
                   >
                     View Details
                   </Button>

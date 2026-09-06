@@ -41,7 +41,7 @@ export function EventCard({ event, href }: Props) {
   return (
     <Link
       href={link}
-      className="group block overflow-hidden rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+      className="group block overflow-hidden rounded-xl border border-foreground/6 bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
     >
       {/* When the event has a flyer it fills the card header (cropped to fit); otherwise the
           header falls back to the organiser's brand colour with their initials as a watermark.
@@ -116,7 +116,7 @@ export function EventCard({ event, href }: Props) {
             </div>
           )}
         </div>
-        <div className="flex items-center justify-between border-t border-foreground/[0.06] pt-3">
+        <div className="flex items-center justify-between border-t border-foreground/6 pt-3">
           {event.rsvpCount != null ? (
             <div className="flex items-center gap-1.5 text-xs text-foreground/60">
               <Users className="h-3.5 w-3.5" />

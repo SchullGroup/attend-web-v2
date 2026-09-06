@@ -378,7 +378,7 @@ export default function FeaturesPage() {
                     return (
                       <div
                         key={f.title}
-                        className="rounded-2xl p-5 transition-colors hover:bg-white/[0.06]"
+                        className="rounded-2xl p-5 transition-colors hover:bg-white/6"
                         style={{
                           background: "rgba(255,255,255,0.04)",
                           border: "1px solid rgba(255,255,255,0.07)",

@@ -26,7 +26,7 @@ export default function GuestLayout({ children }: { children: React.ReactNode })
         <img src="/attend-logo.png" alt="Attend" style={{ height: 26, width: "auto" }} />
         <Link
           href="/login"
-          className="flex h-10 items-center justify-center rounded-xl bg-foreground/[0.05] px-5 text-sm font-medium tracking-[-0.14px] text-foreground transition-colors hover:bg-foreground/[0.08]"
+          className="flex h-10 items-center justify-center rounded-xl bg-foreground/5 px-5 text-sm font-medium tracking-[-0.14px] text-foreground transition-colors hover:bg-foreground/8"
         >
           Login
         </Link>

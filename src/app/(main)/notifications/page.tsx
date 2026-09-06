@@ -31,7 +31,7 @@ export default function NotificationsPage() {
     return (
       <div className="space-y-3">
         {[1, 2, 3, 4].map((n) => (
-          <div key={n} className="h-20 animate-pulse rounded-xl bg-foreground/[0.04]" />
+          <div key={n} className="h-20 animate-pulse rounded-xl bg-foreground/4" />
         ))}
       </div>
     );
@@ -57,7 +57,7 @@ export default function NotificationsPage() {
         </Button>
       </header>
 
-      <div className="space-y-3 rounded-xl border border-foreground/[0.06] bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+      <div className="space-y-3 rounded-xl border border-foreground/6 bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
         <div className="flex items-center justify-between">
           <div className="space-y-0.5 pr-4">
             <h3 className="text-sm font-semibold text-foreground">Web Push Notifications</h3>
@@ -73,7 +73,7 @@ export default function NotificationsPage() {
             onClick={() => handleTogglePush(!pushEnabled)}
             className={cn(
               "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50",
-              pushEnabled ? "bg-primary" : "bg-foreground/[0.15]"
+              pushEnabled ? "bg-primary" : "bg-foreground/15"
             )}
           >
             <span
@@ -93,7 +93,7 @@ export default function NotificationsPage() {
 
         <p className="text-xs text-foreground/60">
           Email and in-app alerts are configured separately in{" "}
-          <Link href="/profile/notification-preferences" className="font-medium text-primary hover:underline">
+          <Link href="/profile?section=notifications" className="font-medium text-primary hover:underline">
             Notification Preferences
           </Link>
           .
@@ -151,10 +151,10 @@ function NotificationItem({
     <li
       onClick={() => !n.read && onRead?.()}
       className={cn(
-        "flex items-start gap-3 rounded-xl border border-foreground/[0.06] p-4 transition-colors",
+        "flex items-start gap-3 rounded-xl border border-foreground/6 p-4 transition-colors",
         n.read
           ? "bg-white/60"
-          : "cursor-pointer bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] hover:bg-foreground/[0.02]",
+          : "cursor-pointer bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] hover:bg-foreground/2",
       )}
     >
       <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] ${colorClass}`}>

@@ -14,6 +14,7 @@ import type {
   BvnRecoverInitRequest,
   BvnRecoverVerifyRequest,
   BvnRecoverCompleteRequest,
+  UpdateProfileRequest,
 } from "@/types/auth/requests";
 import axios from "axios";
 import Cookies from "js-cookie";
@@ -34,6 +35,16 @@ export const authClient = {
 
   getMe: async () => {
     const response = await apiClient.get<MeApiResponse>("/api/v1/auth/me");
+    return response.data;
+  },
+
+  // ⚠️ ASSUMED ROUTE. The backend has no participant profile-update endpoint yet — nothing in
+  // the API layer does PUT/PATCH on a user — so this 404s until one is added. The Settings
+  // "My profile" form calls it and shows a soft "please try again later" on failure rather
+  // than a hard error, so a missing route degrades quietly instead of looking broken.
+  // Confirm the path/shape with the backend when it lands.
+  updateProfile: async (data: UpdateProfileRequest) => {
+    const response = await apiClient.put<MeApiResponse>("/api/v1/auth/me", data);
     return response.data;
   },
 

@@ -109,7 +109,7 @@ export default function EventsPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by title or organiser"
-            className="h-10 w-full rounded-full border border-foreground/5 bg-foreground/[0.03] pl-10 pr-3 text-sm tracking-[-0.14px] text-foreground placeholder:text-foreground/40 focus-visible:outline-none focus-visible:border-primary"
+            className="h-10 w-full rounded-full border border-foreground/5 bg-foreground/3 pl-10 pr-3 text-sm tracking-[-0.14px] text-foreground placeholder:text-foreground/40 focus-visible:outline-none focus-visible:border-primary"
           />
         </div>
         <div className="flex flex-wrap gap-2">
@@ -121,7 +121,7 @@ export default function EventsPage() {
                 "rounded-full border px-3 py-1.5 text-xs font-medium tracking-[-0.12px] transition-colors",
                 fmt === f
                   ? "border-foreground bg-foreground text-background"
-                  : "border-foreground/10 text-foreground/60 hover:bg-foreground/[0.04]",
+                  : "border-foreground/10 text-foreground/60 hover:bg-foreground/4",
               )}
             >
               {f}
@@ -158,7 +158,7 @@ function EventRow({ event: e, saved }: { event: EventListItem; saved: boolean })
   const art = e.flyerUrl || e.bannerUrl || e.organizerLogo || null;
 
   return (
-    <div className="relative flex gap-2.5 rounded-xl border border-foreground/[0.06] bg-white p-1.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]">
+    <div className="relative flex gap-2.5 rounded-xl border border-foreground/6 bg-white p-1.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]">
       <Link href={`/events/${e.id}`} className="flex min-w-0 flex-1 gap-2.5">
         <div
           className="flex h-[60px] w-[60px] shrink-0 items-center justify-center overflow-hidden rounded-[10px]"
@@ -207,7 +207,7 @@ function EventRow({ event: e, saved }: { event: EventListItem; saved: boolean })
       <Link
         href={`/events/${e.id}`}
         aria-label={`Open ${e.title}`}
-        className="absolute bottom-3 right-3 flex h-7 w-7 items-center justify-center rounded-full border border-foreground/10 text-foreground/60 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+        className="absolute bottom-3 right-3 flex h-7 w-7 items-center justify-center rounded-full border border-foreground/10 text-foreground/60 transition-colors hover:bg-foreground/4 hover:text-foreground"
       >
         <ChevronRight className="h-4 w-4" />
       </Link>

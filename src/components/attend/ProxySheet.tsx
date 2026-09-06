@@ -204,8 +204,8 @@ export function ProxySheet({
       <div className="flex flex-col gap-6">
 
         {assignmentClosed && !assignedCode ? (
-          <div className="flex items-start gap-3 rounded-xl border border-foreground/[0.06] bg-foreground/[0.03] p-5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-foreground/[0.06] text-foreground/60">
+          <div className="flex items-start gap-3 rounded-xl border border-foreground/6 bg-foreground/3 p-5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-foreground/6 text-foreground/60">
               <Lock className="h-5 w-5" />
             </div>
             <div>
@@ -232,7 +232,7 @@ export function ProxySheet({
               </div>
             </div>
 
-            <div className="flex items-center justify-between rounded-xl border border-foreground/[0.06] bg-white p-4">
+            <div className="flex items-center justify-between rounded-xl border border-foreground/6 bg-white p-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/50">Proxy code</p>
                 <p className="font-mono text-xl font-bold tracking-widest text-foreground">{assignedCode}</p>
@@ -251,8 +251,8 @@ export function ProxySheet({
             </div>
 
             {assignedQr && (
-              <div className="flex flex-col items-center gap-2 rounded-xl border border-foreground/[0.06] bg-white p-4">
-                <div className="rounded-lg bg-white p-2 ring-1 ring-foreground/[0.06]">
+              <div className="flex flex-col items-center gap-2 rounded-xl border border-foreground/6 bg-white p-4">
+                <div className="rounded-lg bg-white p-2 ring-1 ring-foreground/6">
                   <QRCodeSVG value={assignedQr} size={148} level="M" />
                 </div>
                 <p className="max-w-xs text-center text-[11px] text-foreground/60">
@@ -262,7 +262,7 @@ export function ProxySheet({
             )}
 
             {disclaimer && (
-              <div className="rounded-xl border border-foreground/[0.06] bg-white p-3 text-xs text-foreground/70">
+              <div className="rounded-xl border border-foreground/6 bg-white p-3 text-xs text-foreground/70">
                 {disclaimer}
               </div>
             )}
@@ -277,7 +277,7 @@ export function ProxySheet({
           /* One proxy per shareholder per meeting. The form is deliberately not rendered here —
              re-submitting it minted a second code and left two people able to vote. Revoking is
              the way to change your mind, and it frees the slot for a new appointment. */
-          <div className="flex flex-col gap-4 rounded-xl border border-foreground/[0.06] bg-white p-6 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+          <div className="flex flex-col gap-4 rounded-xl border border-foreground/6 bg-white p-6 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
             {errorMsg && (
               <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
                 {errorMsg}
@@ -309,7 +309,7 @@ export function ProxySheet({
             </div>
 
             {existing?.proxyCode && (
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-foreground/[0.06] bg-foreground/[0.03] p-4">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-foreground/6 bg-foreground/3 p-4">
                 <div className="min-w-0">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/50">
                     Proxy code
@@ -333,8 +333,8 @@ export function ProxySheet({
             )}
 
             {existing?.proxyQrCode && (
-              <div className="flex flex-col items-center gap-2 rounded-xl border border-foreground/[0.06] bg-white p-4">
-                <div className="rounded-lg bg-white p-2 ring-1 ring-foreground/[0.06]">
+              <div className="flex flex-col items-center gap-2 rounded-xl border border-foreground/6 bg-white p-4">
+                <div className="rounded-lg bg-white p-2 ring-1 ring-foreground/6">
                   <QRCodeSVG value={existing.proxyQrCode} size={148} level="M" />
                 </div>
                 <p className="max-w-xs text-center text-[11px] text-foreground/60">
@@ -349,7 +349,7 @@ export function ProxySheet({
             </div>
 
             {disclaimer && (
-              <div className="rounded-xl border border-foreground/[0.06] bg-foreground/[0.03] p-3 text-xs text-foreground/60">
+              <div className="rounded-xl border border-foreground/6 bg-foreground/3 p-3 text-xs text-foreground/60">
                 {disclaimer}
               </div>
             )}
@@ -451,7 +451,7 @@ export function ProxySheet({
             )}
 
             {PROXY_DIRECTIONS_ENABLED && resolutions.length > 0 && (
-              <div className="flex flex-col gap-4 rounded-xl bg-foreground/[0.03] p-4">
+              <div className="flex flex-col gap-4 rounded-xl bg-foreground/3 p-4">
                 <div>
                   <h3 className="text-sm font-medium tracking-[-0.14px] text-foreground">Pre-directed proxy instructions</h3>
                   <p className="mt-1 text-xs text-foreground/60">
@@ -460,7 +460,7 @@ export function ProxySheet({
                 </div>
                 <div className="flex flex-col gap-3">
                   {[...resolutions].sort((a, b) => a.order - b.order).map((r, i) => (
-                    <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-foreground/[0.06] bg-white p-3">
+                    <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-foreground/6 bg-white p-3">
                       <div className="min-w-0 flex-1">
                         {/* 1-based by position, not r.order — see events/[id]/page.tsx for why. */}
                         <p className="text-xs font-semibold uppercase text-foreground/50">Resolution {i + 1}</p>
@@ -505,7 +505,7 @@ export function ProxySheet({
             </div>
 
             {disclaimer && (
-              <div className="rounded-xl border border-foreground/[0.06] bg-foreground/[0.03] p-3 text-xs text-foreground/60">
+              <div className="rounded-xl border border-foreground/6 bg-foreground/3 p-3 text-xs text-foreground/60">
                 {disclaimer}
               </div>
             )}
@@ -516,7 +516,7 @@ export function ProxySheet({
               <Button
                 type="button"
                 size="lg"
-                className="flex-1 bg-foreground/[0.04] text-foreground/60 shadow-none hover:bg-foreground/[0.08]"
+                className="flex-1 bg-foreground/4 text-foreground/60 shadow-none hover:bg-foreground/8"
                 onClick={onClose}
               >
                 Cancel

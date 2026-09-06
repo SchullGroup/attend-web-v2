@@ -161,7 +161,7 @@ function VerifyForm() {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <div className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-foreground/[0.04]">
+        <div className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-foreground/4">
           <Mail className="h-6 w-6 text-foreground/70" />
         </div>
         <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Verify your email</h1>
@@ -172,7 +172,7 @@ function VerifyForm() {
         </p>
         {/* Testers reported codes never arriving; the most common cause is spam filing, and
             saying so up front costs nothing when it's a genuine delivery failure. */}
-        <p className="mx-auto mt-3 max-w-xs rounded-lg bg-foreground/[0.04] px-3 py-2 text-xs leading-relaxed text-foreground/60">
+        <p className="mx-auto mt-3 max-w-xs rounded-lg bg-foreground/4 px-3 py-2 text-xs leading-relaxed text-foreground/60">
           It usually arrives within a minute. If it doesn&apos;t, check your spam or junk
           folder before requesting another code.
         </p>

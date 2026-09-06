@@ -61,7 +61,7 @@ export default function ProxyHistoryPage() {
       {isLoading ? (
         <div className="flex flex-col gap-3">
           {[1, 2].map((n) => (
-            <div key={n} className="h-24 animate-pulse rounded-xl bg-foreground/[0.04]" />
+            <div key={n} className="h-24 animate-pulse rounded-xl bg-foreground/4" />
           ))}
         </div>
       ) : proxies.length === 0 ? (
@@ -123,7 +123,7 @@ function ProxyHistoryItemRow({ p }: { p: ProxyHistoryItem }) {
   }
 
   return (
-    <li className="flex flex-col gap-3 rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+    <li className="flex flex-col gap-3 rounded-xl border border-foreground/6 bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
       {errorMsg && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs text-red-600">
           {errorMsg}
@@ -165,7 +165,7 @@ function ProxyHistoryItemRow({ p }: { p: ProxyHistoryItem }) {
             setExpanded(!expanded);
           }
         }}
-        className="flex cursor-pointer flex-col justify-between gap-3 rounded-xl bg-foreground/[0.03] p-3 transition-colors hover:bg-foreground/[0.06] sm:flex-row sm:items-center"
+        className="flex cursor-pointer flex-col justify-between gap-3 rounded-xl bg-foreground/3 p-3 transition-colors hover:bg-foreground/6 sm:flex-row sm:items-center"
       >
         <div className="flex min-w-0 items-start gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
@@ -218,15 +218,15 @@ function ProxyHistoryItemRow({ p }: { p: ProxyHistoryItem }) {
         )}
       </div>
 
-      <div className={cn(expanded && "border-t border-foreground/[0.06] pt-3")}>
+      <div className={cn(expanded && "border-t border-foreground/6 pt-3")}>
         {expanded && (
           <div className="flex flex-col gap-3">
             {receiptLoading ? (
-              <div className="h-16 animate-pulse rounded-xl bg-foreground/[0.04]" />
+              <div className="h-16 animate-pulse rounded-xl bg-foreground/4" />
             ) : proxyVotes.length > 0 ? (
               <ProxyCastVotes votes={proxyVotes} proxyName={p.proxyName} />
             ) : (
-              <p className="rounded-xl border border-foreground/[0.06] bg-foreground/[0.03] p-3 text-xs text-foreground/60">
+              <p className="rounded-xl border border-foreground/6 bg-foreground/3 p-3 text-xs text-foreground/60">
                 No votes have been recorded by this proxy yet
                 {p.eventStatus?.toUpperCase() === "ENDED" ? "." : " — check back once voting is underway."}
               </p>
@@ -242,11 +242,11 @@ function ProxyHistoryItemRow({ p }: { p: ProxyHistoryItem }) {
 
             {/* Pre-set voting directions — only if the backend ever populates them. */}
             {p.directions && p.directions.length > 0 && (
-              <div className="flex flex-col gap-2 rounded-xl border border-foreground/[0.06] bg-foreground/[0.03] p-3">
+              <div className="flex flex-col gap-2 rounded-xl border border-foreground/6 bg-foreground/3 p-3">
                 <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-foreground/50">Resolution directions</h4>
                 <div className="flex flex-col gap-2.5">
                   {p.directions.map((dir, idx) => (
-                    <div key={dir.resolutionId || idx} className="flex flex-wrap items-center justify-between gap-2 border-b border-foreground/[0.06] pb-2 last:border-b-0 last:pb-0">
+                    <div key={dir.resolutionId || idx} className="flex flex-wrap items-center justify-between gap-2 border-b border-foreground/6 pb-2 last:border-b-0 last:pb-0">
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs font-semibold text-foreground">
                           {dir.resolutionTitle || `Resolution ${idx + 1}`}
@@ -257,7 +257,7 @@ function ProxyHistoryItemRow({ p }: { p: ProxyHistoryItem }) {
                           "rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase",
                           dir.direction === "FOR" ? "border-primary/20 bg-primary/5 text-primary"
                             : dir.direction === "AGAINST" ? "border-red-200 bg-red-50 text-red-600"
-                            : dir.direction === "ABSTAIN" ? "border-foreground/10 bg-foreground/[0.04] text-foreground/60"
+                            : dir.direction === "ABSTAIN" ? "border-foreground/10 bg-foreground/4 text-foreground/60"
                             : "border-primary/20 bg-primary/5 text-primary"
                         )}>
                           Direct: {dir.direction?.replace(/_/g, " ") || "LET PROXY DECIDE"}
@@ -268,7 +268,7 @@ function ProxyHistoryItemRow({ p }: { p: ProxyHistoryItem }) {
                             dir.castOutcome === "AUTO_CAST" ? "border-primary/20 bg-primary/5 text-primary"
                               : dir.castOutcome === "OVERRIDDEN" ? "border-amber-200 bg-amber-50 text-amber-700"
                               : dir.castOutcome === "REVOKED" ? "border-red-200 bg-red-50 text-red-600"
-                              : "border-foreground/10 bg-foreground/[0.04] text-foreground/50"
+                              : "border-foreground/10 bg-foreground/4 text-foreground/50"
                           )}>
                             Outcome: {dir.castOutcome.replace(/_/g, " ")}
                           </span>

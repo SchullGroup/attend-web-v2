@@ -67,16 +67,16 @@ function QrCheckinInner() {
       </div>
 
       <div className="mx-auto w-full max-w-sm">
-        <div className="rounded-2xl border border-foreground/[0.06] bg-white p-6 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+        <div className="rounded-2xl border border-foreground/6 bg-white p-6 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
           {isCheckedIn ? (
             <div className="flex aspect-square w-full flex-col items-center justify-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 text-center">
               <CheckCircle2 className="h-16 w-16 text-emerald-600" />
               <p className="text-base font-medium text-emerald-700">You&apos;re checked in</p>
             </div>
           ) : (
-            <div className="aspect-square w-full overflow-hidden rounded-xl border border-foreground/[0.06] bg-white p-3">
+            <div className="aspect-square w-full overflow-hidden rounded-xl border border-foreground/6 bg-white p-3">
               {ticketLoading ? (
-                <div className="h-full w-full animate-pulse rounded-lg bg-foreground/[0.06]" />
+                <div className="h-full w-full animate-pulse rounded-lg bg-foreground/6" />
               ) : code ? (
                 <div className="flex h-full w-full items-center justify-center">
                   <QRCodeSVG value={code} size={232} level="M" />

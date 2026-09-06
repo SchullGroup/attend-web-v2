@@ -17,7 +17,7 @@ export const CHOICES: {
 }[] = [
   { value: "FOR", label: "For", icon: CheckCircle2, icon_colour: "text-primary", selected: "border-primary bg-primary/5" },
   { value: "AGAINST", label: "Against", icon: XCircle, icon_colour: "text-red-500", selected: "border-red-500 bg-red-50" },
-  { value: "ABSTAIN", label: "Abstain", icon: MinusCircle, icon_colour: "text-foreground/40", selected: "border-foreground/40 bg-foreground/[0.04]" },
+  { value: "ABSTAIN", label: "Abstain", icon: MinusCircle, icon_colour: "text-foreground/40", selected: "border-foreground/40 bg-foreground/4" },
 ];
 
 export function VoteButtons({
@@ -41,7 +41,7 @@ export function VoteButtons({
               "flex items-center justify-center gap-1.5 rounded-[10px] border px-2 py-2.5 text-sm transition-colors disabled:opacity-50",
               isSelected
                 ? `${selectedTone} font-medium text-foreground`
-                : "border-foreground/[0.08] bg-white text-foreground hover:bg-foreground/[0.02]",
+                : "border-foreground/8 bg-white text-foreground hover:bg-foreground/2",
             )}
           >
             <Icon className={cn("h-4 w-4 shrink-0", icon_colour)} />

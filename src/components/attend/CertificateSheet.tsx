@@ -67,7 +67,7 @@ export function CertificateSheet({
   if (isLoading) {
     return (
       <Sheet onClose={onClose} isOpen={isOpen}>
-        <div className="h-72 animate-pulse rounded-xl bg-foreground/[0.04]" />
+        <div className="h-72 animate-pulse rounded-xl bg-foreground/4" />
       </Sheet>
     );
   }
@@ -244,7 +244,7 @@ function Sheet({
           aria-label="Close"
           className={cn(
             "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-foreground/60",
-            "transition-colors hover:bg-foreground/[0.04] hover:text-foreground",
+            "transition-colors hover:bg-foreground/4 hover:text-foreground",
           )}
         >
           <X className="h-4 w-4" />

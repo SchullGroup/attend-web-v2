@@ -25,7 +25,7 @@ type Member = { id: string; name: string; role: string; email?: string; isLeader
 const STEP_TITLES = ["Apply to challenge", "Add team members"];
 const STEP_SUBTITLE = "Submit your idea details and invite your team members.";
 const FIELD =
-  "w-full rounded-[10px] border border-transparent bg-foreground/[0.04] px-3.5 text-sm tracking-[-0.14px] text-foreground placeholder:font-light placeholder:text-foreground/40 transition-colors focus-visible:border-primary focus-visible:outline-none";
+  "w-full rounded-[10px] border border-transparent bg-foreground/4 px-3.5 text-sm tracking-[-0.14px] text-foreground placeholder:font-light placeholder:text-foreground/40 transition-colors focus-visible:border-primary focus-visible:outline-none";
 
 function ApplyPageInner() {
   const router = useRouter();
@@ -259,7 +259,7 @@ function ApplyPageInner() {
               type="button"
               onClick={() => (step === 0 ? goBackToChallenge() : setStep(0))}
               aria-label="Back"
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground/10 text-foreground/70 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground/10 text-foreground/70 transition-colors hover:bg-foreground/4 hover:text-foreground"
             >
               <ArrowLeft className="h-4 w-4 text-foreground" />
             </button>
@@ -300,7 +300,7 @@ function ApplyPageInner() {
                 <select
                   value={track}
                   onChange={(e) => setTrack(e.target.value)}
-                  className="h-[50px] w-full rounded-[10px] border border-transparent bg-foreground/[0.04] px-3.5 text-sm tracking-[-0.14px] text-foreground transition-colors focus-visible:border-primary focus-visible:outline-none"
+                  className="h-[50px] w-full rounded-[10px] border border-transparent bg-foreground/4 px-3.5 text-sm tracking-[-0.14px] text-foreground transition-colors focus-visible:border-primary focus-visible:outline-none"
                 >
                   {tracks.map((t) => (
                     <option key={t}>{t}</option>
@@ -421,7 +421,7 @@ function ApplyPageInner() {
           {step === 1 && (
             <div className="mt-5 flex flex-col gap-3">
               {leader && (
-                <div className="rounded-xl bg-foreground/[0.04] p-4">
+                <div className="rounded-xl bg-foreground/4 p-4">
                   <p className="text-sm font-medium text-foreground">
                     {leader.name || "You"} <span className="font-normal text-foreground/40">(You)</span>
                   </p>
@@ -433,7 +433,7 @@ function ApplyPageInner() {
               )}
 
               {otherMembers.map((m) => (
-                <div key={m.id} className="flex items-center justify-between gap-3 rounded-xl bg-foreground/[0.04] p-4">
+                <div key={m.id} className="flex items-center justify-between gap-3 rounded-xl bg-foreground/4 p-4">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-foreground">{m.name}</p>
                     <p className="truncate text-xs text-foreground/50">
@@ -453,7 +453,7 @@ function ApplyPageInner() {
               ))}
 
               {members.length < teamSize.max && (
-                <div className="rounded-xl border border-foreground/[0.06] p-4">
+                <div className="rounded-xl border border-foreground/6 p-4">
                   <button
                     type="button"
                     onClick={() => setMemberDraftOpen((v) => !v)}
@@ -492,7 +492,7 @@ function ApplyPageInner() {
                 type="button"
                 onClick={inviteMember}
                 disabled={!memberDraft.name.trim() || !memberDraft.role.trim() || !memberDraft.email.trim()}
-                className="flex h-[50px] w-full items-center justify-center gap-2 rounded-[10px] bg-foreground/[0.04] text-sm font-medium text-foreground transition-colors hover:bg-foreground/[0.08] disabled:opacity-50"
+                className="flex h-[50px] w-full items-center justify-center gap-2 rounded-[10px] bg-foreground/4 text-sm font-medium text-foreground transition-colors hover:bg-foreground/8 disabled:opacity-50"
               >
                 <Plus className="h-4 w-4" /> Invite members
               </button>
@@ -537,7 +537,7 @@ function Gate({
       <button onClick={goBack} className="inline-flex w-fit items-center gap-1 text-sm text-foreground/60 hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> Back to Innovation
       </button>
-      <div className="mx-auto w-full max-w-md rounded-xl border border-foreground/[0.06] bg-white p-8 text-center shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+      <div className="mx-auto w-full max-w-md rounded-xl border border-foreground/6 bg-white p-8 text-center shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
         <h1 className="text-xl font-medium text-foreground">{title}</h1>
         <p className="mt-2 text-sm text-foreground/60">{body}</p>
         {action && (

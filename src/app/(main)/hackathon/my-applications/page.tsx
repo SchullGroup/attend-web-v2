@@ -125,7 +125,7 @@ export default function MyApplicationsPage() {
       {isLoading ? (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {[1, 2].map((n) => (
-            <div key={n} className="h-20 animate-pulse rounded-xl bg-foreground/[0.04]" />
+            <div key={n} className="h-20 animate-pulse rounded-xl bg-foreground/4" />
           ))}
         </div>
       ) : apps.length === 0 ? (
@@ -139,7 +139,7 @@ export default function MyApplicationsPage() {
             return (
               <div
                 key={a.id}
-                className="overflow-hidden rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+                className="overflow-hidden rounded-xl border border-foreground/6 bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
               >
                 <button
                   type="button"
@@ -190,7 +190,7 @@ export default function MyApplicationsPage() {
                   <button
                     type="button"
                     onClick={() => setCertificateFor(a.challengeId)}
-                    className="flex w-full items-center gap-1 border-t border-foreground/[0.06] px-4 py-2.5 text-left text-xs font-medium text-primary transition-colors hover:bg-foreground/[0.02]"
+                    className="flex w-full items-center gap-1 border-t border-foreground/6 px-4 py-2.5 text-left text-xs font-medium text-primary transition-colors hover:bg-foreground/2"
                   >
                     <Award className="h-3.5 w-3.5" /> View certificate
                   </button>
@@ -213,7 +213,7 @@ export default function MyApplicationsPage() {
               type="button"
               onClick={() => setSelected(null)}
               aria-label="Close"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-foreground/4 hover:text-foreground"
             >
               <X className="h-4 w-4" />
             </button>
@@ -236,7 +236,7 @@ export default function MyApplicationsPage() {
                   {selected.teamMembers.map((m, i) => (
                     <div
                       key={`${m.email || m.name}-${i}`}
-                      className={cn("py-2", i > 0 && "border-t border-foreground/[0.06]")}
+                      className={cn("py-2", i > 0 && "border-t border-foreground/6")}
                     >
                       <p className="text-sm font-medium tracking-[-0.14px] text-foreground">
                         {m.name}
@@ -285,7 +285,7 @@ export default function MyApplicationsPage() {
 // because the modal itself is white.
 function DetailCard({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-foreground/[0.06] p-3.5">
+    <div className="rounded-xl border border-foreground/6 p-3.5">
       <p className="mb-1 text-[11px] tracking-[-0.11px] text-foreground/50">{label}</p>
       {children}
     </div>

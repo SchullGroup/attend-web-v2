@@ -42,7 +42,7 @@ function SearchInner() {
       {!q ? null : isLoading ? (
         <div className="flex flex-col gap-2">
           {[1, 2, 3, 4].map((n) => (
-            <div key={n} className="h-16 animate-pulse rounded-xl bg-foreground/[0.04]" />
+            <div key={n} className="h-16 animate-pulse rounded-xl bg-foreground/4" />
           ))}
         </div>
       ) : results.length === 0 ? (
@@ -50,12 +50,12 @@ function SearchInner() {
           No results for &ldquo;{q}&rdquo;. Try a different word.
         </div>
       ) : (
-        <ul className="overflow-hidden rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+        <ul className="overflow-hidden rounded-xl border border-foreground/6 bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
           {results.map((e: EventListItem, i) => {
             const href = isInnovation(e.eventType) ? `/hackathon/${e.id}` : `/events/${e.id}`;
             return (
-              <li key={e.id} className={i > 0 ? "border-t border-foreground/[0.06]" : ""}>
-                <Link href={href} className="flex items-center gap-3 p-4 transition-colors hover:bg-foreground/[0.02]">
+              <li key={e.id} className={i > 0 ? "border-t border-foreground/6" : ""}>
+                <Link href={href} className="flex items-center gap-3 p-4 transition-colors hover:bg-foreground/2">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-primary/10 text-xs font-bold text-primary">
                     {initialsFor(e.registerName || e.organizerName)}
                   </div>

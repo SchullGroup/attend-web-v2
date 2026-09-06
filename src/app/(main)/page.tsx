@@ -264,7 +264,7 @@ function LiveCard({ event: e }: { event: EventListItem }) {
   return (
     <Link
       href={liveHref(e)}
-      className="flex w-[300px] shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+      className="flex w-[300px] shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-foreground/6 bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
     >
       <div
         className="relative h-[168px] w-full overflow-hidden"
@@ -309,7 +309,7 @@ function UpcomingCard({ event: e }: { event: EventListItem }) {
   return (
     <Link
       href={hrefFor(e)}
-      className="flex w-[280px] shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+      className="flex w-[280px] shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-foreground/6 bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
     >
       <div
         className="relative h-[150px] w-full overflow-hidden"
@@ -359,7 +359,7 @@ function DiscoverTile({
   return (
     <Link
       href={href}
-      className="flex flex-col gap-3 rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+      className="flex flex-col gap-3 rounded-xl border border-foreground/6 bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
     >
       <span
         className="flex h-11 w-11 items-center justify-center rounded-[10px]"
@@ -383,7 +383,7 @@ function CarouselSkeleton() {
         <div
           key={n}
           className={cn(
-            "h-[232px] w-[280px] shrink-0 animate-pulse rounded-xl border border-foreground/[0.06] bg-foreground/[0.04]",
+            "h-[232px] w-[280px] shrink-0 animate-pulse rounded-xl border border-foreground/6 bg-foreground/4",
           )}
         />
       ))}

@@ -104,7 +104,7 @@ function GuestBrowseContent() {
       </header>
 
       {/* Category Tabs & Search Bar */}
-      <div className="flex flex-col gap-4 border-b border-foreground/[0.06] pb-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 border-b border-foreground/6 pb-4 sm:flex-row sm:items-center sm:justify-between">
         {/* Category Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none sm:pb-0">
           {TABS.map((tab) => {
@@ -120,7 +120,7 @@ function GuestBrowseContent() {
                   "whitespace-nowrap rounded-xl px-4 py-2 text-xs font-semibold transition-colors",
                   isActive
                     ? "bg-primary text-white"
-                    : "bg-foreground/[0.04] text-foreground/60 hover:bg-foreground/[0.08] hover:text-foreground"
+                    : "bg-foreground/4 text-foreground/60 hover:bg-foreground/8 hover:text-foreground"
                 )}
               >
                 {tab.label}
@@ -140,7 +140,7 @@ function GuestBrowseContent() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/40" />
             <input
-              className="w-full rounded-[10px] border border-transparent bg-foreground/[0.04] py-2 pl-9 pr-3 text-xs outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
+              className="w-full rounded-[10px] border border-transparent bg-foreground/4 py-2 pl-9 pr-3 text-xs outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
               placeholder="Search events..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -156,14 +156,14 @@ function GuestBrowseContent() {
       {isLoading && (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-56 animate-pulse space-y-4 rounded-xl bg-foreground/[0.04] p-5">
+            <div key={i} className="h-56 animate-pulse space-y-4 rounded-xl bg-foreground/4 p-5">
               <div className="flex items-center justify-between">
-                <div className="h-10 w-10 rounded-[10px] bg-foreground/[0.06]" />
-                <div className="h-6 w-16 rounded-full bg-foreground/[0.06]" />
+                <div className="h-10 w-10 rounded-[10px] bg-foreground/6" />
+                <div className="h-6 w-16 rounded-full bg-foreground/6" />
               </div>
-              <div className="h-5 w-3/4 rounded bg-foreground/[0.06]" />
-              <div className="h-4 w-1/2 rounded bg-foreground/[0.06]" />
-              <div className="mt-auto h-9 w-full rounded-[10px] bg-foreground/[0.06]" />
+              <div className="h-5 w-3/4 rounded bg-foreground/6" />
+              <div className="h-4 w-1/2 rounded bg-foreground/6" />
+              <div className="mt-auto h-9 w-full rounded-[10px] bg-foreground/6" />
             </div>
           ))}
         </div>
@@ -263,14 +263,14 @@ function EventCard({
     <div
       className={cn(
         "flex flex-col justify-between overflow-hidden rounded-xl border bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]",
-        expanded ? "border-primary" : "border-foreground/[0.06] hover:border-primary/40"
+        expanded ? "border-primary" : "border-foreground/6 hover:border-primary/40"
       )}
     >
       <div className="space-y-4 p-5">
         {/* Top Card Bar: Logo & Status Badge */}
         <div className="flex items-start justify-between gap-3">
           {logoUrl ? (
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-foreground/[0.06] bg-foreground/[0.04]">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-foreground/6 bg-foreground/4">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={logoUrl} alt={event.title} className="h-full w-full object-cover" />
             </div>
@@ -307,7 +307,7 @@ function EventCard({
         <div className="space-y-1">
           {categoryLabel && (
             <div className="flex items-center gap-2">
-              <span className="rounded bg-foreground/[0.04] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-foreground/60">
+              <span className="rounded bg-foreground/4 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-foreground/60">
                 {categoryLabel}
               </span>
             </div>
@@ -333,7 +333,7 @@ function EventCard({
       </div>
 
       {/* Card Action / Expand Access Code Drawer */}
-      <div className="border-t border-foreground/[0.06] bg-foreground/[0.02] p-3">
+      <div className="border-t border-foreground/6 bg-foreground/2 p-3">
         <Button
           type="button"
           onClick={onToggle}
@@ -345,7 +345,7 @@ function EventCard({
         </Button>
 
         {expanded && (
-          <div className="mt-3 space-y-3 border-t border-foreground/[0.06] pt-3">
+          <div className="mt-3 space-y-3 border-t border-foreground/6 pt-3">
             <p className="text-[11px] leading-tight text-foreground/60">
               Enter the access code from your event invitation.
             </p>
@@ -359,7 +359,7 @@ function EventCard({
             <div className="space-y-2">
               <input
                 autoFocus
-                className="w-full rounded-[10px] border border-transparent bg-foreground/[0.04] px-3 py-2 text-xs tracking-widest outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
+                className="w-full rounded-[10px] border border-transparent bg-foreground/4 px-3 py-2 text-xs tracking-widest outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
                 placeholder="ACCESS CODE (e.g. 7F3KQXPM)"
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -370,7 +370,7 @@ function EventCard({
               />
 
               <input
-                className="w-full rounded-[10px] border border-transparent bg-foreground/[0.04] px-3 py-2 text-xs outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
+                className="w-full rounded-[10px] border border-transparent bg-foreground/4 px-3 py-2 text-xs outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
                 placeholder="Your name (optional)"
                 value={name}
                 onChange={(e) => setName(e.target.value)}

@@ -26,7 +26,7 @@ export function SourceBreakdown({ bySource }: SourceBreakdownProps) {
   ];
 
   return (
-    <div className="rounded-xl border border-foreground/[0.06] bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] space-y-4">
+    <div className="rounded-xl border border-foreground/6 bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] space-y-4">
       <div>
         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Votes by Source</h4>
         <p className="text-[11px] text-foreground/60 mt-0.5">
