@@ -65,6 +65,7 @@ const SECTION_TITLE: { test: (p: string) => boolean; label: string; sub?: string
   // /hackathon/* routes keep the section name.
   { test: (p) => /^\/hackathon\/(?!apply|resources|certificate|my-applications|submit)[^/]+$/.test(p), label: "About challenge" },
   { test: (p) => p.startsWith("/hackathon"), label: "Innovation Challenges", sub: "Compete, build and win" },
+  { test: (p) => p === "/general", label: "General Events", sub: "Conferences, meetings & roundtables" },
   { test: (p) => p.startsWith("/general"), label: "General" },
   // Only the list route gets the two-line block; detail/sub-routes keep the short label.
   { test: (p) => p === "/events", label: "Launches & Events", sub: "Product launches & live events" },
