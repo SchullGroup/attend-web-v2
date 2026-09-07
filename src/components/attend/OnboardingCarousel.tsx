@@ -85,8 +85,19 @@ export function OnboardingCarousel() {
 
               {/* Phone mockup — bleeds off the bottom of the card, per Figma's overflow-clip.
                   `fill` (rather than fixed width/height) because the three exports don't
-                  share one aspect ratio; object-cover crops each to the same on-screen box. */}
-              <div className="relative mt-10 h-[420px] w-[295px] max-w-full flex-1">
+                  share one aspect ratio; object-cover crops each to the same on-screen box.
+                  shrink-0, NOT flex-1: this is a column flex item, so flex-1 sets
+                  flex-basis:0% on the vertical axis and overrides an explicit height. The panel
+                  has no definite height to grow into, so the box collapsed to zero and the
+                  `fill` image rendered nothing — which is why the phone was invisible.
+
+                  The box is sized by aspect ratio rather than fixed px so it stays PROPORTIONALLY
+                  WIDER than the artwork (43/50 = 0.86, vs 0.74-0.80 for the three exports). That
+                  matters: object-cover crops whichever axis overflows, so a box narrower in
+                  proportion than the image crops the phone's SIDES off. Wider means it crops the
+                  bottom instead, which is the bleed the frame wants. Keep this ratio above 0.80
+                  if the exports are ever replaced. */}
+              <div className="relative mt-10 w-full max-w-[342px] shrink-0 aspect-[43/50]">
                 <Image
                   src={slide.image}
                   alt=""
