@@ -57,7 +57,7 @@ export function FilePickField({
           "flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors",
           dragOver
             ? "border-purple-500 bg-purple-50"
-            : "border-foreground/[0.06] bg-white hover:border-purple-400 hover:bg-purple-50/40",
+            : "border-foreground/6 bg-white hover:border-purple-400 hover:bg-purple-50/40",
         )}
       >
         {value ? (

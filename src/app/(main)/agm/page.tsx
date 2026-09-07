@@ -48,7 +48,7 @@ export default function AgmPage() {
   // too, in case the backend returns mixed types for an unrecognised value.
   const { data, isLoading } = useGetEvents({ eventType: "AGM_EGM", size: 50 });
   const agms = (data?.data?.events ?? []).filter(
-    (e) => e.eventType === "AGM_EGM" && e.status !== "CANCELLED",
+    (e) => e.eventType === "AGM_EGM" && e.status !== "CANCELLED" && e.status !== "ENDED",
   );
 
   const visible = useMemo(() => {
@@ -123,6 +123,11 @@ export default function AgmPage() {
 function AgmListCard({ event: e }: { event: EventListItem }) {
   const organiser = e.registerName || e.organizerName;
   const isLive = e.status === "LIVE";
+  // The event's own branding first, the organiser's mark only as a fallback. This card used
+  // `organizerLogo` alone, which on an AGM is the registrar (Meristem) rather than the company
+  // holding the meeting — so every row wore the registrar's logo beside the company's name.
+  // Every other list in the app already resolves it in this order.
+  const logo = e.branding?.logoUrl || e.organizerLogo;
 
   return (
     <Link
@@ -130,15 +135,15 @@ function AgmListCard({ event: e }: { event: EventListItem }) {
       // proxy/pre-vote entry points) is served by the shared /events/[id]
       // page today, same as before this retrofit.
       href={`/events/${e.id}`}
-      className="flex items-center gap-2.5 rounded-xl border border-foreground/[0.06] bg-white p-1.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+      className="flex items-center gap-2.5 rounded-xl border border-foreground/6 bg-white p-1.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
     >
       <div
         className="flex h-[60px] w-[60px] shrink-0 items-center justify-center overflow-hidden rounded-[10px]"
         style={{ backgroundColor: tileTint(organiser || e.title) }}
       >
-        {e.organizerLogo ? (
+        {logo ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={e.organizerLogo} alt="" className="h-full w-full object-cover" />
+          <img src={logo} alt="" className="h-full w-full object-cover" />
         ) : (
           <Building2 className="h-6 w-6 text-foreground/60" strokeWidth={1.75} />
         )}

@@ -23,7 +23,7 @@ import { formatDate } from "@/lib/utils";
 const VOTE_PILL: Record<string, string> = {
   For: "bg-primary/10 text-primary",
   Against: "bg-red-50 text-red-600",
-  Abstain: "bg-foreground/[0.06] text-foreground/60",
+  Abstain: "bg-foreground/6 text-foreground/60",
 };
 
 export function ReceiptSheet({
@@ -70,7 +70,7 @@ export function ReceiptSheet({
     return (
       <Dialog open={isOpen} onClose={onClose} side="right">
         <DialogHeader onBack={onClose} title="Vote receipt" />
-        <div className="h-72 animate-pulse rounded-xl bg-foreground/[0.04]" />
+        <div className="h-72 animate-pulse rounded-xl bg-foreground/4" />
       </Dialog>
     );
   }
@@ -156,7 +156,7 @@ export function ReceiptSheet({
           onClick={onClose}
           aria-label="Back"
           data-pdf-hide
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground/10 text-foreground/70 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground/10 text-foreground/70 transition-colors hover:bg-foreground/4 hover:text-foreground"
         >
           <ArrowLeft className="h-[18px] w-[18px]" />
         </button>
@@ -164,19 +164,21 @@ export function ReceiptSheet({
         {/* docRef wraps the document → the PDF is an exact snapshot of it. */}
         <div ref={docRef} className="flex flex-col gap-6">
           <div className="flex flex-col items-center gap-2 text-center">
-            <BadgeCheck className="h-12 w-12 fill-primary text-white" />
+            {/* fill-emerald-500, not fill-primary — --primary is a near-black navy in
+                this app, not green; the app's other success states use emerald. */}
+            <BadgeCheck className="h-12 w-12 fill-emerald-500 text-white" />
             <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Vote receipt</h1>
             <p className="text-sm tracking-[-0.14px] text-foreground/60">{statusLine}</p>
           </div>
 
-          <div className="rounded-xl border border-foreground/[0.06] bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+          <div className="rounded-xl border border-foreground/6 bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
             <div className="flex items-start justify-between gap-3 pb-4">
               <Row label="Meeting" value={view.meeting} />
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-primary/10">
                 <Building2 className="h-5 w-5 text-primary" />
               </span>
             </div>
-            <hr className="border-foreground/[0.06]" />
+            <hr className="border-foreground/6" />
             {/* Two-column row per Figma: time on the left, channel on the right. */}
             <div className="grid grid-cols-2 gap-3 py-4">
               <Row label="Time of vote" value={view.date} />
@@ -185,7 +187,7 @@ export function ReceiptSheet({
                 <p className="mt-0.5 text-sm font-medium tracking-[-0.14px] text-foreground">Attend app</p>
               </div>
             </div>
-            <hr className="border-foreground/[0.06]" />
+            <hr className="border-foreground/6" />
             <div className="flex items-center justify-between gap-3 pt-4">
               <div className="min-w-0">
                 <p className="text-xs text-foreground/60">Reference</p>
@@ -194,7 +196,7 @@ export function ReceiptSheet({
               <button
                 onClick={copy}
                 data-pdf-hide
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground/50 hover:bg-foreground/[0.04] hover:text-foreground"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground/50 hover:bg-foreground/4 hover:text-foreground"
                 aria-label="Copy reference"
               >
                 {copied ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
@@ -209,7 +211,7 @@ export function ReceiptSheet({
                 No votes recorded for this meeting yet.
               </div>
             ) : (
-              <div className="divide-y divide-foreground/[0.06] rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+              <div className="divide-y divide-foreground/6 rounded-xl border border-foreground/6 bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
                 {view.resolutions.map((r) => (
                   <div key={r.num} className="p-4">
                     <p className="text-xs text-foreground/60">
@@ -270,7 +272,7 @@ export function ReceiptSheet({
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-foreground/6 bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
                 <div className="flex items-start gap-3">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
                     <UserCheck className="h-4.5 w-4.5 text-primary" />
@@ -290,7 +292,7 @@ export function ReceiptSheet({
                   </div>
                 </div>
                 {(proxy.proxyCode || (receipt as any)?.proxyCode) && (
-                  <div className="rounded-[10px] border border-foreground/[0.06] bg-foreground/[0.03] px-3 py-1.5 text-right">
+                  <div className="rounded-[10px] border border-foreground/6 bg-foreground/3 px-3 py-1.5 text-right">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground/50">Proxy code</p>
                     <p className="font-mono text-sm font-bold tracking-widest text-foreground">
                       {proxy.proxyCode || (receipt as any)?.proxyCode}
@@ -302,8 +304,8 @@ export function ReceiptSheet({
               {/* §11 — signed QR of the proxy code. The holder scans it at /join to sign
                   in as a proxy; being HMAC-signed, a forged image fails verification. */}
               {(proxy.proxyQrCode || (receipt as any)?.proxyQrCode) && (
-                <div className="flex flex-col items-center gap-2 rounded-xl border border-foreground/[0.06] bg-white p-4">
-                  <div className="rounded-lg bg-white p-2 ring-1 ring-foreground/[0.06]">
+                <div className="flex flex-col items-center gap-2 rounded-xl border border-foreground/6 bg-white p-4">
+                  <div className="rounded-lg bg-white p-2 ring-1 ring-foreground/6">
                     <QRCodeSVG
                       value={String(proxy.proxyQrCode || (receipt as any)?.proxyQrCode)}
                       size={148}
@@ -320,7 +322,7 @@ export function ReceiptSheet({
 
           <ProxyCastVotes votes={votesList} proxyName={proxy?.proxyName} />
 
-          <p className="rounded-xl bg-foreground/[0.03] p-3 text-xs text-foreground/60">
+          <p className="rounded-xl bg-foreground/3 p-3 text-xs text-foreground/60">
             This receipt is timestamped and serves as evidence of your
             participation and votes at the meeting.
           </p>

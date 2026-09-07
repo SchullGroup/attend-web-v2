@@ -21,10 +21,12 @@ import {
   BarChart2,
   FileBox,
   DownloadCloud,
+  CalendarDays,
 } from "lucide-react";
 import { useGetEvent, useGetStream, useGetCountdown, useGetQuorum, useGetActivePoll, useRespondToPoll, useGetPressKit, useGuestEventView, useGuestResolutions, useGuestQuestions, useGuestSubmitQuestion, useGuestUpvoteQuestion, useGuestPolls, useGuestRespondToPoll, useGuestProxyVote, useGuestVote } from "@/api/events/hooks";
 import { useGetMe } from "@/api/auth/hooks";
 import { ZoomStage } from "@/components/attend/ZoomStage";
+import { AgendaPanel } from "@/components/attend/AgendaPanel";
 import { parseZoomUrl } from "@/lib/zoom";
 import {
   useGetResolutions,
@@ -37,14 +39,14 @@ import { useQaSocket } from "@/api/agm/qa-socket";
 import { Button } from "@/components/ui/Button";
 import { cn, toEmbedUrl, fileDisplayName } from "@/lib/utils";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { Resolution } from "@/types";
+import { Resolution, type AgendaItemDetail, type SpeakerItem } from "@/types";
 import { useSession } from "@/hooks/useSession";
 import { GUEST_TOKEN_KEY, getGuestName } from "@/lib/guest-session";
 import { NomineeBallot, CandidateTally } from "@/components/attend/NomineeBallot";
 import { SourceBreakdown } from "@/components/attend/SourceBreakdown";
 import Cookies from "js-cookie";
 
-type Tab = "qa" | "ballot" | "poll" | "presskit";
+type Tab = "qa" | "ballot" | "poll" | "presskit" | "agenda";
 type VoteChoice = "FOR" | "AGAINST" | "ABSTAIN";
 
 function fmtCountdown(total: number): string {
@@ -355,6 +357,14 @@ export function LiveRoom({
     status: (x.status || "PENDING").toUpperCase(),
   }));
 
+  // Guests and proxies land straight in this room and never see the event detail page,
+  // so the running order has to be reachable from here too. The guest /view payload is
+  // typed as EventDetail but is known to diverge (it sends eventTitle, not title), so
+  // read defensively and only offer the tab when data actually arrived.
+  const agendaItems = (event as { agenda?: AgendaItemDetail[] } | undefined)?.agenda ?? [];
+  const speakerItems = (event as { speakers?: SpeakerItem[] } | undefined)?.speakers ?? [];
+  const hasAgenda = agendaItems.length > 0 || speakerItems.length > 0;
+
   const [tab, setTab] = useState<Tab>(showBallot ? "ballot" : "qa");
   const [pollChoice, setPollChoice] = useState<string | null>(null);
   const [pollMsg, setPollMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
@@ -589,7 +599,7 @@ export function LiveRoom({
               Live
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.04] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-foreground/60">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-foreground/4 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-foreground/60">
               Not live
             </span>
           )}
@@ -738,19 +748,19 @@ export function LiveRoom({
               renders "—" for them), and the Status cell is the "Waiting"/"Open" badge again. */}
           {showBallot && !ballotReadOnly && (
             <div className="mt-3 grid grid-cols-3 gap-2">
-              <div className="rounded-xl border border-foreground/[0.06] bg-white p-3 text-center">
+              <div className="rounded-xl border border-foreground/6 bg-white p-3 text-center">
                 <p className="text-xs text-foreground/60">Quorum</p>
                 <p className="text-base font-semibold text-foreground">
                   {quorumPct != null ? `${quorumPct}%` : "—"}
                 </p>
               </div>
-              <div className="rounded-xl border border-foreground/[0.06] bg-white p-3 text-center">
+              <div className="rounded-xl border border-foreground/6 bg-white p-3 text-center">
                 <p className="text-xs text-foreground/60">Resolution</p>
                 <p className="text-base font-semibold text-foreground">
                   {openPos ?? "—"} of {resolutions.length || "—"}
                 </p>
               </div>
-              <div className="rounded-xl border border-foreground/[0.06] bg-white p-3 text-center">
+              <div className="rounded-xl border border-foreground/6 bg-white p-3 text-center">
                 <p className="text-xs text-foreground/60">Status</p>
                 <p className="text-base font-semibold text-foreground">{ballotStatus}</p>
               </div>
@@ -760,10 +770,11 @@ export function LiveRoom({
 
         {/* Right panel */}
         <div className="lg:col-span-2">
-          <div className="overflow-hidden rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
-            <div className="flex border-b border-foreground/[0.06]">
+          <div className="overflow-hidden rounded-xl border border-foreground/6 bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+            <div className="flex border-b border-foreground/6">
               {[
                 { id: "qa" as Tab, label: "Q&A", icon: MessageSquare },
+                ...(hasAgenda ? [{ id: "agenda" as Tab, label: "Agenda", icon: CalendarDays }] : []),
                 ...(isLaunch ? [{ id: "presskit" as Tab, label: "Press Kit", icon: FileBox }] : []),
                 ...(showBallot ? [{ id: "ballot" as Tab, label: "Ballot", icon: Vote }] : []),
                 ...(!showBallot ? [{ id: "poll" as Tab, label: "Polls", icon: BarChart2 }] : []),
@@ -782,6 +793,12 @@ export function LiveRoom({
             </div>
 
             <div className="max-h-105 overflow-y-auto p-4">
+              {tab === "agenda" && (
+                <div className="flex flex-col gap-3">
+                  <AgendaPanel speakers={speakerItems} agenda={agendaItems} />
+                </div>
+              )}
+
               {tab === "qa" && (
                 <div className="flex flex-col gap-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">
@@ -789,7 +806,7 @@ export function LiveRoom({
                   </p>
                   <ul className="space-y-2">
                     {qaItems.map((item) => (
-                      <li key={item.id} className="rounded-xl border border-foreground/[0.06] bg-white p-3">
+                      <li key={item.id} className="rounded-xl border border-foreground/6 bg-white p-3">
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <p className="text-xs font-semibold text-foreground">{item.who}</p>
                           <div className="flex items-center gap-2">
@@ -822,7 +839,7 @@ export function LiveRoom({
                                 "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors",
                                 item.myUpvote
                                   ? "border-primary bg-primary/10 text-primary"
-                                  : "border-foreground/[0.06] text-foreground/60 hover:bg-foreground/[0.04]",
+                                  : "border-foreground/6 text-foreground/60 hover:bg-foreground/4",
                               )}
                             >
                               <ThumbsUp className={cn("h-3.5 w-3.5", item.myUpvote && "fill-current")} />
@@ -831,14 +848,14 @@ export function LiveRoom({
                           </div>
                         ) : item.status === "APPROVED" || item.status === "ANSWERED" ? (
                           <div className="mt-2 flex items-center">
-                            <span className="inline-flex items-center gap-1.5 rounded-full border border-foreground/[0.06] bg-foreground/[0.03] px-2.5 py-1 text-[11px] font-medium text-foreground/60">
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-foreground/6 bg-foreground/3 px-2.5 py-1 text-[11px] font-medium text-foreground/60">
                               <ThumbsUp className="h-3.5 w-3.5" />
                               {item.upvoteCount} upvotes
                             </span>
                           </div>
                         ) : item.status === "PENDING" ? (
                           <div className="mt-2 flex items-center">
-                            <span className="inline-flex items-center gap-1.5 rounded-full border border-foreground/[0.06] bg-foreground/[0.03] px-2.5 py-1 text-[11px] font-medium text-foreground/60">
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-foreground/6 bg-foreground/3 px-2.5 py-1 text-[11px] font-medium text-foreground/60">
                               <Clock className="h-3 w-3" />
                               Pending Approval
                             </span>
@@ -871,7 +888,7 @@ export function LiveRoom({
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
                         placeholder="Submit a question..."
-                        className="h-10 flex-1 rounded-xl border border-transparent bg-foreground/[0.04] px-3 text-sm outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
+                        className="h-10 flex-1 rounded-xl border border-transparent bg-foreground/4 px-3 text-sm outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
                       />
                       <Button type="submit" size="sm" loading={submittingQ} disabled={!q.trim()} className="bg-slate-900 hover:bg-slate-800">
                         <Send className="h-4 w-4" />
@@ -903,7 +920,7 @@ export function LiveRoom({
                           const showResult = r.forCount + r.againstCount + r.abstainCount > 0;
                           const { label, tone } = statusBadge(r);
                           return (
-                            <div key={r.id} className="rounded-xl border border-foreground/[0.06] p-3">
+                            <div key={r.id} className="rounded-xl border border-foreground/6 p-3">
                               <div className="flex items-start justify-between gap-2">
                                 <p className="text-[11px] text-foreground/60">Resolution {idx + 1}</p>
                                 <span
@@ -920,7 +937,7 @@ export function LiveRoom({
                                 <p className="mt-1 text-xs text-foreground/60">{r.description}</p>
                               )}
                               {r.candidates && r.candidates.length > 0 ? (
-                                <div className="mt-3 space-y-2 border-t border-foreground/[0.06] pt-2">
+                                <div className="mt-3 space-y-2 border-t border-foreground/6 pt-2">
                                   {r.candidates.map((c) => (
                                     <div key={c.id}>
                                       <p className="text-xs font-medium text-foreground">{c.name}</p>
@@ -929,7 +946,7 @@ export function LiveRoom({
                                   ))}
                                 </div>
                               ) : showResult ? (
-                                <div className="mt-3 space-y-3 border-t border-foreground/[0.06] pt-2">
+                                <div className="mt-3 space-y-3 border-t border-foreground/6 pt-2">
                                   <ResolutionBars r={r} />
                                   {r.bySource && <SourceBreakdown bySource={r.bySource} />}
                                 </div>
@@ -962,7 +979,7 @@ export function LiveRoom({
                           I have a proxy code
                         </button>
                       ) : (
-                        <div className="space-y-2 rounded-xl border border-foreground/[0.06] bg-slate-50/70 p-3.5">
+                        <div className="space-y-2 rounded-xl border border-foreground/6 bg-slate-50/70 p-3.5">
                           <div>
                             <p className="text-xs font-semibold text-foreground">Proxy code</p>
                             <p className="text-[11px] text-foreground/60">
@@ -971,7 +988,7 @@ export function LiveRoom({
                             </p>
                           </div>
                           <input
-                            className="w-full rounded-xl border border-foreground/[0.06] bg-white px-3 py-2 font-mono text-xs tracking-widest outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
+                            className="w-full rounded-xl border border-foreground/6 bg-white px-3 py-2 font-mono text-xs tracking-widest outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
                             placeholder="e.g. 0417382951"
                             maxLength={10}
                             value={proxyCode}
@@ -1063,7 +1080,7 @@ export function LiveRoom({
                               onClick={gotoPrevOpen}
                               disabled={!hasPrevOpen}
                               aria-label="Previous open resolution"
-                              className="rounded-md border border-foreground/[0.06] p-1 text-foreground/60 transition-colors hover:bg-foreground/[0.04] disabled:opacity-30"
+                              className="rounded-md border border-foreground/6 p-1 text-foreground/60 transition-colors hover:bg-foreground/4 disabled:opacity-30"
                             >
                               <ChevronLeft className="h-3.5 w-3.5" />
                             </button>
@@ -1075,7 +1092,7 @@ export function LiveRoom({
                               onClick={gotoNextOpen}
                               disabled={!hasNextOpen}
                               aria-label="Next open resolution"
-                              className="rounded-md border border-foreground/[0.06] p-1 text-foreground/60 transition-colors hover:bg-foreground/[0.04] disabled:opacity-30"
+                              className="rounded-md border border-foreground/6 p-1 text-foreground/60 transition-colors hover:bg-foreground/4 disabled:opacity-30"
                             >
                               <ChevronRight className="h-3.5 w-3.5" />
                             </button>
@@ -1200,7 +1217,7 @@ export function LiveRoom({
                                       ? "border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                                       : opt === "AGAINST"
                                       ? "border-red-200 text-red-700 hover:bg-red-50"
-                                      : "border-foreground/[0.06] text-foreground/60 hover:bg-foreground/[0.04]";
+                                      : "border-foreground/6 text-foreground/60 hover:bg-foreground/4";
                                   const selectedTone =
                                     opt === "FOR"
                                       ? "bg-emerald-600 text-white border-emerald-600"
@@ -1228,13 +1245,13 @@ export function LiveRoom({
                               </Button>
                             </>
                           ) : isGuest && !guestCanVote ? (
-                            <div className="rounded-xl border border-foreground/[0.06] bg-slate-50/70 p-3.5 space-y-3">
+                            <div className="rounded-xl border border-foreground/6 bg-slate-50/70 p-3.5 space-y-3">
                               <div>
                                 <p className="text-xs font-semibold text-foreground">Have a proxy code?</p>
                                 <p className="text-[11px] text-foreground/60">Enter the 10-digit code given to you by a shareholder to cast a vote on their behalf.</p>
                               </div>
                               <input
-                                className="w-full rounded-xl border border-foreground/[0.06] bg-white px-3 py-2 text-xs font-mono tracking-widest outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
+                                className="w-full rounded-xl border border-foreground/6 bg-white px-3 py-2 text-xs font-mono tracking-widest outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
                                 placeholder="e.g. 0417382951"
                                 maxLength={10}
                                 value={proxyCode}
@@ -1281,7 +1298,7 @@ export function LiveRoom({
                     })()}
 
                     {openRes.forCount + openRes.againstCount + openRes.abstainCount > 0 && (
-                      <div className="border-t border-foreground/[0.06] pt-3 space-y-3">
+                      <div className="border-t border-foreground/6 pt-3 space-y-3">
                         <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/60">
                           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" /> Live tally
                         </p>
@@ -1302,7 +1319,7 @@ export function LiveRoom({
                       // the count move live, the same as the open-resolution panel does.
                       const showResult = r.forCount + r.againstCount + r.abstainCount > 0;
                       return (
-                        <div key={r.id} className="rounded-xl border border-foreground/[0.06] p-3">
+                        <div key={r.id} className="rounded-xl border border-foreground/6 p-3">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
                               <p className="text-[11px] text-foreground/60">Resolution {idx + 1}</p>
@@ -1313,7 +1330,7 @@ export function LiveRoom({
                           {/* Candidate resolutions keep the flat counts at 0 — every tally
                               lives on the candidates themselves, so render those instead. */}
                           {r.candidates && r.candidates.length > 0 ? (
-                            <div className="mt-3 space-y-2 border-t border-foreground/[0.06] pt-2">
+                            <div className="mt-3 space-y-2 border-t border-foreground/6 pt-2">
                               {r.candidates.map((c) => (
                                 <div key={c.id}>
                                   <p className="text-xs font-medium text-foreground">{c.name}</p>
@@ -1322,7 +1339,7 @@ export function LiveRoom({
                               ))}
                             </div>
                           ) : showResult ? (
-                            <div className="mt-3 border-t border-foreground/[0.06] pt-2 space-y-3">
+                            <div className="mt-3 border-t border-foreground/6 pt-2 space-y-3">
                               <ResolutionBars r={r} />
                               {r.bySource && <SourceBreakdown bySource={r.bySource} />}
                             </div>
@@ -1344,7 +1361,7 @@ export function LiveRoom({
                       No active poll at the moment.
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+                    <div className="rounded-xl border border-foreground/6 bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
                       <div className="mb-4">
                         <span className="inline-block rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-blue-700">
                           Live Poll
@@ -1375,7 +1392,7 @@ export function LiveRoom({
                                 "flex w-full items-center justify-between rounded-xl border p-3 text-left transition-colors disabled:opacity-75",
                                 isSelected
                                   ? "border-primary bg-primary/5 ring-1 ring-primary"
-                                  : "border-foreground/[0.06] hover:border-primary/50 hover:bg-foreground/[0.04]"
+                                  : "border-foreground/6 hover:border-primary/50 hover:bg-foreground/4"
                               )}
                             >
                               <span className="text-sm font-medium text-foreground">{opt.text}</span>
@@ -1428,7 +1445,7 @@ export function LiveRoom({
                     <>
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-semibold text-foreground">Digital Press Kit</h3>
-                        <span className="rounded-full bg-foreground/[0.04] px-2.5 py-1 text-[11px] font-semibold text-foreground/60">
+                        <span className="rounded-full bg-foreground/4 px-2.5 py-1 text-[11px] font-semibold text-foreground/60">
                           {pressKit.releasedCount} / {pressKit.totalCount} released
                         </span>
                       </div>
@@ -1441,14 +1458,14 @@ export function LiveRoom({
                               key={file.id}
                               className={cn(
                                 "flex items-center justify-between gap-3 rounded-xl border p-3",
-                                isReleased ? "border-primary/20 bg-primary/5" : "border-foreground/[0.06] bg-white opacity-60",
+                                isReleased ? "border-primary/20 bg-primary/5" : "border-foreground/6 bg-white opacity-60",
                               )}
                             >
                               <div className="flex min-w-0 items-center gap-3">
                                 <div
                                   className={cn(
                                     "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-                                    isReleased ? "bg-primary/10 text-primary" : "bg-foreground/[0.04] text-foreground/60",
+                                    isReleased ? "bg-primary/10 text-primary" : "bg-foreground/4 text-foreground/60",
                                   )}
                                 >
                                   <FileBox className="h-4.5 w-4.5" />
@@ -1515,7 +1532,7 @@ function ResolutionBars({ r }: { r: Resolution }) {
                 {row.count} · {row.shares.toLocaleString()} shares · {pct(row.count, row.shares)}%
               </span>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-foreground/[0.04]">
+            <div className="h-1.5 overflow-hidden rounded-full bg-foreground/4">
               <div className={`${row.color} h-full`} style={{ width: `${pct(row.count, row.shares)}%` }} />
             </div>
           </div>

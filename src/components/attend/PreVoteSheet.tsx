@@ -130,7 +130,7 @@ export function PreVoteSheet({
         />
         <div className="flex flex-col gap-4">
           {[1, 2, 3].map((n) => (
-            <div key={n} className="h-40 animate-pulse rounded-xl bg-foreground/[0.04]" />
+            <div key={n} className="h-40 animate-pulse rounded-xl bg-foreground/4" />
           ))}
         </div>
       </Dialog>
@@ -274,7 +274,7 @@ function ResolutionCard({
 }) {
   const [expanded, setExpanded] = useState(true);
   return (
-    <article className="rounded-xl border border-foreground/[0.06] bg-white p-4">
+    <article className="rounded-xl border border-foreground/6 bg-white p-4">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
@@ -297,7 +297,7 @@ function ResolutionCard({
           {r.description && <p className="mt-1 text-xs text-foreground/60">{r.description}</p>}
 
           {r.candidates && r.candidates.length > 0 ? (
-            <div className="-mx-4 -mb-4 mt-3 rounded-b-xl border-t border-foreground/[0.06] bg-foreground/[0.02] p-4">
+            <div className="-mx-4 -mb-4 mt-3 rounded-b-xl border-t border-foreground/6 bg-foreground/2 p-4">
               <NomineeBallot
                 candidates={r.candidates}
                 title={r.title}
@@ -352,7 +352,7 @@ function VotedCard({
   }
 
   return (
-    <article className="flex flex-col gap-3 rounded-xl border border-foreground/[0.06] bg-white p-4">
+    <article className="flex flex-col gap-3 rounded-xl border border-foreground/6 bg-white p-4">
       {/* Same card shell as ResolutionCard so voted and open items read as one list. */}
       <div className="flex items-center justify-between gap-3">
         <span className="text-sm tracking-[-0.14px] text-foreground/70">
@@ -375,7 +375,7 @@ function VotedCard({
       <h3 className="text-sm tracking-[-0.14px] text-foreground">{r.title}</h3>
 
       {editing ? (
-        <div className="flex flex-col gap-4 border-t border-foreground/[0.06] pt-3">
+        <div className="flex flex-col gap-4 border-t border-foreground/6 pt-3">
           <p className="text-xs text-foreground/60">
             Select your updated vote for this resolution:
           </p>

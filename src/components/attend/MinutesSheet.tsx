@@ -44,7 +44,7 @@ export function MinutesSheet({
   if (isLoading) {
     return (
       <Sheet onClose={onClose} isOpen={isOpen}>
-        <div className="h-72 animate-pulse rounded-xl bg-foreground/[0.04]" />
+        <div className="h-72 animate-pulse rounded-xl bg-foreground/4" />
       </Sheet>
     );
   }
@@ -66,7 +66,7 @@ export function MinutesSheet({
     return (
       <Sheet onClose={onClose} isOpen={isOpen}>
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-foreground/15 p-10 text-center">
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-foreground/[0.04]">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-foreground/4">
             <Clock className="h-6 w-6 text-foreground/50" />
           </span>
           <p className="text-sm font-medium tracking-[-0.14px] text-foreground">Minutes not published yet</p>
@@ -114,7 +114,7 @@ export function MinutesSheet({
         {/* Figma's minutes hero — the organiser's mark, the meeting title, then the
             document label. Finalised date moves to the footer credit below. */}
         <div className="flex flex-col items-center gap-2 pb-2 text-center">
-          <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-foreground/[0.04]">
+          <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-foreground/4">
             {event?.branding?.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -135,21 +135,21 @@ export function MinutesSheet({
           <p className="text-sm tracking-[-0.14px] text-foreground/60">Meeting minutes</p>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+        <div className="overflow-hidden rounded-xl border border-foreground/6 bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
         <div className="space-y-5 p-5">
           {/* Finalised minutes carry a "Resolutions" section as HTML (2026-08-18) —
               sanitized before render since this is backend-supplied markup going into
               dangerouslySetInnerHTML. The [&_x] rules give the common report elements
               (headings/lists/tables) real spacing without the Tailwind typography plugin. */}
           <div
-            className="space-y-2 text-sm leading-relaxed text-foreground/80 [&_h1]:mt-4 [&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-foreground [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:mt-4 [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:uppercase [&_h3]:tracking-wide [&_h3]:text-foreground/60 [&_p]:mb-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_strong]:font-semibold [&_table]:mt-2 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-foreground/[0.08] [&_td]:p-1.5 [&_th]:border [&_th]:border-foreground/[0.08] [&_th]:bg-foreground/[0.04] [&_th]:p-1.5 [&_hr]:my-3 [&_hr]:border-foreground/[0.08]"
+            className="space-y-2 text-sm leading-relaxed text-foreground/80 [&_h1]:mt-4 [&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-foreground [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:mt-4 [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:uppercase [&_h3]:tracking-wide [&_h3]:text-foreground/60 [&_p]:mb-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_strong]:font-semibold [&_table]:mt-2 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-foreground/8 [&_td]:p-1.5 [&_th]:border [&_th]:border-foreground/8 [&_th]:bg-foreground/4 [&_th]:p-1.5 [&_hr]:my-3 [&_hr]:border-foreground/8"
             dangerouslySetInnerHTML={{ __html: sanitizeMinutesHtml(normalizeMinutesContent(minutes.content || "")) }}
           />
 
           {/* Registrar credit — small and quiet on purpose, an attribution line rather
               than competing with the company's own branding in the header. */}
           {event?.organizerName && (
-            <div className="flex items-center gap-2 border-t border-foreground/[0.06] pt-4 text-xs text-foreground/60">
+            <div className="flex items-center gap-2 border-t border-foreground/6 pt-4 text-xs text-foreground/60">
               {event.organizerLogo && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -190,7 +190,7 @@ function Sheet({
           onClick={onClose}
           aria-label="Back"
           data-pdf-hide
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground/10 text-foreground/70 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground/10 text-foreground/70 transition-colors hover:bg-foreground/4 hover:text-foreground"
         >
           <ArrowLeft className="h-[18px] w-[18px]" />
         </button>

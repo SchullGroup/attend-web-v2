@@ -41,7 +41,7 @@ export function AgmSubNav({ active }: { active: AgmSubNavKey }) {
             "rounded-full px-4 py-2.5 text-sm tracking-[-0.14px] transition-colors",
             active === t.key
               ? "bg-foreground font-medium text-background"
-              : "bg-foreground/[0.04] text-foreground/70 hover:bg-foreground/[0.08]",
+              : "bg-foreground/4 text-foreground/70 hover:bg-foreground/8",
           )}
         >
           {t.label}

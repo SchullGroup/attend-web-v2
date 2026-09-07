@@ -54,3 +54,14 @@ export interface ResetPasswordRequest {
   otp: string;
   newPassword: string;
 }
+
+// Body for the Settings "My profile" form. Every field optional so a partial edit sends only
+// what changed. `avatarUrl` is a Cloudinary URL already returned by POST /api/v1/upload.
+// See authClient.updateProfile — the endpoint itself is not built yet.
+export interface UpdateProfileRequest {
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  phoneNumber?: string;
+  avatarUrl?: string;
+}

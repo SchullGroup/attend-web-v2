@@ -1,13 +1,14 @@
 "use client";
-import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { useGoBack } from "@/hooks/useGoBack";
 
 export default function GalleryPage() {
+  const goBack = useGoBack("/events");
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/events" className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to events
-      </Link>
+      <button onClick={goBack} className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 hover:text-foreground">
+        <ArrowLeft className="h-4 w-4" /> Back
+      </button>
 
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Photo gallery</h1>

@@ -29,8 +29,8 @@ export function Button({
     "inline-flex items-center justify-center gap-2 rounded-xl font-medium tracking-[-0.14px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none";
   const variants = {
     default: "bg-foreground text-background hover:bg-foreground/90 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.1)]",
-    outline: "border border-foreground/[0.06] bg-transparent hover:bg-foreground/[0.04] text-foreground",
-    ghost: "bg-transparent hover:bg-foreground/[0.04] text-foreground",
+    outline: "border border-foreground/6 bg-transparent hover:bg-foreground/4 text-foreground",
+    ghost: "bg-transparent hover:bg-foreground/4 text-foreground",
     destructive: "bg-destructive text-white hover:bg-destructive/90",
   };
   const sizes = {

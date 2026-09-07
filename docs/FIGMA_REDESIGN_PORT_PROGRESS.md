@@ -446,6 +446,505 @@ the Zoom live-room wrappers (`agm/live`, `events/live` shells).
   - `/hackathon/resources` route left intact for direct links; `NavRow` still used by the
     "My Application" row.
 
+- **2026-09-03 (10)** — Innovation apply flow finished against its last two frames.
+  - Step 1 shell moved off the bespoke `#f6f6f6` drawer onto the shared right-anchored
+    `Dialog` (`side="right"` + pinned `footer`), and the Pathway select is now hidden when
+    `tracks.length <= 1` (nothing to choose; the single track is still submitted).
+  - **Bug fixed:** step 2 member rows were `bg-white`, which was invisible once the shell
+    became a white sheet. Leader + member rows are now `bg-foreground/[0.04]` per the frame;
+    the "Add new member" block takes a border instead of a fill so its grey inputs read.
+  - "+ Invite members" uses a real `Plus` icon; success modal uses the frame's scalloped
+    `BadgeCheck` (fill-primary + white stroke) instead of a circle wrapping `Check`.
+  - Success modal deliberately stays a plain fixed overlay, NOT a nested `Dialog` — a second
+    `Dialog` would double-bind Escape and the body-scroll lock and close both layers.
+  - **Not matched (no data):** "judging begins on 20 Nov" — there is no judging-date field;
+    `applicationDeadline` is the *application* deadline, so the copy stays generic.
+  - **Not matched (deliberate):** desktop frame keeps "Apply to challenge" as the step-2
+    title while mobile says "Add team members" + "Step 2 of 2"; the mobile version is
+    self-consistent so `STEP_TITLES[step]` is kept. The "N–M members per team" helper is
+    kept too — the only place the limit is stated, and `canSubmit` enforces it.
+
+- **2026-09-03 (11)** — "My application details" modal added to the My Applications cards.
+  - Clicking a card now opens a centred `Dialog` (`side="center"`, `max-w-lg` — `cn` runs
+    `twMerge` so that overrides the variant's `max-w-md`) instead of routing to the brief.
+    Header is inline (title + × on one row) rather than `DialogHeader`, which stacks a
+    control row above the title.
+  - **No backend work needed:** Team name / Idea title / Team members / Description are all
+    already on `MyApplicationSummary` from `useGetMyApplications()`, which this page already
+    loads. The card-grid rebuild had trimmed them out of the `apps` map; they are carried
+    through again. No extra request, nothing persisted locally.
+  - Each section is a bordered read-only `DetailCard` (the modal is white, so a fill would
+    not read — same lesson as the apply step-2 rows). Optional sections render only when
+    present.
+  - **"(You)"** is matched on the signed-in user's email via `useGetMe()`, falling back to
+    the member `lead` flag. `TeamMemberItem.lead` means team *lead*, not current user, so
+    using it alone would mislabel a member who is not the lead.
+  - **Flag:** the card no longer routes to the challenge brief (the frame's modal has no
+    link there). The brief stays reachable from the **All** tab.
+
+- **2026-09-03 (12)** — Attendance Certificate rebuilt to its frame — both the sheet shell
+  and the artwork itself.
+  - Extracted to **`components/attend/CertificateSheet.tsx`** ({challengeId, open, onClose}),
+  following the established Sheet convention (`MinutesSheet`/`ReceiptSheet`): `Dialog`
+  `side="right"`, Download PDF pinned via `footer` so it never lands in the PDF snapshot.
+  `hackathon/certificate/page.tsx` is now a thin wrapper for direct links.
+  - **Opens in place** from My Applications' "View certificate" (local state, not a route
+  change) — same pattern as every other sheet this session; the corrected right-anchored
+  positioning applies here too (not centred).
+  - **Old purple card artwork replaced** with the frame's cream/gold design: Attend
+  wordmark (`/attend-logo.png`, not retyped text — avoids guessing the brand green hex),
+  "Certificate" + "of attendance"/"of achievement", presented-to name, participation line,
+  a decorative teal/orange chevron corner, and a circular medal seal.
+  - **Fixed an existing fabrication, not just carried it over:** the old artwork's
+  signature line was a hardcoded fictitious name ("Dr. Yewande Adeyemi, Chief Innovation
+  Officer") with no backing field. Replaced with the challenge's real `organizerName`
+  (`useGetChallenge`), falling back to a generic "Event Organiser" label — never a made-up
+  person. The frame's two illegible signature names were not reproduced for the same reason.
+  - **Share button dropped** — not present in the frame's Download-only footer. Flag if the
+  share flow is still wanted elsewhere.
+
+- **2026-09-03 (13)** — Bug: two success badges rendered near-black instead of green.
+  `--primary` is `hsl(222 39% 11%)` — a near-black navy, NOT green — so `fill-primary` on
+  the `BadgeCheck` icons in the apply flow's "Application Submitted" modal and
+  `ReceiptSheet`'s "Vote receipt" header rendered dark, not the green both frames show.
+  Fixed both to `fill-emerald-500`, matching the app's existing success-state colour
+  (`Badge` variant `success` already uses emerald). Confirmed via
+  `grep -rn "fill-primary"` that no other instance remains. Worth a broader check if
+  `text-primary`/`bg-primary` shows up anywhere else expecting green rather than the
+  actual near-black brand colour — not swept here, only these two confirmed instances.
+
+- **2026-09-04 — Three bug reports, investigated with background Explore agents first,**
+  **then fixed against verified findings (not guesses):**
+  1. **Zoom: only admin sees others' video — NOT fixable in this repo.** Investigated fully:
+     production video is the Zoom Web Client View SDK (`ZoomMtg`, not Component View — that
+     only exists in the unused `zoom-test` spike), embedded wholesale via an iframe with no
+     custom per-participant rendering anywhere. The one real code finding —
+     `ZoomStage.tsx` hardcodes `role: 0` for every user, so this app never grants anyone
+     host role — turned out not to be the cause: confirmed with the user that the
+     admin/organizer joins via the native Zoom app, not through attend-web. This is a Zoom
+     account/meeting configuration issue (attendee video-visibility restriction, or the
+     meeting being a Webinar instead of a Meeting) that must be fixed wherever that meeting
+     is configured, outside this codebase. **No code changed for this item.**
+  2. **Ended events now excluded from every normal browse surface.** Client-side
+     `.filter(e => e.status !== "ENDED")` added to: `agm/page.tsx` ("All" tab — Live/Upcoming
+     were already correct), `hackathon/page.tsx`, `general/page.tsx`, `search/page.tsx`,
+     `events/page.tsx` ("Bookmarked" tab only — All/Past were already correct),
+     `profile/saved-events`, and `profile/my-events` (user chose a plain filter over an
+     Upcoming/Past tab split — AGMs included). Left untouched, confirmed correct or
+     intentional archives: Home's carousels, `events/archive`, `agm/proxy-history`,
+     `agm/receipt`, `agm/minutes`, `hackathon/my-applications`.
+  3. **Back buttons restored to real history navigation.** New shared
+     **`src/hooks/useGoBack.ts`** — `router.back()` when `window.history.length > 1`, else
+     `router.push(fallbackHref)` (same guard `NavShell` already used, generalized with a
+     fallback). Applied to every control found hardcoded to a fixed route during the
+     redesign pass: `events/archive`, `events/gallery`, all five `profile/*` subpages,
+     `hackathon/apply` (step-0 back, the sheet's `Dialog onClose`, and the `Gate` helper),
+     `hackathon/[id]`'s load-failure state, and the `agm/pre-vote` / `agm/proxy` /
+     `hackathon/certificate` sheet route-wrappers' `onClose`. Each keeps its old hardcoded
+     target as the fallback, so a cold/direct hit still lands somewhere sane.
+     - **Deliberately left alone:** `LiveRoom` "Leave meeting" (should land somewhere known,
+       not wherever history points from before joining), guest cross-flow links ("Back to
+       sign in", `join`/`join/code`), KYC step wizard (forward/back is step navigation, not
+       "previous page"), and dead code (`AgmBackButton` — zero call sites;
+       `events/qr-checkin` — confirmed nothing links to it, the real entry point
+       `/qr-checkin` already used `router.back()` correctly).
+
+- **2026-09-04 (2)** — Section header pattern + Launches module.
+  - **Duplicate heading bug:** the app bar showed a short section label ("Innovation",
+    "Launches") while the page ALSO rendered its own near-identical `<h1>` just below,
+    so the two stacked and collided with the bar's border. Per Figma, those sections put
+    a two-line title block IN the bar. `SECTION_TITLE` in `NavShell` now takes an optional
+    `sub`; the bar renders title + tagline, and the duplicate headings were removed from
+    `hackathon/page.tsx`, `hackathon/my-applications/page.tsx` and `events/page.tsx`.
+    Bar switched `h-16` → `min-h-16` + padding so it grows only for those sections
+    (verified nothing offsets against a 64px header). The `sub` is scoped to `p === "/events"`
+    so event *detail* routes keep the short "Launches" label.
+  - **Sticky header bled content:** it was `bg-black/[0.02]` — a 2% tint, i.e. 98%
+    transparent — so scrolled cards showed through it. Now opaque, using the exact opaque
+    equivalents of that tint per breakpoint (`#fafafa` mobile / `#f1f1f1` desktop) so the
+    tone is unchanged. Comment added so the tint is not reintroduced. Sidebar left as a
+    tint (nothing scrolls under it — `main` is offset by `md:pl-[259px]`); mobile bottom
+    nav left as `bg-white/95` + blur (deliberate frosted effect).
+  - **Launches cards rebuilt to the frame:** extracted an `EventRow` child component (the
+    save/unsave hooks bind the event id at call time, so they cannot be looped in the
+    parent). Adds a working **bookmark toggle** (top-right, wired to
+    `useSaveEvent`/`useUnsaveEvent` — it now actually populates the existing "Bookmarked
+    Events" tab) and a **circular chevron** (bottom-right), and prefers real artwork
+    (`flyerUrl → bannerUrl → organizerLogo → Rocket`) over the logo-only thumbnail.
+  - **"120 Registered" NOT built — no backend field.** `EventListItem` has no
+    `registeredCount` (only `EventDetail` does), so the frame's count would need an N+1
+    fetch per card or a new list field. Same documented gap as Home's "N watching" and the
+    challenge list's "120 Applied".
+  - **Kept, not in the frame (flag):** the page-level search box and the
+    All/Virtual/Hybrid/In-Person format chips. The frame shows neither on desktop (search
+    appears on its mobile frame only). Kept because they are real filtering; one-line
+    removal if they should go.
+
+- **2026-09-04 (3)** — Launch detail page IS the live page; details panel added to the
+  live room.
+  - **Reverses the 2026-09-03 decision** that non-AGM live opens `streamUrl` in a new tab.
+    Now: `joinedLive` state swaps the hero for an inline iframe, reusing LiveRoom's exact
+    embed (`toEmbedUrl` + the `credentialless` spread + the same `allow` list). CTA reads
+    **"Join Live Event"** and disappears once playing, per the frame.
+  - **Zoom deliberately excluded from the hero** (user decision): Zoom needs the page
+    cross-origin isolated, which forces a full `?coi=1` reload that would wipe the
+    "joined" React state. `parseZoomUrl(streamUrl)` truthy → route to `/events/live`,
+    which already handles that isolation. AGM still routes to `/agm/live`.
+  - **Stream URL now resolved properly:** added `useGetStream(id, live && rsvped)` and
+    folded it into `missingStreamLink`, which previously only checked `event.streamUrl` —
+    so a live event whose link exists only behind the gated `/stream` endpoint no longer
+    shows "Join link not available yet".
+  - `NavShell.SECTION_TITLE` now shows **"About event"** on `/events/{id}` (regex excludes
+    archive/gallery/live/qr-checkin).
+  - **Details panel in the live room:** Speakers + Agenda extracted to shared
+    **`components/attend/AgendaPanel.tsx`** (with `PanelCard`, removing the page-local
+    copy), now rendered both by the detail side panel and by a new **Agenda tab** in
+    `LiveRoom` — so guests and proxies, who land straight in the room and never see the
+    detail page, can read the running order. Default tab unchanged
+    (`showBallot ? "ballot" : "qa"`); the tab only appears when data exists.
+  - **UNVERIFIED (needs a real guest session):** the guest `/view` endpoint is typed
+    `ApiResponse<EventDetail>` so agenda/speakers *should* arrive, but that payload is
+    known to diverge from the type (it sends `eventTitle`, not `title`). The panel reads
+    defensively and hides when empty, but whether guests actually get agenda data is
+    untested — the whole point of the request, so worth confirming.
+  - Added the Agenda tab for all live rooms, not just AGM (equally useful in a launch);
+    say the word if it should be AGM-only.
+
+- **2026-09-04 (4)** — Login page matched to Figma (Dashboard.Webview.Desktop), items 1-3.
+  - **Email/Phone toggle removed** in favour of one "Email or Phone Number" field with
+    `CircleUserRound` (the icon the design branch used). Safe because the payload already
+    sent the same value as `identifier` + `emailOrPhone` + `email` — the toggle only chose
+    whether to run `toE164()`. Now the input's shape decides: `looksLikePhone` →
+    `toE164`, else trimmed as-is. **No backend or payload change.**
+  - Carried over the two mode-dependent behaviours: the `pendingVerifyEmail` handoff now
+    gates on `looksLikeEmail(cleanId)` instead of `mode === "email"`, and the
+    `justVerifiedEmail` effect pre-fills the single field. `DIAL_CODE`/`stripDialCode` and
+    the `cn` import dropped with the toggle.
+  - Form area given the light gradient (`(auth)/layout.tsx`) instead of flat white.
+
+  **Item 4 NOT done — blocked on an asset I cannot produce.**
+  - `public/auth/phone-mockup-agm.png` is **305x405 actual pixels** rendered at 305x405 CSS
+    px — a true 1x asset, which is why it looks soft. A 4x export must come out of Figma;
+    upscaling it here would be interpolation and would look worse, not sharper. Drop the
+    4x file into `public/auth/` and pointing `<Image>` at it is a one-line change (keep
+    `width={305} height={405}` so only density changes).
+  - **"Make it slide" is not yet defined.** The user asked for "slide"; they did NOT say
+    carousel — that was an inference of mine, corrected. What prompted it: the layout
+    renders three progress dots (one white, two at `white/10`). It could equally mean a
+    slide-in on load. Confirm before building; a multi-slide reading also needs the other
+    slide images, since the repo has exactly one mockup.
+
+- **2026-09-04 (5)** — "Sign in with BVN" link removed from `login/page.tsx` (user circled it
+  in a screenshot and said "remove this"). Only the link was removed — `/bvn-recover` itself
+  (route + its three API calls) is untouched; it's now unreachable from the UI since nothing
+  else linked to it. Say the word if it should be deleted or relinked elsewhere.
+
+- **2026-09-04 (6)** — Guest join flow (`(guest)/join/*`) matched to the "Guest events" +
+  "Enter code" frames, and a real functional bug found underneath both screens while doing it.
+  - **Bug (confirmed by reading the code + a live curl of the backend):** every event card on
+    `/join` linked to `/join/[event.id]`, which is a **legacy** dynamic route whose own comment
+    says it's "kept only so old links don't dead-end" — it treats that URL segment as a *join
+    code*, not an event id, and redirects to `/guest-join?code=<eventId>` without ever setting
+    `eventId`. `/guest-join` then immediately shows "Incomplete invite link" because it has no
+    `eventId`. The standalone `/join/code` form hit the same dead end from the other direction
+    (bare code, no event). There is no code→event lookup endpoint anywhere in the codebase —
+    the only real call is `POST /guest/events/{eventId}/join`, which needs both eventId and
+    code together — so neither path could ever complete a join as built.
+  - **Fix, per the user's answer** ("it's basically what we have already, just the UI is
+    different — when the guest clicks the event, the second screen appears"): cards on `/join`
+    now link to `/join/code?eventId=...&title=...` (title is display-only, so the guest can
+    see which event they're entering a code for). `/join/code` now reads `eventId` from the
+    query string and calls `useGuestJoin(eventId)` directly — the same working call pattern
+    already used by `/guest`'s inline cards and `/guest-join` — instead of routing through the
+    dead legacy page. Landing on `/join/code` with no `eventId` (e.g. an old bookmark) now
+    shows "Select an event" with a link back to `/join`, instead of a form that could never
+    submit successfully. Removed the "Have an access code instead? Enter it here" footer link
+    from `/join` — it pointed at the same bare-code dead end and there's no backend capability
+    to back it.
+  - **Left alone:** `/guest` (the AGM/General/Launches tabs page) — a separate, already-working
+    implementation of the same idea, reached only via `/guest-join`'s own fallback links, not
+    from `/login`. Not part of the frames shown this round; flagging that it now duplicates
+    `/join`'s purpose in case it should eventually be merged or retired.
+  - **Not built:** per-card "Applied"/"Registered" counts shown in the Figma mock. Verified via
+    a live `curl` against `GET /api/v1/guest/events` that the endpoint returns only
+    `branding{brandColor,logoUrl}`, `date`, `eventType`, `id`, `startTime`, `title` — no
+    capacity/registration numbers, and no `flyerUrl`/`bannerUrl` either (despite one of the two
+    competing `GuestEventListItem`/`GuestEvent` types in this codebase claiming otherwise).
+    Cards keep the existing brand-colour block + logo/initials treatment; grid bumped to 3
+    columns on `lg` to match the frame's density.
+
+- **2026-09-04 (7)** — Login item 4 ("make it slide") finished: it's a 3-slide auto-advancing
+  carousel, confirmed by the user against three new frames. New
+  `components/attend/OnboardingCarousel.tsx` (client component, owns its own timer so
+  `(auth)/layout.tsx` stays a server component) — cycles every 5s through AGM / Launches /
+  Innovation Challenges slides, each with its own headline, subtext, and phone screenshot; the
+  three progress dots (previously hardcoded to the first one lit, decorative only) now track
+  the active slide.
+  - Assets: user dropped `public/auth/onboarding slider image {1,2,3}.png` in; renamed to
+    kebab-case (`onboarding-slide-{1,2,3}.png}`) for URL safety, matching the folder's existing
+    convention. **Caught mid-session:** the first two exports both showed the AGM screen — user
+    re-exported slides 2/3 correctly (Launches, Innovation) before I built against them.
+  - The three exports have two different native aspect ratios (0.795 vs 0.741), so each
+    phone-image slot uses `fill` + `object-cover object-top` in a fixed-size box instead of the
+    old fixed `width`/`height` Image props, which would have distorted one set.
+  - **Slide 3's subtext is a verbatim copy of slide 1's**, per the frame — reads as a
+    Figma copy-paste miss under an innovation-themed headline, but the user explicitly chose
+    "copy the frame verbatim" over writing new copy when asked.
+  - Dots are auto-only (not clickable), matching their original decorative-only markup; say the
+    word if they should become clickable slide controls.
+
+- **2026-09-04 (8)** — AGM identity verification rebuilt to its four new frames as modals, and
+  the old full-page KYC wizard **retired into the same component**. User's call, verbatim:
+  *"lets not have 2 kyc flows, just one. the new modal design."*
+  - New `components/attend/VerifyIdentitySheet.tsx` — three stages in one component:
+    **BVN** (white) → **Face Registration** (dark panel, tap-to-capture per the frame) →
+    **You're Confirmed!** (green `BadgeCheck`, `fill-emerald-500` — *not* `fill-primary`, which
+    is the near-black navy that caused the 2026-09-03 (13) bug).
+  - **API calls are unchanged** — step1 (BVN + DOB) → step2 skip → `bvn-selfie/v2` match →
+    step3, with the same 503 / "already verified" / `data.valid`-is-the-real-result handling
+    the old `/liveness` page had. The BVN for the selfie re-check is still read from
+    `GET /participant/kyc`, never persisted client-side (NDPA).
+  - **DOB kept** per the user's instruction to carry over the info we already collect. The
+    frame shows only a BVN field, but step 1 verifies the BVN *against* a date of birth —
+    dropping it would break the lookup the modal exists to do. NDPA/CBN consent checkbox +
+    disclosure carried over too (it gates submit, as before).
+  - **CHN left out** of the UI per the user's choice, and settled with the existing
+    `step2/skip` endpoint behind the scenes so KYC can still reach "complete".
+  - **Entry points:** the AGM detail page's amber banner "Verify" now opens the sheet in place
+    instead of routing to `/bvn`. Per the LIVE frame's dev note, it also **auto-opens** for an
+    unverified user landing on an AGM already in session, with the LIVE NOW badge and "join
+    immediately" copy; dismissing sets a flag so it doesn't immediately re-open.
+  - **Bug caught before shipping:** the auto-open first read `kycStatus` from the user store,
+    which starts at "none" from localStorage until NavShell syncs it — that would have flashed
+    the modal at already-verified users and then left it stuck open. It now waits on the KYC
+    query itself and only ever opens, never force-closes (closing on "verified" would yank the
+    panel away before the user sees the confirmation stage).
+  - `/intro`, `/bvn`, `/chn`, `/liveness` are now **thin wrappers** (`VerifyIdentityRoute`)
+    around the same sheet, so Profile / Home / the onboarding checklist / the AGM gate all show
+    the new design and **no URL breaks**. `(kyc)/layout.tsx` lost its 3-step progress bubbles
+    (the sheet carries its own stage progression); `/success` keeps the card and is untouched —
+    it still covers the rejected / pending-review states the modal doesn't.
+  - **Now-orphaned, deliberately left in place:** `resumePath`, `completedStepCount`,
+    `KYC_STEP_PATHS`, `getStoredSelfie`, `setStoredSelfie` in `lib/kyc-progress.ts` have no
+    callers any more (the sheet resumes by reading `steps.step1.completed` itself).
+    `purgeLegacyStoredBvn` and `clearKycProgress` are still live. Safe to delete the five dead
+    ones; not done in the same pass as the refactor.
+- **2026-09-04 (9)** — *"we should still make it that a user cant join an AGM without Kyc."*
+  Every path into an AGM now runs through a KYC check that opens the sheet instead of
+  proceeding. On `events/[id]`: `requireKyc()` wraps **Join Live Event** (hero play button,
+  primary CTA, and the side panel's own join), **Pre-Vote** (CTA button — it was ungated, the
+  action tile was already behind the banner), and **RSVP** — an AGM RSVP *is* the attendance
+  confirmation the modal promises ("your AGM attendance is confirmed"), so it can't be handed
+  to an unverified user.
+  - The gate **fails closed**: an unresolved KYC query reads as "not verified", so a click can
+    never slip through while the status is still loading. That's deliberately the opposite of
+    the auto-open in (8), which waits for a real response so it can't flash at verified users.
+    Both conditions now come from the KYC query rather than the localStorage-seeded store, and
+    the AGM Actions banner reads the same `kycFull` so the banner and the gate can't disagree.
+  - `agm/layout.tsx` stays the backstop for direct links (`/agm`, `/agm/live`, pre-vote, proxy,
+    receipt, minutes) — including the Home page's live cards, which link straight to
+    `/agm/live` and never touch the detail page. Its "Start verification" now opens the sheet
+    in place instead of routing to `/intro`, and it reads the query *in addition to* the store
+    so a resolved FULL_KYC unblocks immediately (it can only ever unblock — still fail-closed).
+  - **Checked, no hole:** `/qr-checkin` only *displays* the user's ticket QR — staff scanning
+    it is what records attendance — and the ticket comes from `useGetMyTicket`, which needs an
+    RSVP that is now itself gated. Both links to it already sat behind the KYC banner.
+  - ⚠️ **This is all client-side.** It stops the UI handing out AGM access, not a crafted API
+    call. Whether the backend independently rejects RSVP/stream/vote for a non-FULL_KYC
+    participant is **unverified** — I couldn't test it without an authenticated session. If it
+    doesn't, that's the real fix and this is only the front of it.
+
+  - **Not changed:** nothing else — `agm/layout.tsx`'s link-to-`/intro` complaint from (8) is
+    resolved by this entry.
+
+- **2026-09-06 (10)** — NIN verification at the Innovation / Launch RSVP point, per the four
+  new frames. Same three-modal design as BVN, so it is the **same component**:
+  `VerifyIdentitySheet` gained `mode: "bvn" | "nin"` (+ `contextLabel`) rather than a second
+  copy of a flow we just finished de-duplicating.
+  - `mode="nin"` collects **only the 11-digit NIN** — no DOB, no consent block (both exist for
+    BVN because step 1 verifies the BVN *against* a date of birth under an NDPA/CBN consent;
+    NIN has no such lookup to satisfy). USSD hint is `*346#` vs BVN's `*565*0#`, and the
+    confirmation drops the word "AGM" to match the frame exactly.
+  - **No backend exists for NIN yet**, so nothing is submitted: stage 1 advances locally,
+    the face capture is played and discarded, and the sheet resolves to "You're Confirmed!".
+    Per *"keep it so it doesnt block users"*, completing it hands control back to
+    `doRsvp()` and the RSVP proceeds exactly as before — the sheet decides **when it is
+    shown**, never whether the RSVP is allowed. Closing it cancels, as a modal should.
+  - **The NIN is never persisted** — component state for the life of the modal, then gone.
+    Same rule the BVN follows (NDPA); no localStorage, no sessionStorage.
+  - **Added beyond the frames:** an "I'll do this later" link on the NIN face stage only. A
+    camera that won't open must not be what stops someone RSVPing to an event whose
+    verification isn't wired up yet. The AGM/BVN path deliberately has **no** such escape.
+    Remove it if unwanted — it's one block in the face stage.
+  - **Trigger set** (confirmed with the user, whose message said "innovations" while the
+    frames read "product launch" — it's both): `mod === "HACKATHON" || mod === "LAUNCH"`.
+    AGM keeps BVN; GENERAL events RSVP unverified as before. Copy follows the module
+    ("this challenge" / "this product launch").
+  - **Coverage checked:** `useRsvp` has exactly one call site in the whole app
+    (`events/[id]/page.tsx`), and the hackathon list's "RSVP to Apply" routes to that page
+    rather than RSVPing itself — so there is no second RSVP path that skips this.
+  - ⚠️ **Unrelated, found while working:** `public/auth/SpotifySetup.exe` — a 1MB Windows
+    executable sitting in the public folder, untracked and *not* gitignored. It would be
+    committed and then served at `/auth/SpotifySetup.exe`. Left in place (not mine to
+    delete); almost certainly a stray download that wants removing.
+    **Resolved** — the user moved it to `Downloads/SpotifySetup (1).exe`.
+
+- **2026-09-06 (11)** — Profile rebuilt as **Settings**, to the five new frames. Two panes on
+  desktop (list left, section right), and per the user's explicit ask it is **all one page**:
+  *"Can we keep them all in the same page?"*
+  - **Six sub-routes deleted** (`profile/{my-events,saved-events,documents,notification-preferences,change-password,help}`)
+    and their bodies moved into `src/components/attend/profile/*Panel.tsx` — the same
+    extract-to-component pattern used for the AGM sheets and VerifyIdentitySheet. **All logic
+    carried over verbatim**: the documents download still goes through the counted
+    `/documents/{id}/download` with its bare-URL fallback, and notification prefs keep the dirty
+    baseline, the `beforeunload` guard and the `UNAUTHORIZED` code branch.
+  - Selection lives in **`?section=`**, not plain state, so browser back still steps between
+    sections and a section stays linkable. Only one link in the app pointed into the old
+    sub-routes (`notifications/page.tsx`) — repointed at `/profile?section=notifications`.
+  - **Bookmarks to the old sub-paths now 404.** Nothing in-app links to them; add redirect
+    wrappers if that matters.
+  - New `PanelShell` (circular back arrow + heading + underline tabs), `EventRowList` (the
+    frame's compact row; chevron on My Events, filled green bookmark on Saved), and
+    `eventTabs.ts` (shared tab filter).
+  - `NavShell`: sidebar item `Profile` → **Account**, app-bar title `Profile` → **Settings**.
+
+  **Three gaps the frames assume and the backend doesn't have** — all settled with the user:
+  - **No profile-update endpoint.** Added `authClient.updateProfile` → `PUT /api/v1/auth/me`
+    plus `useUpdateProfile`, **marked ⚠️ ASSUMED in the client**. It 404s until backend adds the
+    route; per the user's instruction the form shows *"Couldn't save your changes. Please try
+    again later."* rather than a raw error. `UpdateProfileRequest` sends `fullName` **and** the
+    split `firstName`/`lastName` since the accepted shape is unknown. The avatar picker works
+    today (`uploadClient.upload` → Cloudinary) but persisting the URL needs the same endpoint.
+  - **No `username`.** `MeResponse` has none and nothing in the app references one. The frame's
+    `@handle` and Username field are **omitted**; the header shows the **email** instead.
+  - **No `attended`/`checkedIn` on `EventListItem`.** "Attended" is approximated as
+    **ENDED + `hasRsvped`** — which over-counts a no-show who RSVP'd. It is also the **only**
+    place ended events are shown since the hide-ended pass; every other tab keeps that filter.
+    See the comment on `filterEventsByTab`.
+
+  - **Kept though the frames omit them:** the **Sign out** row (the sidebar menu carrying
+    sign-out is `hidden md:block`, so on mobile this row is the only way out of a session) and
+    the amber **KYC nudge**.
+  - **Added beyond the frames:** a discard-confirm when leaving Notification Preferences dirty.
+    Closing a panel is no longer a navigation, so the existing `beforeunload` guard can't fire —
+    without it, unsaved toggles vanished silently.
+  - ⚠️ **Minutes / Certificates tabs may sit empty.** Filtering is on `documentType`, and the
+    real values the backend sends are unconfirmed (the old page only ever matched
+    notice/agenda/report/proxy). Matching is substring + case-insensitive so `MEETING_MINUTES`
+    would still land correctly.
+  - **Verification:** `tsc --noEmit` clean; dev server compiles. `/profile` redirects to login
+    before rendering, so **the page was not rendered with a real session** — the two-pane
+    layout, tabs, avatar upload and save-failure copy all still need a browser pass.
+
+- **2026-09-06 (12)** — The three remaining Settings panels finished to their own frames.
+  - **Notification Preference — rebuilt, and it is now lossy by design.** The frame shows four
+    rows and no save button. Mapping agreed with the user: RSVP / Event Reminder / New Document
+    drive the three `inApp*` flags, and **"Email Notification" is a single master over all three
+    `email*` flags**. ⚠️ Consequence: the email flags can no longer be set individually here, so
+    a user with a mixed email setup (say reminders on, receipts off) will see it collapse to
+    all-on or all-off the first time they touch that switch. Nothing is dropped silently — all
+    six flags are still sent on every save.
+    - **Saving is now per-toggle** (the frame has no button), replacing the dirty-baseline,
+      `beforeunload` guard and the discard-confirm added in (11) — all now unnecessary since
+      nothing is ever left unsaved. A failed save **reverts the switch** so it can't display a
+      value the server rejected; the `UNAUTHORIZED` branch is kept.
+    - Switches are **`bg-emerald-500`**, per the frame — deliberately not `bg-primary`, which is
+      the near-black navy behind the 2026-09-03 (13) bug.
+    - ⚠️ **Caught while wiring:** my first pass had the in-app toggles trigger the browser push
+      subscription. That was wrong — `NEXT_PUBLIC_VAPID_KEY` is **unset in every env file**, so
+      `usePushSubscription.toggle(true)` always bails at the "not available on this environment"
+      branch, *but only after firing a `Notification.requestPermission()` prompt*. Flipping
+      "RSVP" would have popped an unexplained OS permission dialog that then did nothing. The
+      panel now writes only the stored `pushEnabled` preference (it follows "any in-app row is
+      on"); the real subscribe UI stays on `/notifications`, which has room to explain itself.
+  - **Change Password** — frame copy ("Enter your current password and proceed to creating a new
+    one"), Title Case labels, "Password" placeholders, `Update Password`. The eye toggle was
+    already built into `Input`. All logic untouched, including the sign-out-after-change.
+  - **Help** — panel title is **"Help & FAQ"** (the settings *row* stays "Help & Support", as the
+    frames show). The two contact cards became `Email us` / `Call us` rows with chevrons.
+    Contact details **differed between the desktop and mobile frames**
+    (`contact@meristemng.com` vs `hello@experienceattend.com`); the user chose
+    **hello@experienceattend.com**, phone `0800MERISTEM` (dialled as `0800637478` — the letters
+    keypad-mapped, otherwise `tel:` does nothing).
+  - **Help & Support row subtitle** — the frames repeat *"Change your account password"* here,
+    duplicating the row above. Raised it as a likely copy-paste slip; **the user chose verbatim**,
+    so that is what ships. Comment in `profile/page.tsx` records why.
+
+- **2026-09-06 (13)** — AGM list cards showed the **registrar's** logo, not the company's.
+  User: *"can this carry register logo instead and not registrar?"*
+  - `AgmListCard` (`agm/page.tsx`) picked `e.organizerLogo` on its own, while taking its *name*
+    from `registerName || organizerName`. So every row paired the company's name with Meristem's
+    mark. Now `e.branding?.logoUrl || e.organizerLogo`.
+  - **Evidence this is the right field**, not a guess: every other surface in the app already
+    resolves logos in that order (`guest/page`, `join/page`, `general/page`, `LiveRoom`,
+    `MinutesSheet`, `EventRowList`) — the AGM card was the sole outlier. `MinutesSheet` settles
+    it outright: its hero uses `branding.logoUrl` for the company, and `organizerLogo` appears
+    only in the small *"Registered by {organizerName}"* attribution credit, with a comment
+    saying so. **`organizerLogo` is the registrar; `branding.logoUrl` is the company.**
+  - ⚠️ **No dedicated register-logo field exists.** `EventListItem` declares only
+    `organizerLogo` and `branding.logoUrl` — there is no `registerLogo`. If `branding.logoUrl`
+    turns out not to be the company mark either, this needs a backend field; the fix above is
+    the best available with the data we have.
+  - ⚠️ **Not verified against a live payload.** The public `/api/v1/guest/events` response is
+    trimmed to `{branding, date, eventType, id, startTime, title}` (and `branding.logoUrl` came
+    back `null` on the sample), and the participant endpoint needs a session I don't have. So
+    whether real AGM rows actually carry `branding.logoUrl` is **unconfirmed** — if the cards
+    now fall back to the building icon, that's the field being empty, and it's a backend fix.
+  - **Left alone:** `events/page.tsx` (Launches artwork chain) and `hackathon/page.tsx` also use
+    `organizerLogo` directly, but neither module has a registrar — the organiser there *is* the
+    company, so the value is already correct.
+
+- **2026-09-06 (14)** — Post-redesign audit (three parallel read-only reviews of gating, the
+  Settings rebuild, and routing). Routing came back **clean** — every `?section=` link resolves,
+  the KYC URLs all still work through `VerifyIdentityRoute`, and a repo-wide grep found zero
+  references to the deleted profile sub-routes. Seven real defects found and fixed:
+  1. ⚠️ **Verifying never ran the action it gated** (found independently by two reviews).
+     `events/[id]/page.tsx` mounted the BVN sheet with **no `onVerified`**, and `requireKyc()`
+     discarded the callback it was handed. A user could complete BVN + selfie, be told *"your
+     AGM attendance is confirmed"*, and **no RSVP was ever sent** — same for Join Live and
+     Pre-Vote. Fixed with a `pendingKycAction` ref that `requireKyc()` stores and the sheet's
+     `onVerified` runs; dismissing clears it so it can't fire later against an unverified account.
+     - This also required reordering `VerifyIdentitySheet.finish()` to call `onVerified` **before**
+       `close()`. The old order fired `onClose` first, which (now) clears the pending action —
+       my first cut of the fix was silently broken by that until the ordering changed.
+  2. ⚠️ **Stale localStorage bypassed the `/agm` gate.** `agm/layout.tsx` accepted
+     `kycStatus === "full"` from the user store, which seeds **synchronously from
+     `localStorage["attend:demo:kyc"]`** and which `useLogout` never cleared. User A verifies and
+     logs out → User B signs in on the same browser → waved into AGM content on first render,
+     before B's own KYC was ever checked. Same hole kept access open after a KYC revocation. The
+     comment there claimed "fail-closed"; it wasn't. Now gates purely on the layout's own query,
+     returning `null` while it loads (which is what prevents the flash the store value was
+     papering over). `useLogout` also now clears both `attend:demo:*` keys as defence in depth.
+  3. **Notification toggles clobbered each other.** `toggle()` snapshotted the whole `Prefs`
+     object, so a failed save reverted to a state captured *before* other rows were touched —
+     flip two rows quickly and a failure on the first silently undid the second, even though the
+     second had saved. Now reverts only its own key, builds the payload from the freshest state,
+     and tracks in-flight rows in a `Set` instead of a single key.
+  4. **Document Vault: duplicates + a dead click.** Independent per-tab `.includes()` put a
+     `documentType` like `"meeting_notice_minutes"` under both Notices *and* Minutes. Replaced
+     with `resolveCategory()` — first matching keyword wins, most specific first — so a document
+     lands in exactly one tab. Download buttons on other rows also stayed enabled during a
+     download but hit the re-entrancy guard and did nothing; all rows now disable while any
+     download runs.
+  5. **My Profile: unsaved avatar looked saved.** The Cloudinary upload succeeds independently of
+     Save, so a failed save left the new photo on screen — disagreeing with the avatar in the
+     left pane, which reads the shared cache. Now reverts on error. The form also re-seeded on
+     every `me` change, so the post-save invalidation could overwrite a fresh edit mid-typing;
+     it now seeds once per mount.
+  6. **Verify sheet wiped typed input.** The stage effect depends on `step1Done`; a late-resolving
+     KYC query jumped an already-typing user from the BVN stage to the face stage. Now skipped
+     once the user has started typing.
+  7. **Dead code removed** — `KYC_STEP_PATHS`, `resumePath()`, `completedStepCount()`,
+     `KycStepPath` in `lib/kyc-progress.ts`, orphaned when the wizard became a sheet.
+  - **Flagged, not changed:** an ended event that is `registered: true` but `hasRsvped: false`
+    (on the register, never actually RSVP'd) is invisible in every My Events tab. Per the type's
+    own docs `hasRsvped` is the authority on real attendance, so excluding it from "Attended" is
+    right, and its absence from "All" follows the hide-ended-events rule. Say the word if such
+    events should count as attended.
+  - **Verification:** `tsc --noEmit` clean, dev server compiles. **None of this was exercised in
+    a browser** — `/agm` and `/profile` both redirect to login without a session, so the RSVP
+    resume, the gate's loading beat, and the toggle race all still need a real signed-in pass.
+
 ## Deltas from the new frames (flag for review)
 
 5. **"Pending Approval" state NOT built** — there is no backend field for it.

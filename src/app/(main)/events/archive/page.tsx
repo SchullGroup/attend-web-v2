@@ -4,6 +4,7 @@ import { ArrowLeft, PlayCircle } from "lucide-react";
 import { useGetEvents } from "@/api/events/hooks";
 import { Badge } from "@/components/ui/Badge";
 import { formatDate, initialsFor } from "@/lib/utils";
+import { useGoBack } from "@/hooks/useGoBack";
 
 const EVENT_COLOR: Record<string, string> = {
   AGM_EGM: "#1a6b3c",
@@ -23,12 +24,13 @@ const TYPE_LABEL: Record<string, string> = {
 export default function ArchivePage() {
   const { data, isLoading } = useGetEvents({ status: "ENDED", size: 50 });
   const events = (data?.data?.events ?? []).filter((e) => e.status === "ENDED");
+  const goBack = useGoBack("/events");
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/events" className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to events
-      </Link>
+      <button onClick={goBack} className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 hover:text-foreground">
+        <ArrowLeft className="h-4 w-4" /> Back
+      </button>
 
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Event archive</h1>
@@ -40,7 +42,7 @@ export default function ArchivePage() {
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((n) => (
-            <div key={n} className="h-28 animate-pulse rounded-xl border border-foreground/[0.06] bg-foreground/[0.03]" />
+            <div key={n} className="h-28 animate-pulse rounded-xl border border-foreground/6 bg-foreground/3" />
           ))}
         </div>
       ) : events.length === 0 ? (
@@ -54,7 +56,7 @@ export default function ArchivePage() {
             return (
               <li
                 key={e.id}
-                className="flex flex-col gap-3 rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] md:flex-row md:items-center md:gap-5"
+                className="flex flex-col gap-3 rounded-xl border border-foreground/6 bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] md:flex-row md:items-center md:gap-5"
               >
                 <Link
                   href={`/events/${e.id}`}

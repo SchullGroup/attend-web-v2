@@ -1,15 +1,15 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useChangePassword } from "@/api/auth/hooks";
 import Cookies from "js-cookie";
+import { PanelShell } from "./PanelShell";
 
-export default function ChangePasswordPage() {
-  const router = useRouter();
+// Logic carried over verbatim from the old /profile/change-password page — only the chrome
+// changed. Changing the password invalidates the session, so this still signs the user out.
+export function ChangePasswordPanel({ onBack }: { onBack: () => void }) {
   const { mutate: changePassword, isPending } = useChangePassword();
   const [form, setForm] = useState({ current: "", next: "", confirm: "" });
   const [success, setSuccess] = useState(false);
@@ -40,51 +40,41 @@ export default function ChangePasswordPage() {
           setErrorMsg(
             err?.response?.data?.message ||
               err?.message ||
-              "Could not change password. Check your current password and try again.",
+              "Could not change password. Check your current password and try again."
           );
         },
-      },
+      }
     );
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <Link
-        href="/profile"
-        className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back
-      </Link>
-
-      <header>
-        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">Change password</h1>
-        <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">
-          Use a strong password you don&apos;t use anywhere else.
+    <PanelShell title="Change Password" onBack={onBack}>
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        <p className="-mt-2 text-sm tracking-[-0.14px] text-foreground/60">
+          Enter your current password and proceed to creating a new one
         </p>
-      </header>
 
-      <form
-        onSubmit={submit}
-        className="mx-auto flex w-full max-w-2xl flex-col gap-5 rounded-xl border border-foreground/[0.06] bg-white p-6 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]"
-      >
         {errorMsg && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
             {errorMsg}
           </div>
         )}
 
+        {/* Labels and the "Password" placeholder per the frame; Input supplies the eye toggle. */}
         <Input
           name="current"
-          label="Current password"
+          label="Current Password"
           type="password"
+          placeholder="Password"
           leftIcon={<Lock className="h-4 w-4" />}
           value={form.current}
           onChange={(e) => update("current", e.target.value)}
         />
         <Input
           name="next"
-          label="New password"
+          label="New Password"
           type="password"
+          placeholder="Password"
           leftIcon={<Lock className="h-4 w-4" />}
           value={form.next}
           onChange={(e) => update("next", e.target.value)}
@@ -92,8 +82,9 @@ export default function ChangePasswordPage() {
         />
         <Input
           name="confirm"
-          label="Confirm new password"
+          label="Confirm New Password"
           type="password"
+          placeholder="Password"
           leftIcon={<Lock className="h-4 w-4" />}
           value={form.confirm}
           onChange={(e) => update("confirm", e.target.value)}
@@ -101,25 +92,15 @@ export default function ChangePasswordPage() {
         />
 
         {success && (
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-primary">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
             Password updated. Please sign in again…
           </div>
         )}
 
-        <div className="flex justify-end gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.back()}
-            disabled={isPending || success}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" loading={isPending} disabled={!valid || success}>
-            Update password
-          </Button>
-        </div>
+        <Button type="submit" fullWidth size="lg" loading={isPending} disabled={!valid || success}>
+          Update Password
+        </Button>
       </form>
-    </div>
+    </PanelShell>
   );
 }

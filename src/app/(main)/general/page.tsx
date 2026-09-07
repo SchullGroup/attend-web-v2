@@ -56,6 +56,7 @@ export default function GeneralEventsPage() {
         );
       })
       .filter((e) => (fmt === "All" ? true : norm(e.format) === fmtKey))
+      .filter((e) => e.status !== "ENDED")
       .map(apiToCard);
   }, [apiEvents, fmt]);
 
@@ -75,7 +76,7 @@ export default function GeneralEventsPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by title or organiser"
-            className="h-11 w-full rounded-[10px] border border-transparent bg-foreground/[0.04] pl-10 pr-3 text-sm tracking-[-0.14px] text-foreground outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
+            className="h-11 w-full rounded-[10px] border border-transparent bg-foreground/4 pl-10 pr-3 text-sm tracking-[-0.14px] text-foreground outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
           />
         </div>
         <div className="flex flex-wrap gap-2">
@@ -87,7 +88,7 @@ export default function GeneralEventsPage() {
                 "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
                 fmt === f
                   ? "border-primary bg-primary text-white"
-                  : "border-foreground/[0.06] bg-white text-foreground/60 hover:bg-foreground/[0.04]",
+                  : "border-foreground/6 bg-white text-foreground/60 hover:bg-foreground/4",
               )}
             >
               {f}
@@ -99,7 +100,7 @@ export default function GeneralEventsPage() {
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2">
           {[1, 2, 3, 4].map((n) => (
-            <div key={n} className="h-64 animate-pulse rounded-xl bg-foreground/[0.04]" />
+            <div key={n} className="h-64 animate-pulse rounded-xl bg-foreground/4" />
           ))}
         </div>
       ) : visible.length === 0 ? (

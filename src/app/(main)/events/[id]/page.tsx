@@ -1,5 +1,5 @@
 "use client";
-import { use, useState } from "react";
+import { use, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -9,13 +9,18 @@ import {
 } from "lucide-react";
 import {
   useGetEvent, useRsvp, useCancelRsvp, useJoinWaitlist,
-  useGetSavedEvents, useSaveEvent, useUnsaveEvent, useGetPressKit, useGetQuorum,
+  useGetSavedEvents, useSaveEvent, useUnsaveEvent, useGetPressKit, useGetQuorum, useGetStream,
 } from "@/api/events/hooks";
+import { parseZoomUrl } from "@/lib/zoom";
+import { toEmbedUrl } from "@/lib/utils";
 import { useGetResolutions, useSubmitQuestion, useCastVote } from "@/api/agm/hooks";
 import { useGetMyTeam } from "@/api/hackathon/hooks";
 import { PreVoteSheet } from "@/components/attend/PreVoteSheet";
 import { ProxySheet } from "@/components/attend/ProxySheet";
+import { VerifyIdentitySheet } from "@/components/attend/VerifyIdentitySheet";
+import { useGetKycStatus } from "@/api/kyc/hooks";
 import { VoteButtons, type VoteChoice } from "@/components/attend/VoteButtons";
+import { AgendaPanel, PanelCard } from "@/components/attend/AgendaPanel";
 import type { AgendaItemDetail, Resolution, SpeakerItem } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -27,7 +32,6 @@ import {
   parseEventStart,
   formatWindowTime,
 } from "@/lib/rsvp";
-import { useUserStore } from "@/lib/user-store";
 
 // Laid out to Figma's event-detail frame; OUR logic is preserved wholesale (every hook,
 // RSVP/waitlist/cancel handler, KYC gate, module switching, resolutions, press-kit, and
@@ -66,7 +70,6 @@ const MODULE_COLOR: Record<string, string> = {
 export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const { kycStatus } = useUserStore();
 
   const { data, isLoading, error } = useGetEvent(id);
   const event = data?.data;
@@ -76,6 +79,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   // dimmed behind it), rather than navigating away to /agm/pre-vote.
   const [preVoteOpen, setPreVoteOpen] = useState(false);
   const [proxyOpen, setProxyOpen] = useState(false);
+  // Identity verification is a modal over this page now, not a trip to the /bvn wizard.
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const [verifyDismissed, setVerifyDismissed] = useState(false);
+  // NIN — the Innovation/Launch equivalent, shown at the RSVP point.
+  const [ninOpen, setNinOpen] = useState(false);
+  // Figma: this page IS the live page — "Join Live Event" swaps the hero for the stream
+  // rather than navigating anywhere.
+  const [joinedLive, setJoinedLive] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -107,6 +118,64 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const saved = !!savedResp?.data?.events?.some((e) => e.id === id);
 
   const mod = event ? moduleOf(event.eventType) : "GENERAL";
+
+  // Figma dev note on the LIVE frame: an unverified user landing on an AGM that is already
+  // in session gets the verification modal straight away, rather than having to find the
+  // banner first. Dismissing it must not immediately re-open it, hence verifyDismissed.
+  //
+  // The decision reads the KYC query rather than the store's `kycStatus`, which starts at
+  // "none" from localStorage until NavShell syncs it — acting on that would flash the modal
+  // at users who are already verified. Waiting for the response means it only ever opens on
+  // a real answer. It deliberately only ever opens: once open, completing verification
+  // must not yank the panel away before the user has seen the confirmation stage.
+  const agmInSession = mod === "AGM" && event?.status === "LIVE";
+  const { data: kycResp } = useGetKycStatus(mod === "AGM");
+  const kycFull = kycResp?.data?.kycStatus === "FULL_KYC";
+
+  // No unverified user gets into an AGM — not the live room, not an RSVP. Every path into
+  // the meeting runs through requireKyc() below, and /agm/* keeps its own layout gate as the
+  // backstop for anyone arriving by direct link.
+  //
+  // Note the two conditions differ on purpose. This one fails CLOSED (an unresolved query
+  // reads as "not verified", so a click can never slip through), while the auto-open below
+  // waits for a real response — opening on a not-yet-loaded status would flash the modal at
+  // users who are already verified.
+  const agmNeedsKyc = mod === "AGM" && !kycFull;
+
+  // Whatever the user was trying to do when the gate stopped them. Verification used to throw
+  // this away: you'd finish BVN + selfie, be told "your AGM attendance is confirmed", and the
+  // RSVP would never have been sent. The sheet's onVerified runs it once verification lands.
+  // Stored in a ref, not state — a re-render between the click and the callback shouldn't be
+  // able to lose it, and nothing renders off it.
+  const pendingKycAction = useRef<(() => void) | null>(null);
+
+  function requireKyc(action: () => void) {
+    if (agmNeedsKyc) {
+      pendingKycAction.current = action;
+      setVerifyOpen(true);
+      return;
+    }
+    action();
+  }
+
+  function runPendingKycAction() {
+    const action = pendingKycAction.current;
+    pendingKycAction.current = null;
+    // The live-AGM auto-open has no pending action — it prompts rather than gating a click.
+    action?.();
+  }
+
+  // NIN stands where BVN stands for an AGM, but for the other two attendee-facing modules.
+  // Nothing is verified server-side yet, so this decides when to *show* the sheet, never
+  // whether the RSVP is allowed.
+  const needsNin = mod === "HACKATHON" || mod === "LAUNCH";
+  const ninContext = mod === "HACKATHON" ? "this challenge" : "this product launch";
+
+  const agmLiveUnverified = agmInSession && !!kycResp && !kycFull;
+  useEffect(() => {
+    if (agmLiveUnverified && !verifyDismissed) setVerifyOpen(true);
+  }, [agmLiveUnverified, verifyDismissed]);
+
   const { data: pressKitResp } = useGetPressKit(id, undefined, mod === "LAUNCH");
   const pressKit = pressKitResp?.data;
 
@@ -137,6 +206,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     return pct === null ? null : { pct, total };
   })();
 
+  // The playable link. The gated /stream endpoint is the real source (403 if not
+  // registered, 409 if not live); event.streamUrl is the fallback the admin set. Enabled
+  // is read off `event?.…` because the flags below are computed after the early returns.
+  const { data: streamResp } = useGetStream(
+    id,
+    event?.status === "LIVE" && !!(event?.hasRsvped ?? event?.registered),
+  );
+
   // Only meaningful for HACKATHON — useGetMyTeam no-ops (enabled: !!challengeId) otherwise.
   const { data: myTeamResp } = useGetMyTeam(mod === "HACKATHON" ? id : "");
   const teamSubmissionStatus = myTeamResp?.data?.submission?.status;
@@ -158,12 +235,30 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     }
   }
 
-  function handleRsvp() {
+  function doRsvp() {
     setRsvpError(null);
     rsvp(undefined, {
       onError: (err: any) =>
         setRsvpError(err?.response?.data?.message || err?.message || "RSVP failed. Please try again."),
     });
+  }
+
+  function handleRsvp() {
+    // An AGM RSVP *is* the attendance confirmation the verification modal talks about
+    // ("your AGM attendance is confirmed"), so it can't be granted to an unverified user —
+    // and once they verify, the RSVP has to actually fire, or that copy is a lie.
+    if (agmNeedsKyc) {
+      requireKyc(doRsvp);
+      return;
+    }
+    // Innovation and Launch RSVPs collect a NIN first, per the NIN frames. There's no NIN
+    // endpoint yet, so this can't gate on a verification result — the sheet resolves locally
+    // and hands control back here, and the RSVP then goes through exactly as before.
+    if (needsNin) {
+      setNinOpen(true);
+      return;
+    }
+    doRsvp();
   }
 
   function handleJoinWaitlist() {
@@ -185,10 +280,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   if (isLoading) {
     return (
       <div className="flex flex-col gap-6">
-        <div className="h-6 w-24 animate-pulse rounded-lg bg-foreground/[0.04]" />
-        <div className="h-64 animate-pulse rounded-2xl bg-foreground/[0.04]" />
-        <div className="h-4 w-full animate-pulse rounded bg-foreground/[0.04]" />
-        <div className="h-4 w-3/4 animate-pulse rounded bg-foreground/[0.04]" />
+        <div className="h-6 w-24 animate-pulse rounded-lg bg-foreground/4" />
+        <div className="h-64 animate-pulse rounded-2xl bg-foreground/4" />
+        <div className="h-4 w-full animate-pulse rounded bg-foreground/4" />
+        <div className="h-4 w-3/4 animate-pulse rounded bg-foreground/4" />
       </div>
     );
   }
@@ -217,22 +312,31 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   // A VIRTUAL/HYBRID event can now be LIVE with no join link yet — Zoom links are no
   // longer minted at creation time. Show an unavailable state rather than a dead button.
   const needsStreamLink = event.format === "VIRTUAL" || event.format === "HYBRID";
+  // Same precedence LiveRoom uses: the gated /stream link wins, the admin's link is the
+  // fallback. Reading both means a live event whose link only exists behind /stream no
+  // longer shows "Join link not available yet".
+  const streamUrl =
+    ((streamResp?.data as Record<string, unknown> | undefined)?.streamUrl as string) ||
+    event.streamUrl ||
+    "";
   // AGMs keep the in-app live room — the live ballot, quorum and proxy voting only exist
-  // there and have no equivalent on Zoom/YouTube. Every other module goes straight to the
-  // organiser's stream, so for those the link itself is what "Join Live" depends on.
-  const externalLive = mod !== "AGM";
-  const missingStreamLink = externalLive
-    ? !event.streamUrl
-    : needsStreamLink && !event.streamUrl;
+  // there and have no equivalent on Zoom/YouTube.
+  const agmLive = mod === "AGM";
+  const missingStreamLink = agmLive ? needsStreamLink && !streamUrl : !streamUrl;
+  // Zoom needs the page cross-origin isolated, which costs a full ?coi=1 reload — so Zoom
+  // goes to the dedicated room. Everything else (YouTube/Vimeo) plays in the hero.
+  const zoomStream = parseZoomUrl(streamUrl);
 
   function joinLive() {
-    if (!externalLive) {
-      router.push(`/agm/live?eventId=${id}`);
+    if (agmLive) {
+      requireKyc(() => router.push(`/agm/live?eventId=${id}`));
       return;
     }
-    if (event?.streamUrl) {
-      window.open(event.streamUrl, "_blank", "noopener,noreferrer");
+    if (zoomStream) {
+      router.push(`/events/live?eventId=${id}`);
+      return;
     }
+    if (streamUrl) setJoinedLive(true);
   }
   const FormatIcon = FORMAT_ICON[event.format] ?? MapPin;
   const fill = event.maximumCapacity
@@ -282,25 +386,40 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         )}
         style={{ background: color }}
       >
-        <div className="absolute -bottom-10 -right-8 select-none text-[160px] font-black leading-none text-white/10">
-          {initialsFor(organiser)}
-        </div>
-        {isLive && (
-          <span className="absolute left-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
-            <span className="h-1.5 w-1.5 rounded-full bg-white" /> Live
-          </span>
-        )}
-        {/* The play control is only real when the session can actually be joined. */}
-        {isLive && hasRsvped && !missingStreamLink && (
-          <button
-            onClick={joinLive}
-            aria-label="Join live session"
-            className="group absolute inset-0 z-10 flex items-center justify-center bg-black/20 transition-colors hover:bg-black/30"
-          >
-            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm transition-transform group-hover:scale-105">
-              <Play className="h-6 w-6 fill-white text-white" />
-            </span>
-          </button>
+        {joinedLive && streamUrl ? (
+          // Same embed LiveRoom uses. `credentialless` keeps this cross-origin iframe
+          // loading if the page is ever cross-origin isolated (see next.config headers).
+          <iframe
+            {...({ credentialless: "" } as any)}
+            src={toEmbedUrl(streamUrl)}
+            title={event.title}
+            className="absolute inset-0 h-full w-full"
+            allow="autoplay; fullscreen; picture-in-picture"
+            allowFullScreen
+          />
+        ) : (
+          <>
+            <div className="absolute -bottom-10 -right-8 select-none text-[160px] font-black leading-none text-white/10">
+              {initialsFor(organiser)}
+            </div>
+            {isLive && (
+              <span className="absolute left-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+                <span className="h-1.5 w-1.5 rounded-full bg-white" /> Live
+              </span>
+            )}
+            {/* The play control is only real when the session can actually be joined. */}
+            {isLive && hasRsvped && !missingStreamLink && (
+              <button
+                onClick={joinLive}
+                aria-label="Join live session"
+                className="group absolute inset-0 z-10 flex items-center justify-center bg-black/20 transition-colors hover:bg-black/30"
+              >
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm transition-transform group-hover:scale-105">
+                  <Play className="h-6 w-6 fill-white text-white" />
+                </span>
+              </button>
+            )}
+          </>
         )}
       </header>
 
@@ -315,14 +434,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               <button
                 onClick={toggleSave}
                 title={saved ? "Remove from saved" : "Save event"}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-foreground/4 hover:text-foreground"
               >
                 <Bookmark className={cn("h-[18px] w-[18px]", saved && "fill-foreground text-foreground")} />
               </button>
               <button
                 onClick={handleShare}
                 title={shared ? "Link copied!" : "Share event"}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-foreground/4 hover:text-foreground"
               >
                 {shared ? <Check className="h-[18px] w-[18px]" /> : <Share2 className="h-[18px] w-[18px]" />}
               </button>
@@ -368,7 +487,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           {mod !== "AGM" && !isVirtual && (
             <Link
               href={`/qr-checkin?eventId=${id}`}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-foreground/10 px-3 py-1.5 text-xs font-medium tracking-[-0.12px] text-foreground/70 transition-colors hover:bg-foreground/[0.04]"
+              className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-foreground/10 px-3 py-1.5 text-xs font-medium tracking-[-0.12px] text-foreground/70 transition-colors hover:bg-foreground/4"
             >
               <QrCode className="h-3.5 w-3.5" /> QR check-in
             </Link>
@@ -401,7 +520,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           flyer to fill their header (object-cover); this view uses object-contain + a capped
           height so the whole poster stays visible whatever its aspect ratio. */}
       {(event.flyerUrl || event.bannerUrl) && (
-        <section className="overflow-hidden rounded-xl border border-foreground/[0.06] bg-foreground/[0.03]">
+        <section className="overflow-hidden rounded-xl border border-foreground/6 bg-foreground/3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={event.flyerUrl || event.bannerUrl || undefined}
@@ -436,13 +555,19 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           )}
 
           <h2 className="text-base font-medium tracking-[-0.32px] text-foreground">AGM Actions</h2>
-          {kycStatus !== "full" ? (
+          {!kycFull ? (
             <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5">
               <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
               <div className="flex-1">
                 <p className="text-sm text-amber-800">Identity verification required to access AGM actions</p>
               </div>
-              <Link href="/bvn" className="shrink-0 text-xs font-semibold text-amber-600 hover:underline">Verify</Link>
+              <button
+                type="button"
+                onClick={() => setVerifyOpen(true)}
+                className="shrink-0 text-xs font-semibold text-amber-600 hover:underline"
+              >
+                Verify
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -563,7 +688,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           </h2>
           <div className="flex flex-col gap-2">
             {event.speakers.map((spk) => (
-              <div key={spk.id} className="flex items-center gap-3 rounded-xl border border-foreground/[0.06] bg-white px-4 py-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+              <div key={spk.id} className="flex items-center gap-3 rounded-xl border border-foreground/6 bg-white px-4 py-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
                 <div
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
                   style={{ backgroundColor: color }}
@@ -621,14 +746,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 <div
                   key={file.id}
                   className={cn(
-                    "flex items-center justify-between gap-3 rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]",
+                    "flex items-center justify-between gap-3 rounded-xl border border-foreground/6 bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]",
                     !isReleased && "opacity-60",
                   )}
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <div className={cn(
                       "flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]",
-                      isReleased ? "bg-primary/10 text-primary" : "bg-foreground/[0.04] text-foreground/60"
+                      isReleased ? "bg-primary/10 text-primary" : "bg-foreground/4 text-foreground/60"
                     )}>
                       <FileBox className="h-5 w-5" />
                     </div>
@@ -644,7 +769,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                       href={file.downloadUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="shrink-0 rounded-[10px] bg-foreground/[0.04] p-2 transition-colors hover:bg-foreground/[0.08]"
+                      className="shrink-0 rounded-[10px] bg-foreground/4 p-2 transition-colors hover:bg-foreground/8"
                       title="Download"
                     >
                       <DownloadCloud className="h-4 w-4 text-foreground" />
@@ -671,7 +796,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             resolutions={resolutions}
             isLive={isLive}
             canJoinLive={isLive && hasRsvped && !missingStreamLink}
-            onJoinLive={() => router.push(`/agm/live?eventId=${id}`)}
+            onJoinLive={() => requireKyc(() => router.push(`/agm/live?eventId=${id}`))}
           />
         )}
 
@@ -685,13 +810,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <Button className="w-full gap-2" variant="outline" disabled>
               <Radio className="h-4 w-4" /> Join link not available yet
             </Button>
+          ) : joinedLive ? (
+            // Already playing in the hero — Figma shows no CTA in this state.
+            null
           ) : (
             <Button
               className="w-full gap-2"
               style={{ backgroundColor: color }}
               onClick={joinLive}
             >
-              <Radio className="h-4 w-4" /> Join Live Session →
+              <Radio className="h-4 w-4" /> Join Live Event
             </Button>
           )
         ) : isLive && !hasRsvped ? (
@@ -740,7 +868,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               <Button
                 className="flex-1"
                 style={{ backgroundColor: color }}
-                onClick={() => setPreVoteOpen(true)}
+                onClick={() => requireKyc(() => setPreVoteOpen(true))}
               >
                 Pre-Vote
               </Button>
@@ -795,6 +923,30 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       {proxyOpen && (
         <ProxySheet eventId={id} open onClose={() => setProxyOpen(false)} />
       )}
+      {verifyOpen && (
+        <VerifyIdentitySheet
+          open
+          live={isLive}
+          onClose={() => {
+            // Dismissed without verifying — drop whatever they were trying to do, so it can't
+            // fire later against a still-unverified account.
+            pendingKycAction.current = null;
+            setVerifyOpen(false);
+            setVerifyDismissed(true);
+          }}
+          onVerified={runPendingKycAction}
+        />
+      )}
+      {ninOpen && (
+        <VerifyIdentitySheet
+          open
+          mode="nin"
+          live={isLive}
+          contextLabel={ninContext}
+          onClose={() => setNinOpen(false)}
+          onVerified={doRsvp}
+        />
+      )}
     </div>
   );
 }
@@ -803,7 +955,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 // list treatment which the other modules keep.
 function ActionTile({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl border border-foreground/[0.06] bg-white px-2 py-3.5 text-center transition-colors hover:bg-foreground/[0.02]">
+    <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl border border-foreground/6 bg-white px-2 py-3.5 text-center transition-colors hover:bg-foreground/2">
       {icon}
       <span className="text-xs font-medium leading-tight tracking-[-0.12px] text-foreground">{label}</span>
     </div>
@@ -912,53 +1064,7 @@ function AgmSidePanel({
         ))}
       </div>
 
-      {tab === "agenda" && (
-        <>
-          {speakers.length > 0 && (
-            <PanelCard title="Speakers">
-              <div className="flex flex-col">
-                {speakers.map((spk, i) => (
-                  <div
-                    key={spk.id}
-                    className={cn("py-2.5", i > 0 && "border-t border-foreground/[0.06]")}
-                  >
-                    <p className="text-sm font-medium tracking-[-0.14px] text-foreground">{spk.name}</p>
-                    {spk.roleTitle && <p className="text-xs text-foreground/60">{spk.roleTitle}</p>}
-                  </div>
-                ))}
-              </div>
-            </PanelCard>
-          )}
-          {agenda.length > 0 ? (
-            <PanelCard title="Agenda">
-              <ol className="flex flex-col">
-                {[...agenda]
-                  .sort((a, b) => a.orderIndex - b.orderIndex)
-                  .map((item, i) => (
-                    <li
-                      key={item.id}
-                      className={cn("flex gap-2 py-2.5", i > 0 && "border-t border-foreground/[0.06]")}
-                    >
-                      <span className="text-sm text-foreground/60">{i + 1}.</span>
-                      <div className="min-w-0">
-                        <p className="text-sm tracking-[-0.14px] text-foreground">{item.title}</p>
-                        {(item.time || item.durationMinutes || item.speaker) && (
-                          <p className="text-xs text-foreground/60">
-                            {[item.time, item.durationMinutes ? `${item.durationMinutes} min` : null, item.speaker]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </p>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-              </ol>
-            </PanelCard>
-          ) : (
-            speakers.length === 0 && <PanelEmpty>The organiser hasn&apos;t published an agenda yet.</PanelEmpty>
-          )}
-        </>
-      )}
+      {tab === "agenda" && <AgendaPanel speakers={speakers} agenda={agenda} />}
 
       {tab === "qa" && (
         <div className="flex flex-col gap-3">
@@ -974,7 +1080,7 @@ function AgmSidePanel({
             }}
             rows={4}
             placeholder="Type your question"
-            className="w-full rounded-xl border border-transparent bg-foreground/[0.04] p-3.5 text-sm tracking-[-0.14px] text-foreground outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
+            className="w-full rounded-xl border border-transparent bg-foreground/4 p-3.5 text-sm tracking-[-0.14px] text-foreground outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
           />
           {qaError && <p className="text-xs text-red-600">{qaError}</p>}
           {qaSent && (
@@ -1079,24 +1185,6 @@ function AgmSidePanel({
   );
 }
 
-function PanelCard({ title, children }: { title: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(true);
-  return (
-    <section className="rounded-xl border border-foreground/[0.06] bg-white px-4 py-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-2 text-left"
-      >
-        <span className="text-sm font-medium tracking-[-0.14px] text-foreground/70">{title}</span>
-        <ChevronDown
-          className={cn("h-4 w-4 shrink-0 text-foreground/40 transition-transform", !open && "-rotate-90")}
-        />
-      </button>
-      {open && <div className="mt-1">{children}</div>}
-    </section>
-  );
-}
-
 // "1:59m" / "45s" — the shape Figma's countdown pill uses.
 function fmtRemaining(total: number) {
   if (total >= 60) return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}m`;
@@ -1120,7 +1208,7 @@ function ResolutionPanelCard({
 }) {
   const [expanded, setExpanded] = useState(true);
   return (
-    <article className="rounded-xl border border-foreground/[0.06] bg-white p-4">
+    <article className="rounded-xl border border-foreground/6 bg-white p-4">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
@@ -1178,7 +1266,7 @@ function ActionRow({
 }) {
   return (
     <div
-      className={cn("flex items-center justify-between rounded-xl border border-foreground/[0.06] px-4 py-3.5 transition-colors hover:bg-foreground/[0.06] cursor-pointer", bg)}
+      className={cn("flex items-center justify-between rounded-xl border border-foreground/6 px-4 py-3.5 transition-colors hover:bg-foreground/6 cursor-pointer", bg)}
       style={style}
     >
       <div className="flex items-center gap-3">

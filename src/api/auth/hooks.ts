@@ -40,6 +40,16 @@ export const useLogout = () => {
   const clearAndRedirect = () => {
     Cookies.remove("accessToken");
     queryClient.clear();
+    // The cached KYC status outlived the session, so the next person to sign in on this
+    // browser inherited the previous user's "verified" flag. The /agm gate no longer trusts
+    // this value on its own, but leaving one user's verification state on a shared machine is
+    // wrong regardless — clear it here too.
+    try {
+      window.localStorage.removeItem("attend:demo:kyc");
+      window.localStorage.removeItem("attend:demo:role");
+    } catch {
+      /* private mode / storage disabled — nothing to clear */
+    }
     if (typeof window !== "undefined") {
       window.location.href = "/login";
     }
@@ -61,6 +71,16 @@ export const useGetMe = (enabled = true) => {
     // only fetch if access token exists and enabled is true
     enabled: enabled && !!Cookies.get("accessToken"),
     retry: false,
+  });
+};
+
+// Settings → My profile. Invalidating `me` refreshes the profile header and the NavShell
+// account chip together. See authClient.updateProfile: the endpoint is assumed, not built.
+export const useUpdateProfile = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: authClient.updateProfile,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: authKeys.me() }),
   });
 };
 

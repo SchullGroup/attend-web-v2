@@ -66,14 +66,14 @@ export default function KycSuccessPage() {
         <p className="mt-2 text-sm tracking-[-0.14px] text-foreground/60">{header.text}</p>
       </div>
 
-      <div className="space-y-2 rounded-xl border border-foreground/[0.06] bg-foreground/[0.03] p-4 text-left">
+      <div className="space-y-2 rounded-xl border border-foreground/6 bg-foreground/3 p-4 text-left">
         <p className="text-xs font-medium uppercase tracking-wide text-foreground/50">
           {verified ? "Verification details" : "Submitted for verification"}
         </p>
         {isLoading ? (
           <div className="space-y-2">
             {[1, 2, 3].map((n) => (
-              <div key={n} className="h-5 animate-pulse rounded bg-foreground/[0.06]" />
+              <div key={n} className="h-5 animate-pulse rounded bg-foreground/6" />
             ))}
           </div>
         ) : (

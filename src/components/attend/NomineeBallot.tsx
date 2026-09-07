@@ -53,7 +53,7 @@ export function NomineeBallot({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-foreground/[0.06] bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+    <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-foreground/6 bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
       <div>
         <h3 className="text-sm font-bold text-foreground">Candidate ballot</h3>
         <p className="text-xs text-foreground/60 mt-0.5">

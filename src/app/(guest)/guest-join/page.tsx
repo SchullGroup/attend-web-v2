@@ -100,7 +100,7 @@ function GuestJoinInner() {
       <div className="mt-4 flex w-full gap-2">
         <input
           autoFocus
-          className="flex-1 rounded-[10px] border border-transparent bg-foreground/[0.04] px-4 py-2.5 text-sm tracking-widest outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
+          className="flex-1 rounded-[10px] border border-transparent bg-foreground/4 px-4 py-2.5 text-sm tracking-widest outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
           placeholder="e.g. 7F3KQXPM"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -115,7 +115,7 @@ function GuestJoinInner() {
       </div>
 
       <input
-        className="mt-2 w-full rounded-[10px] border border-transparent bg-foreground/[0.04] px-4 py-2.5 text-sm outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
+        className="mt-2 w-full rounded-[10px] border border-transparent bg-foreground/4 px-4 py-2.5 text-sm outline-none transition-colors placeholder:text-foreground/40 focus:border-primary focus:bg-white"
         placeholder="Your name (optional)"
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -131,7 +131,7 @@ function GuestJoinInner() {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
-      <div className="flex w-full max-w-sm flex-col items-center rounded-xl border border-foreground/[0.06] bg-white p-8 text-center shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+      <div className="flex w-full max-w-sm flex-col items-center rounded-xl border border-foreground/6 bg-white p-8 text-center shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
         {children}
       </div>
     </div>

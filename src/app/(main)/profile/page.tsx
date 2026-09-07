@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { Suspense } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Lock,
   Bell,
@@ -9,115 +10,57 @@ import {
   HelpCircle,
   LogOut,
   ChevronRight,
-  ShieldCheck,
   FileText,
-  Mail,
-  Phone,
-  User,
-  X,
 } from "lucide-react";
 import { useGetMe, useLogout } from "@/api/auth/hooks";
 import { useGetMyEvents, useGetSavedEvents } from "@/api/events/hooks";
 import { useGetDocuments } from "@/api/documents/hooks";
 import { useGetNotificationPreferences } from "@/api/notifications/hooks";
 import { useUserStore } from "@/lib/user-store";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { cn, initialsFor } from "@/lib/utils";
+import { MyProfilePanel } from "@/components/attend/profile/MyProfilePanel";
+import { MyEventsPanel } from "@/components/attend/profile/MyEventsPanel";
+import { SavedEventsPanel } from "@/components/attend/profile/SavedEventsPanel";
+import { DocumentVaultPanel } from "@/components/attend/profile/DocumentVaultPanel";
+import { NotificationPrefsPanel } from "@/components/attend/profile/NotificationPrefsPanel";
+import { ChangePasswordPanel } from "@/components/attend/profile/ChangePasswordPanel";
+import { HelpPanel } from "@/components/attend/profile/HelpPanel";
 
-// Ported from the figma-redesign branch. Clean adoption — every hook and field
-// already exists here (MeResponse has avatarUrl/initials/fullName/phoneNumber;
-// the notification-pref flags and document shape match). The live counts reuse
-// the same queries each destination page already calls (react-query dedupes on
-// the shared key), so this adds no new endpoints — it just surfaces existing
-// data one screen earlier.
+// Figma's Settings frames — one page, two panes. The list stays on the left and the chosen
+// section renders beside it, replacing the six separate sub-pages this used to navigate to.
+//
+// The selection lives in ?section= rather than plain state so the browser back button still
+// steps between sections and a section stays linkable (notifications/page.tsx links straight
+// to ?section=notifications).
+const SECTIONS = [
+  { key: "me", label: "My profile" },
+  { key: "events", label: "My Events" },
+  { key: "saved", label: "Saved Events" },
+  { key: "documents", label: "Document Vault" },
+  { key: "notifications", label: "Notification Preference" },
+  { key: "password", label: "Change Password" },
+  { key: "help", label: "Help & Support" },
+] as const;
 
-interface RowItem {
-  icon: typeof Lock;
-  label: string;
-  meta: string;
-  href: string;
-}
+type SectionKey = (typeof SECTIONS)[number]["key"];
+const isSection = (v: string | null): v is SectionKey =>
+  !!v && SECTIONS.some((s) => s.key === v);
 
-function ProfileAvatar({
-  url,
-  initials,
-  className,
-}: {
-  url?: string | null;
-  initials: string;
-  className?: string;
-}) {
-  if (url) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={url} alt="" className={cn("rounded-full object-cover", className)} />;
-  }
-  return (
-    <div
-      className={cn(
-        "flex items-center justify-center rounded-full bg-primary/10 font-semibold text-primary",
-        className,
-      )}
-    >
-      {initials}
-    </div>
-  );
-}
+function SettingsInner() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const raw = params.get("section");
+  const section: SectionKey | null = isSection(raw) ? raw : null;
 
-function DetailField({
-  icon: Icon,
-  label,
-  value,
-  locked,
-}: {
-  icon: typeof Lock;
-  label: string;
-  value: string;
-  locked?: boolean;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <p className="text-xs font-medium text-foreground/70">{label}</p>
-      <div className="flex h-[50px] items-center gap-2.5 rounded-[10px] bg-foreground/[0.04] px-3.5">
-        <Icon className="h-4 w-4 shrink-0 text-foreground/40" />
-        <span className="truncate text-sm tracking-[-0.14px] text-foreground">{value || "—"}</span>
-        {locked && <Lock className="ml-auto h-4 w-4 shrink-0 text-foreground/30" />}
-      </div>
-    </div>
-  );
-}
-
-function MenuRow({ icon: Icon, label, meta, href }: RowItem) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center justify-between gap-3 rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-foreground/[0.04] text-foreground/70">
-          <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium tracking-[-0.14px] text-foreground">{label}</p>
-          <p className="truncate text-xs text-foreground/60">{meta}</p>
-        </div>
-      </div>
-      <ChevronRight className="h-4 w-4 shrink-0 text-foreground/40" />
-    </Link>
-  );
-}
-
-export default function ProfilePage() {
   const { kycStatus } = useUserStore();
   const { data: userResponse, isLoading, error } = useGetMe();
   const currentUser = userResponse?.data;
   const { mutate: logout } = useLogout();
   const verified = kycStatus === "full";
-  const [showDetails, setShowDetails] = useState(false);
 
-  // Reuses the same hooks/queries each destination page already calls (react-query
-  // dedupes on the shared query key) purely to surface live counts on the menu rows —
-  // no new endpoints, just consuming existing data one screen earlier.
+  // Same queries the panels themselves call — react-query dedupes on the shared key, so these
+  // only surface the live counts on the rows rather than adding requests.
   const { data: myEventsResp, isLoading: myEventsLoading } = useGetMyEvents();
   const { data: savedResp, isLoading: savedLoading } = useGetSavedEvents();
   const { data: docsResp, isLoading: docsLoading } = useGetDocuments();
@@ -132,6 +75,9 @@ export default function ProfilePage() {
     if (prefs.inAppRsvpConfirmation || prefs.inAppEventReminder || prefs.inAppNewDocument) channels.push("Push");
     if (prefs.emailRsvpConfirmation || prefs.emailEventReminder || prefs.emailNewDocument) channels.push("Email");
   }
+
+  const open = (key: SectionKey) => router.push(`/profile?section=${key}`, { scroll: false });
+  const close = () => router.push("/profile", { scroll: false });
 
   if (isLoading) {
     return (
@@ -155,122 +101,133 @@ export default function ProfilePage() {
     );
   }
 
-  const rows: RowItem[] = [
+  const rows = [
     {
+      key: "events" as const,
       icon: CalendarCheck2,
       label: "My Events",
-      meta: myEventsLoading ? "Loading…" : `${myEventsCount} event${myEventsCount === 1 ? "" : "s"}`,
-      href: "/profile/my-events",
+      meta: myEventsLoading ? "Loading…" : `${myEventsCount} event${myEventsCount === 1 ? "" : "s"} attended`,
     },
     {
+      key: "saved" as const,
       icon: Bookmark,
       label: "Saved Events",
       meta: savedLoading ? "Loading…" : `${savedCount} event${savedCount === 1 ? "" : "s"} bookmarked`,
-      href: "/profile/saved-events",
     },
     {
+      key: "documents" as const,
       icon: FileText,
       label: "Document Vault",
       meta: docsLoading ? "Loading…" : `${docsCount} document${docsCount === 1 ? "" : "s"}`,
-      href: "/profile/documents",
     },
     {
+      key: "notifications" as const,
       icon: Bell,
       label: "Notification Preference",
       meta: prefsLoading ? "Loading…" : channels.length ? channels.join(", ") : "All off",
-      href: "/profile/notification-preferences",
     },
     {
+      key: "password" as const,
       icon: Lock,
       label: "Change Password",
       meta: "Change your account password",
-      href: "/profile/change-password",
     },
     {
+      key: "help" as const,
       icon: HelpCircle,
       label: "Help & Support",
-      meta: "FAQs, email and phone support",
-      href: "/profile/help",
+      // Verbatim from the frames, which repeat the Change Password subtitle here. Reads like a
+      // copy-paste slip in the design, but the user asked to keep it exactly as drawn.
+      meta: "Change your account password",
     },
   ];
 
+  const panel = {
+    me: <MyProfilePanel onBack={close} />,
+    events: <MyEventsPanel onBack={close} />,
+    saved: <SavedEventsPanel onBack={close} />,
+    documents: <DocumentVaultPanel onBack={close} />,
+    notifications: <NotificationPrefsPanel onBack={close} />,
+    password: <ChangePasswordPanel onBack={close} />,
+    help: <HelpPanel onBack={close} />,
+  };
+
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-foreground/[0.06] bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] sm:p-5">
-        <div className="flex min-w-0 items-center gap-3">
-          <ProfileAvatar
-            url={currentUser.avatarUrl}
-            initials={currentUser.initials || initialsFor(currentUser.fullName)}
-            className="h-14 w-14 shrink-0 text-base"
-          />
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="truncate text-sm font-medium tracking-[-0.14px] text-foreground">
+    <div className="grid gap-6 md:grid-cols-2 md:items-start md:gap-10">
+      {/* Left — the settings list. Hidden on mobile once a section is open, since there is only
+          room for one pane there and the panel's back arrow returns here. */}
+      <div className={cn("flex flex-col gap-3", section && "hidden md:flex")}>
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-foreground/6 bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+          <div className="flex min-w-0 items-center gap-3">
+            {currentUser.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={currentUser.avatarUrl}
+                alt=""
+                className="h-12 w-12 shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                {currentUser.initials || initialsFor(currentUser.fullName)}
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold tracking-[-0.14px] text-foreground">
                 {currentUser.fullName}
               </p>
-              {verified ? (
-                <Badge variant="success">
-                  <ShieldCheck className="h-3 w-3" /> Verified
-                </Badge>
-              ) : (
-                <Badge variant="warning">KYC pending</Badge>
-              )}
+              {/* The frame shows an @handle here; this backend has no username, so the email
+                  stands in rather than inventing one. */}
+              <p className="truncate text-xs text-foreground/60">{currentUser.email}</p>
             </div>
-            <p className="truncate text-xs text-foreground/60">{currentUser.role}</p>
           </div>
+          <button
+            onClick={() => open("me")}
+            className="shrink-0 rounded-lg bg-foreground/4 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-foreground/8"
+          >
+            Edit Profile
+          </button>
         </div>
-        <button
-          onClick={() => setShowDetails((v) => !v)}
-          className="shrink-0 rounded-lg bg-foreground/[0.04] px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-foreground/[0.08]"
-        >
-          Edit Profile
-        </button>
-      </div>
 
-      {showDetails && (
-        <section className="space-y-4 rounded-xl border border-foreground/[0.06] bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium tracking-[-0.14px] text-foreground">My details</h2>
-            <button
-              onClick={() => setShowDetails(false)}
-              aria-label="Close"
-              className="text-foreground/40 transition-colors hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <ProfileAvatar
-            url={currentUser.avatarUrl}
-            initials={currentUser.initials || initialsFor(currentUser.fullName)}
-            className="h-20 w-20 text-xl"
-          />
-          <DetailField icon={User} label="Full Name" value={currentUser.fullName} />
-          <DetailField icon={Phone} label="Phone Number" value={currentUser.phoneNumber || "Not provided"} />
-          <DetailField icon={Mail} label="Email Address" value={currentUser.email} locked />
-          <Button variant="outline" fullWidth onClick={() => setShowDetails(false)}>
-            Close
-          </Button>
-        </section>
-      )}
+        {/* Not in the frames, but still the only prompt to finish KYC from here. */}
+        {!verified && (
+          <Link
+            href="/intro"
+            className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-100"
+          >
+            <span>Complete identity verification to unlock voting</span>
+            <ChevronRight className="h-4 w-4 shrink-0" />
+          </Link>
+        )}
 
-      {!verified && (
-        <Link
-          href="/intro"
-          className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-100"
-        >
-          <span>Complete identity verification to unlock voting</span>
-          <ChevronRight className="h-4 w-4 shrink-0" />
-        </Link>
-      )}
-
-      <div className="flex flex-col gap-3 pt-3">
-        {rows.map((row) => (
-          <MenuRow key={row.href} {...row} />
+        {rows.map(({ key, icon: Icon, label, meta }) => (
+          <button
+            key={key}
+            onClick={() => open(key)}
+            className={cn(
+              "flex items-center justify-between gap-3 rounded-xl border bg-white p-4 text-left shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]",
+              section === key ? "border-foreground/20" : "border-foreground/6"
+            )}
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-foreground/4 text-foreground/70">
+                <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium tracking-[-0.14px] text-foreground">
+                  {label}
+                </span>
+                <span className="block truncate text-xs text-foreground/60">{meta}</span>
+              </span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-foreground/40" />
+          </button>
         ))}
 
+        {/* Kept deliberately: the sidebar account menu that carries sign-out is desktop-only,
+            so on mobile this row is the only way out of the session. */}
         <button
           onClick={() => logout()}
-          className="flex w-full items-center justify-between gap-3 rounded-xl border border-foreground/[0.06] bg-white p-4 text-left shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+          className="flex w-full items-center justify-between gap-3 rounded-xl border border-foreground/6 bg-white p-4 text-left shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
         >
           <span className="flex items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600">
@@ -281,6 +238,26 @@ export default function ProfilePage() {
           <ChevronRight className="h-4 w-4 text-red-300" />
         </button>
       </div>
+
+      {/* Right — the open section. Empty on desktop until one is chosen; absent on mobile. */}
+      <div className={cn(!section && "hidden md:block")}>
+        {section ? (
+          panel[section]
+        ) : (
+          <div className="hidden h-full min-h-[320px] items-center justify-center rounded-xl border border-dashed border-foreground/10 p-10 text-center text-sm text-foreground/40 md:flex">
+            Choose a setting to view it here.
+          </div>
+        )}
+      </div>
     </div>
+  );
+}
+
+export default function ProfilePage() {
+  // useSearchParams needs a Suspense boundary to keep this route statically renderable.
+  return (
+    <Suspense fallback={null}>
+      <SettingsInner />
+    </Suspense>
   );
 }

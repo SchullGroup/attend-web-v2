@@ -56,20 +56,14 @@ export default function HackathonPage() {
   );
   const apiChallenges = Array.from(
     new Map([...challengeEvents, ...eventInnovation].map((e) => [e.id, e])).values(),
-  );
+  ).filter((e) => e.status !== "ENDED");
 
   const isLoading = chLoading || evLoading;
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">
-          Innovation Challenges
-        </h1>
-        <p className="text-sm tracking-[-0.14px] text-foreground/60">
-          Compete, build and win
-        </p>
-      </div>
+      {/* Title + tagline live in the app bar for this section (NavShell SECTION_TITLE),
+          per Figma — repeating them here stacked two near-identical headings. */}
 
       {/* Tabs — "My Application" is a real route (hackathon/my-applications), not a
           local filter, so the tab bar is just links between the two pages. */}
@@ -91,7 +85,7 @@ export default function HackathonPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search innovation challenges or organisers"
-          className="h-[50px] w-full rounded-[10px] border border-transparent bg-foreground/[0.04] pl-10 pr-3.5 text-sm tracking-[-0.14px] text-foreground placeholder:font-light placeholder:text-foreground/40 transition-colors focus-visible:border-primary focus-visible:outline-none"
+          className="h-[50px] w-full rounded-[10px] border border-transparent bg-foreground/4 pl-10 pr-3.5 text-sm tracking-[-0.14px] text-foreground placeholder:font-light placeholder:text-foreground/40 transition-colors focus-visible:border-primary focus-visible:outline-none"
         />
       </div>
 
@@ -122,7 +116,7 @@ export default function HackathonPage() {
           return (
             <div
               key={c.id}
-              className="flex flex-col gap-3 rounded-xl border border-foreground/[0.06] bg-white p-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]"
+              className="flex flex-col gap-3 rounded-xl border border-foreground/6 bg-white p-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]"
             >
               <div className="flex gap-2.5">
                 <div
@@ -167,7 +161,7 @@ export default function HackathonPage() {
                     size="lg"
                     variant="ghost"
                     fullWidth
-                    className="bg-foreground/[0.04] font-medium hover:bg-foreground/[0.08]"
+                    className="bg-foreground/4 font-medium hover:bg-foreground/8"
                   >
                     View Details
                   </Button>

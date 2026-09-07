@@ -44,7 +44,7 @@ export default function GuestEventsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search for events"
-            className="h-11 w-full rounded-full border border-foreground/5 bg-foreground/[0.03] pl-10 pr-3 text-sm tracking-[-0.14px] placeholder:text-foreground/40 focus-visible:outline-none focus-visible:border-primary"
+            className="h-11 w-full rounded-full border border-foreground/5 bg-foreground/3 pl-10 pr-3 text-sm tracking-[-0.14px] placeholder:text-foreground/40 focus-visible:outline-none focus-visible:border-primary"
           />
         </div>
       </div>
@@ -59,12 +59,12 @@ export default function GuestEventsPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {events.map((event) => (
           <Link
             key={event.id}
-            href={`/join/${event.id}`}
-            className="group overflow-hidden rounded-2xl border border-foreground/[0.06] bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+            href={`/join/code?eventId=${encodeURIComponent(event.id)}&title=${encodeURIComponent(event.title)}`}
+            className="group overflow-hidden rounded-2xl border border-foreground/6 bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
           >
             <div
               className="flex h-32 items-center justify-center"
@@ -93,13 +93,6 @@ export default function GuestEventsPage() {
           </Link>
         ))}
       </div>
-
-      <p className="text-center text-sm text-foreground/60">
-        Have an access, proxy or QR code instead?{" "}
-        <Link href="/join/code" className="font-semibold text-foreground hover:underline">
-          Enter it here
-        </Link>
-      </p>
     </div>
   );
 }

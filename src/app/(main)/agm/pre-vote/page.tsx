@@ -2,6 +2,7 @@
 import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PreVoteSheet } from "@/components/attend/PreVoteSheet";
+import { useGoBack } from "@/hooks/useGoBack";
 
 // The sheet normally opens in place on /events/[id], so the detail page stays visible
 // behind it (Figma's frame). This route stays for direct links, the AGM hub and any
@@ -11,6 +12,7 @@ function PreVoteRouteInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const eventId = searchParams.get("eventId") ?? "";
+  const goBack = useGoBack(`/events/${eventId}`);
 
   useEffect(() => {
     if (!eventId) router.replace("/agm");
@@ -22,7 +24,7 @@ function PreVoteRouteInner() {
     <PreVoteSheet
       eventId={eventId}
       open
-      onClose={() => router.push(`/events/${eventId}`)}
+      onClose={goBack}
     />
   );
 }

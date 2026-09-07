@@ -50,21 +50,29 @@ const NAV = [
   { label: "Innovation", href: "/hackathon", icon: Lightbulb, match: (p: string, m?: string) => p.startsWith("/hackathon") || isInnovation(m) },
   { label: "Launches", href: "/events", icon: Rocket, match: (p: string, m?: string) => p.startsWith("/events") && !p.startsWith("/events/qr-checkin") && !isAgm(m) && !isInnovation(m) && !isGeneral(m) },
   { label: "General", href: "/general", icon: CalendarDays, match: (p: string, m?: string) => p.startsWith("/general") || isGeneral(m) },
-  { label: "Profile", href: "/profile", icon: UserIcon, match: (p: string, m?: string) => p.startsWith("/profile") },
+  { label: "Account", href: "/profile", icon: UserIcon, match: (p: string, m?: string) => p.startsWith("/profile") },
 ];
 
 // Figma titles the top bar per-section ("Events" on Home, "AGM" on /agm, etc.)
 // — a short static label per top-level route, not the page's own H1.
-const SECTION_TITLE: { test: (p: string) => boolean; label: string }[] = [
+// `sub` is optional — Figma gives the Innovation section a two-line title block in the
+// bar (title + tagline) where other sections get just a short label. Where a `sub` is
+// set, the page must NOT also render its own heading, or the two stack up.
+const SECTION_TITLE: { test: (p: string) => boolean; label: string; sub?: string }[] = [
   { test: (p) => p === "/", label: "Events" },
   { test: (p) => p.startsWith("/agm"), label: "AGM" },
   // The challenge brief titles the bar "About challenge" (Figma); the other
   // /hackathon/* routes keep the section name.
   { test: (p) => /^\/hackathon\/(?!apply|resources|certificate|my-applications|submit)[^/]+$/.test(p), label: "About challenge" },
-  { test: (p) => p.startsWith("/hackathon"), label: "Innovation" },
+  { test: (p) => p.startsWith("/hackathon"), label: "Innovation Challenges", sub: "Compete, build and win" },
   { test: (p) => p.startsWith("/general"), label: "General" },
+  // Only the list route gets the two-line block; detail/sub-routes keep the short label.
+  { test: (p) => p === "/events", label: "Launches & Events", sub: "Product launches & live events" },
+  // The event detail page titles the bar "About event" (Figma), excluding the sibling
+  // routes that live under /events/.
+  { test: (p) => /^\/events\/(?!archive|gallery|live|qr-checkin)[^/]+$/.test(p), label: "About event" },
   { test: (p) => p.startsWith("/events"), label: "Launches" },
-  { test: (p) => p.startsWith("/profile"), label: "Profile" },
+  { test: (p) => p.startsWith("/profile"), label: "Settings" },
   { test: (p) => p.startsWith("/notifications"), label: "Notifications" },
   { test: (p) => p.startsWith("/search"), label: "Search" },
   { test: (p) => p.startsWith("/qr-checkin"), label: "Check-in" },
@@ -168,13 +176,15 @@ export function NavShell({ children }: { children: React.ReactNode }) {
     else router.push("/");
   }
 
-  const sectionTitle = SECTION_TITLE.find((s) => s.test(pathname))?.label ?? "Attend";
+  const section = SECTION_TITLE.find((s) => s.test(pathname));
+  const sectionTitle = section?.label ?? "Attend";
+  const sectionSub = section?.sub;
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-white md:bg-[#f6f6f6]">
       {/* Sidebar (desktop) */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[259px] flex-col border-r border-foreground/10 bg-black/[0.02] md:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[259px] flex-col border-r border-foreground/10 bg-black/2 md:flex">
         <div className="px-8 pt-6">
           <img src="/attend-logo.png" alt="Attend" style={{ height: 22, width: "auto" }} />
         </div>
@@ -200,7 +210,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 className={cn(
                   "flex items-center gap-2.5 rounded-full px-3 py-3 text-[15px] tracking-[-0.3px] transition-colors",
-                  active ? "bg-primary/10 font-medium text-primary" : "text-foreground/70 hover:bg-foreground/[0.04]",
+                  active ? "bg-primary/10 font-medium text-primary" : "text-foreground/70 hover:bg-foreground/4",
                 )}
               >
                 <Icon className="h-[18px] w-[18px]" strokeWidth={active ? 2.25 : 1.75} />
@@ -222,7 +232,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
                   <Link
                     href="/profile"
                     onClick={() => setAccountMenuOpen(false)}
-                    className="block px-4 py-3 text-sm text-foreground hover:bg-foreground/[0.04]"
+                    className="block px-4 py-3 text-sm text-foreground hover:bg-foreground/4"
                   >
                     View profile
                   </Link>
@@ -258,7 +268,11 @@ export function NavShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Top header */}
-      <header className="sticky top-0 z-20 border-b border-foreground/10 bg-black/[0.02] md:pl-[259px]">
+      {/* The background MUST be opaque — this bar is sticky, so a translucent fill
+          (it was bg-black/2) let page content scroll visibly through it. These are
+          the opaque equivalents of that 2% tint over each breakpoint's page background:
+          white → #fafafa, #f6f6f6 → #f1f1f1. */}
+      <header className="sticky top-0 z-20 border-b border-foreground/10 bg-[#fafafa] md:bg-[#f1f1f1] md:pl-[259px]">
         {isGuest && (
           <div className="flex select-none items-center justify-center gap-1.5 border-b border-slate-800 bg-slate-900 px-4 py-1.5 text-center text-xs font-semibold text-white">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
@@ -267,19 +281,24 @@ export function NavShell({ children }: { children: React.ReactNode }) {
         )}
         {/* Same container as <main> below, so the section title lines up with the
             content's left edge and the bell with its right edge, end to end. */}
-        <div className="mx-auto flex h-16 max-w-[1152px] items-center justify-between gap-4 px-4 md:px-8">
+        {/* min-h rather than h, so the bar grows for the sections that carry a
+            two-line title block (see SECTION_TITLE `sub`) and stays 64px otherwise. */}
+        <div className="mx-auto flex min-h-16 max-w-[1152px] items-center justify-between gap-4 px-4 py-3 md:px-8">
           <div className="flex items-center gap-3 md:hidden">
             {!isExactRoot && (
-              <button onClick={handleBack} aria-label="Go back" className="-ml-2 rounded-lg p-2 text-foreground/60 transition-colors hover:bg-foreground/[0.05] hover:text-foreground">
+              <button onClick={handleBack} aria-label="Go back" className="-ml-2 rounded-lg p-2 text-foreground/60 transition-colors hover:bg-foreground/5 hover:text-foreground">
                 <ArrowLeft className="h-5 w-5" />
               </button>
             )}
             <img src="/attend-logo.png" alt="Attend" style={{ height: 20, width: "auto" }} />
           </div>
 
-          <p className="hidden text-xl font-medium tracking-[-0.8px] text-foreground md:block">
-            {sectionTitle}
-          </p>
+          <div className="hidden md:block">
+            <p className="text-xl font-medium tracking-[-0.8px] text-foreground">{sectionTitle}</p>
+            {sectionSub && (
+              <p className="text-sm tracking-[-0.14px] text-foreground/60">{sectionSub}</p>
+            )}
+          </div>
 
           <div className="flex items-center gap-4">
             <div className="relative hidden md:block">
@@ -288,7 +307,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearch}
-                className="h-10 w-[255px] rounded-full border border-foreground/5 bg-foreground/[0.03] pl-10 pr-3 text-sm tracking-[-0.14px] placeholder:text-foreground/40 focus-visible:border-primary focus-visible:outline-none"
+                className="h-10 w-[255px] rounded-full border border-foreground/5 bg-foreground/3 pl-10 pr-3 text-sm tracking-[-0.14px] placeholder:text-foreground/40 focus-visible:border-primary focus-visible:outline-none"
                 placeholder="Search events, companies, challenges…"
               />
             </div>
