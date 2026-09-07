@@ -1,11 +1,12 @@
 "use client";
-import { use, useRef, useState } from "react";
+import { Suspense, use, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Clock, MapPin, Users, Bookmark, Share2,
   QrCode, CheckCircle2, Check, Monitor, Wifi, Vote, FileText,
   BookOpen, ShieldAlert, ChevronRight, ChevronDown, Radio, Play, DownloadCloud, FileBox,
+  MoreHorizontal, Receipt, ScrollText, MessagesSquare,
 } from "lucide-react";
 import {
   useGetEvent, useRsvp, useCancelRsvp, useJoinWaitlist,
@@ -17,6 +18,11 @@ import { useGetResolutions, useSubmitQuestion, useCastVote } from "@/api/agm/hoo
 import { useGetMyTeam } from "@/api/hackathon/hooks";
 import { PreVoteSheet } from "@/components/attend/PreVoteSheet";
 import { ProxySheet } from "@/components/attend/ProxySheet";
+import { ReceiptSheet } from "@/components/attend/ReceiptSheet";
+import { MinutesSheet } from "@/components/attend/MinutesSheet";
+import { VenueMap } from "@/components/attend/VenueMap";
+import { QrCheckinSheet } from "@/components/attend/QrCheckinSheet";
+import { Menu, MenuItem } from "@/components/ui/Menu";
 import { VerifyIdentitySheet } from "@/components/attend/VerifyIdentitySheet";
 import { useGetKycStatus } from "@/api/kyc/hooks";
 import { VoteButtons, type VoteChoice } from "@/components/attend/VoteButtons";
@@ -67,7 +73,7 @@ const MODULE_COLOR: Record<string, string> = {
   GENERAL: "#2563eb",
 };
 
-export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
+function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
 
@@ -79,6 +85,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   // dimmed behind it), rather than navigating away to /agm/pre-vote.
   const [preVoteOpen, setPreVoteOpen] = useState(false);
   const [proxyOpen, setProxyOpen] = useState(false);
+  // Reached from the AGM "More" menu — same sheets the /agm hub pages use.
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [minutesOpen, setMinutesOpen] = useState(false);
+  // The frame shows QR check-in as a modal over this page, not a separate screen.
+  // ?qr=1 opens it on arrival — that's how /qr-checkin?eventId= forwards here, so a bookmarked
+  // or shared check-in link still lands on the event rather than a bare modal.
+  const searchParams = useSearchParams();
+  const [qrOpen, setQrOpen] = useState(() => searchParams.get("qr") === "1");
   // Identity verification is a modal over this page now, not a trip to the /bvn wizard.
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [verifyDismissed, setVerifyDismissed] = useState(false);
@@ -298,6 +312,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   const color = event.brandPrimary || event.branding?.brandColor || event.organizerPrimaryColor || MODULE_COLOR[mod] || "#0B5CFF";
+
+  // The hero image. This used to render only as a separate full-width poster further down the
+  // page while the hero stayed a flat colour block — so an event with perfectly good artwork
+  // still showed a big empty rectangle at the top, which is what the frames don't do.
+  const heroArt = event.flyerUrl || event.bannerUrl || null;
+
+  // Launches and General follow the "About event" frame: one narrow column, artwork hero,
+  // then title / organiser / meta / description / CTA. AGM and Innovation carry extra
+  // sections (agenda panel, action tiles, resolutions) and keep the wider layout.
+  const isSimpleLayout = mod === "LAUNCH" || mod === "GENERAL";
   const organiser = event.registerName || event.organizerName;
   // `registered` means "eligible" for an AGM shareholder (register membership), not
   // necessarily an actual RSVP — that's what broke Cancel RSVP/Appoint Proxy for someone
@@ -308,7 +332,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const isLive = event.status === "LIVE";
   const isEnded = event.status === "ENDED";
   const isUpcoming = !isLive && !isEnded;
-  const isVirtual = event.format === "VIRTUAL";
+  // Case-insensitive: this gates the venue map and QR check-in, and a lower-case "virtual"
+  // slipping through would put a map on an online-only event.
+  const isVirtual = (event.format || "").toUpperCase() === "VIRTUAL";
   // A VIRTUAL/HYBRID event can now be LIVE with no join link yet — Zoom links are no
   // longer minted at creation time. Show an unavailable state rather than a dead button.
   const needsStreamLink = event.format === "VIRTUAL" || event.format === "HYBRID";
@@ -356,12 +382,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           : undefined
       }
     >
-      <button
-        onClick={() => router.back()}
-        className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back
-      </button>
+      {/* Launches/General frames have no in-page back control — the shell's "About event" bar
+          is the context. The other modules keep it, since they're reached from deeper flows. */}
+      {!isSimpleLayout && (
+        <button
+          onClick={() => router.back()}
+          className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+      )}
 
       {/* Figma's AGM detail is two-column on desktop: the event itself on the left and a
           persistent Agenda / Q&A / Resolution panel on the right. Only AGMs get the panel
@@ -371,6 +401,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         className={cn(
           "flex flex-col gap-6",
           mod === "AGM" && "lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-8",
+          // Launches/General: content sits directly on the white page in a narrow left column
+          // with a vertical rule down its right edge — NOT a bordered, shadowed card. An
+          // earlier pass carded this wrapper, which made the whole page read as one floating
+          // component instead of a page.
+          isSimpleLayout &&
+            "lg:max-w-[640px] lg:border-r lg:border-foreground/8 lg:pr-8",
         )}
       >
         <div className="flex min-w-0 flex-col gap-6">
@@ -381,8 +417,13 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           doesn't serve. Live turns it into a video preview with a play control. */}
       <header
         className={cn(
-          "relative overflow-hidden rounded-2xl",
-          isLive || isEnded ? "aspect-[649/301]" : "aspect-[649/193]",
+          "relative overflow-hidden",
+          // Inset inside the card on Launches/General, so a slightly tighter radius reads right.
+          isSimpleLayout ? "rounded-xl" : "rounded-2xl",
+          // The taller frame is for the live video preview (it holds a play control). An ENDED
+          // event has no player, so it keeps the frame's short, wide banner rather than the
+          // slab the ended-state was rendering.
+          isLive ? "aspect-[649/301]" : "aspect-[649/193]",
         )}
         style={{ background: color }}
       >
@@ -399,9 +440,25 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           />
         ) : (
           <>
-            <div className="absolute -bottom-10 -right-8 select-none text-[160px] font-black leading-none text-white/10">
-              {initialsFor(organiser)}
-            </div>
+            {/* The event's own artwork fills the hero when there is any — the frames show a
+                real image here, not a colour field. The brand colour stays as the backdrop
+                behind it, so an event with no flyer still reads as branded rather than blank,
+                and a broken image URL falls back to that instead of an empty frame. */}
+            {heroArt ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={heroArt}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
+            ) : (
+              <div className="absolute -bottom-10 -right-8 select-none text-[160px] font-black leading-none text-white/10">
+                {initialsFor(organiser)}
+              </div>
+            )}
             {isLive && (
               <span className="absolute left-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
                 <span className="h-1.5 w-1.5 rounded-full bg-white" /> Live
@@ -438,13 +495,17 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               >
                 <Bookmark className={cn("h-[18px] w-[18px]", saved && "fill-foreground text-foreground")} />
               </button>
-              <button
-                onClick={handleShare}
-                title={shared ? "Link copied!" : "Share event"}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-foreground/4 hover:text-foreground"
-              >
-                {shared ? <Check className="h-[18px] w-[18px]" /> : <Share2 className="h-[18px] w-[18px]" />}
-              </button>
+              {/* Frames show only the bookmark on Launches/General. Share stays everywhere
+                  else rather than being dropped from the app outright. */}
+              {!isSimpleLayout && (
+                <button
+                  onClick={handleShare}
+                  title={shared ? "Link copied!" : "Share event"}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-foreground/4 hover:text-foreground"
+                >
+                  {shared ? <Check className="h-[18px] w-[18px]" /> : <Share2 className="h-[18px] w-[18px]" />}
+                </button>
+              )}
             </div>
           </div>
 
@@ -464,11 +525,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 {event.registeredCount.toLocaleString()} Registered
               </span>
             )}
-            <span className="inline-flex items-center gap-1.5">
-              <FormatIcon className="h-3.5 w-3.5" />
-              {FORMAT_LABEL[event.format] ?? event.format}
-            </span>
-            {event.venue && (
+            {/* The frame's meta line is just date/time and the participant count. Format and
+                venue stay on the other modules; on Launches/General the venue is already the
+                heading of the map directly below, so repeating it here is noise. */}
+            {!isSimpleLayout && (
+              <span className="inline-flex items-center gap-1.5">
+                <FormatIcon className="h-3.5 w-3.5" />
+                {FORMAT_LABEL[event.format] ?? event.format}
+              </span>
+            )}
+            {!isSimpleLayout && event.venue && (
               <span className="inline-flex items-center gap-1.5">
                 <MapPin className="h-3.5 w-3.5" />
                 {event.venue}
@@ -483,17 +549,24 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             </div>
           )}
 
-          {/* AGM's QR check-in lives in the action-tile grid below instead, matching Figma. */}
+          {/* AGM reaches this from the "More" menu instead, matching Figma. Both open the
+              same modal over this page rather than navigating to /qr-checkin. */}
           {mod !== "AGM" && !isVirtual && (
-            <Link
-              href={`/qr-checkin?eventId=${id}`}
+            <button
+              type="button"
+              onClick={() => setQrOpen(true)}
               className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-foreground/10 px-3 py-1.5 text-xs font-medium tracking-[-0.12px] text-foreground/70 transition-colors hover:bg-foreground/4"
             >
               <QrCode className="h-3.5 w-3.5" /> QR check-in
-            </Link>
+            </button>
           )}
         </div>
       </div>
+
+      {/* The frame rules off the title/meta header from the body below it (that's the line the
+          Overview/Prizes tabs sit on). Negative margin cancels the column's flex gap so the
+          rule reads as a divider between two blocks rather than a floating line. */}
+      {isSimpleLayout && <hr className="-my-1 border-foreground/8" />}
 
       {/* Capacity — the slim bar replaces the old card's capacity row */}
       {event.maximumCapacity > 0 && (
@@ -519,11 +592,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       {/* Event flyer — shown full and uncropped here in the body. The list cards crop the
           flyer to fill their header (object-cover); this view uses object-contain + a capped
           height so the whole poster stays visible whatever its aspect ratio. */}
-      {(event.flyerUrl || event.bannerUrl) && (
+      {/* On Launches/General the hero already shows this artwork, so repeating it here would
+          be the same picture twice — the frames show it once. The other modules keep the
+          uncropped poster, where a flyer often carries text the hero's crop would cut off. */}
+      {!isSimpleLayout && heroArt && (
         <section className="overflow-hidden rounded-xl border border-foreground/6 bg-foreground/3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={event.flyerUrl || event.bannerUrl || undefined}
+            src={heroArt}
             alt={`${event.title} flyer`}
             className="mx-auto max-h-[520px] w-full object-contain"
             onError={(e) => {
@@ -535,8 +611,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       )}
 
       {/* AGM module section — Figma renders these as an equal-width icon-over-label tile
-          row (not the list rows the other modules use), with the live quorum bar above. */}
-      {mod === "AGM" && !isEnded && (
+          row (not the list rows the other modules use), with the live quorum bar above.
+          Still shown once the AGM has ENDED: this block used to be hidden entirely then,
+          which took Minutes and My receipts with it — the two things you specifically want
+          *after* a meeting, and this page's only route to them. Proxy and Pre-AGM Voting
+          hide themselves below instead, since neither is actionable on a finished AGM. */}
+      {mod === "AGM" && (
         <section className="flex flex-col gap-3">
           {quorum && (
             <div className="max-w-sm">
@@ -571,7 +651,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {event.agmProxyEnabled && (
+              {/* Neither of these two survives the meeting ending. */}
+              {event.agmProxyEnabled && !isEnded && (
                 <button type="button" onClick={() => setProxyOpen(true)} className="text-left">
                   <ActionTile
                     icon={<FileText className="h-5 w-5" style={{ color }} />}
@@ -581,25 +662,77 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               )}
               {/* Pre-voting closes once the meeting is live — live votes are cast in the
                   meeting room's ballot instead. */}
-              {!isLive && (
+              {!isLive && !isEnded && (
                 <button type="button" onClick={() => setPreVoteOpen(true)} className="text-left">
                   <ActionTile icon={<Vote className="h-5 w-5" style={{ color }} />} label="Pre-AGM Voting" />
                 </button>
               )}
-              {!isVirtual && (
-                <Link href={`/qr-checkin?eventId=${id}`}>
-                  <ActionTile icon={<QrCode className="h-5 w-5" style={{ color }} />} label="QR check-in" />
-                </Link>
-              )}
+
+              {/* "More" — the frame folds receipts, minutes and QR check-in behind one tile.
+                  Receipts and Minutes reuse the same sheets the /agm hub pages open; they
+                  take the same {eventId, open, onClose} contract as the proxy/pre-vote sheets
+                  and portal through Dialog, so they mount with the others at the foot of the
+                  page. QR stays a navigation — it's a full page, not a sheet. */}
+              <Menu
+                align="right"
+                trigger={
+                  <ActionTile
+                    icon={<MoreHorizontal className="h-5 w-5" style={{ color }} />}
+                    label="More"
+                  />
+                }
+              >
+                {(close) => (
+                  <>
+                    <MenuItem
+                      icon={<Receipt className="h-4 w-4" />}
+                      label="My receipts"
+                      trailing={<ChevronRight className="h-4 w-4 shrink-0 text-foreground/30" />}
+                      onSelect={() => {
+                        close();
+                        setReceiptOpen(true);
+                      }}
+                    />
+                    <MenuItem
+                      icon={<ScrollText className="h-4 w-4" />}
+                      label="Minutes"
+                      trailing={<ChevronRight className="h-4 w-4 shrink-0 text-foreground/30" />}
+                      onSelect={() => {
+                        close();
+                        setMinutesOpen(true);
+                      }}
+                    />
+                    {!isVirtual && (
+                      <MenuItem
+                        icon={<QrCode className="h-4 w-4" />}
+                        label="QR check-in"
+                        trailing={<ChevronRight className="h-4 w-4 shrink-0 text-foreground/30" />}
+                        onSelect={() => {
+                          close();
+                          setQrOpen(true);
+                        }}
+                      />
+                    )}
+                  </>
+                )}
+              </Menu>
             </div>
           )}
         </section>
       )}
 
-      {/* Details — Figma puts the blurb under a "Details" heading, after the action row. */}
+      {/* Venue map — the frame sits it between the action row and Details. Only meaningful
+          for an event someone can physically attend, and only as good as the free-text venue
+          it geocodes from (there is no lat/lng on the event). */}
+      {!isVirtual && event.venue && <VenueMap venue={event.venue} />}
+
+      {/* Figma puts the blurb under a heading, after the action row. The Launches/General
+          frames title it "About this event"; the other modules keep the shorter "Details". */}
       {(event.description || (event.tags && event.tags.length > 0)) && (
         <section className="flex flex-col gap-2.5">
-          <h2 className="text-base font-medium tracking-[-0.32px] text-foreground">Details</h2>
+          <h2 className="text-base font-medium tracking-[-0.32px] text-foreground">
+            {isSimpleLayout ? "About this event" : "Details"}
+          </h2>
           {event.description && (
             <p className="whitespace-pre-line text-sm leading-relaxed tracking-[-0.14px] text-foreground/70">
               {event.description}
@@ -923,6 +1056,15 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       {proxyOpen && (
         <ProxySheet eventId={id} open onClose={() => setProxyOpen(false)} />
       )}
+      {receiptOpen && (
+        <ReceiptSheet eventId={id} open onClose={() => setReceiptOpen(false)} />
+      )}
+      {minutesOpen && (
+        <MinutesSheet eventId={id} open onClose={() => setMinutesOpen(false)} />
+      )}
+      {qrOpen && (
+        <QrCheckinSheet eventId={id} open onClose={() => setQrOpen(false)} />
+      )}
       {verifyOpen && (
         <VerifyIdentitySheet
           open
@@ -948,6 +1090,15 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         />
       )}
     </div>
+  );
+}
+
+// useSearchParams (for ?qr=1) needs a Suspense boundary to keep this route renderable.
+export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  return (
+    <Suspense fallback={null}>
+      <EventDetailInner params={params} />
+    </Suspense>
   );
 }
 
@@ -977,9 +1128,10 @@ function AgmSidePanel({
   onJoinLive: () => void;
 }) {
   const [tab, setTab] = useState<"agenda" | "qa" | "resolution">("agenda");
-  // Q&A composer — POST /participant/events/{id}/questions. Submission works outside
-  // the live room; only the real-time question *feed* is websocket-bound (that stays
-  // in LiveRoom), so the panel offers the composer plus a way into the session.
+  // Q&A composer — POST /participant/events/{id}/questions. The endpoint accepts a question
+  // at any time, but the composer is gated on the meeting being live: a question sent days
+  // ahead reaches no Chair and no moderator. The real-time question *feed* is websocket-bound
+  // and stays in LiveRoom; this panel offers the composer plus a way into the session.
   const [question, setQuestion] = useState("");
   const [qaError, setQaError] = useState<string | null>(null);
   const [qaSent, setQaSent] = useState(false);
@@ -1066,7 +1218,26 @@ function AgmSidePanel({
 
       {tab === "agenda" && <AgendaPanel speakers={speakers} agenda={agenda} />}
 
-      {tab === "qa" && (
+      {/* Q&A only opens once the meeting is in session — a question asked days early has no
+          Chair to reach and no moderator watching. The composer is replaced rather than just
+          disabled, so it's clear this is "not yet" and not a broken input. */}
+      {tab === "qa" && !isLive && (
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-foreground/15 p-8 text-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-foreground/4">
+            <MessagesSquare className="h-5 w-5 text-foreground/40" />
+          </span>
+          <div>
+            <p className="text-sm font-medium tracking-[-0.14px] text-foreground">
+              Q&amp;A opens when the meeting starts
+            </p>
+            <p className="mt-1 text-sm text-foreground/60">
+              You&apos;ll be able to send questions to the Chair once this AGM is live.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {tab === "qa" && isLive && (
         <div className="flex flex-col gap-3">
           <p className="text-sm tracking-[-0.14px] text-foreground/60">
             Questions are reviewed by the moderator before being shown to the Chair

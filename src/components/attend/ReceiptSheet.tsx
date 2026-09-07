@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BadgeCheck, CheckCircle2, XCircle, MinusCircle, Download, Copy, Check, Building2, UserCheck } from "lucide-react";
+import { ArrowLeft, BadgeCheck, CheckCircle2, XCircle, MinusCircle, Download, Copy, Check, Building2, UserCheck, FileX2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { QRCodeSVG } from "qrcode.react";
 import { downloadNodeAsPdf } from "@/lib/dom-to-pdf";
@@ -75,16 +75,8 @@ export function ReceiptSheet({
     );
   }
 
-  if (!receipt) {
-    return (
-      <Dialog open={isOpen} onClose={onClose} side="right">
-        <DialogHeader onBack={onClose} title="Vote receipt" />
-        <div className="rounded-xl border border-dashed border-foreground/15 p-10 text-center text-sm text-foreground/50">
-          No vote receipt found. Cast your votes at an AGM and your receipt will appear here.
-        </div>
-      </Dialog>
-    );
-  }
+  // No receipt row at all.
+  if (!receipt) return <NoReceipt open={isOpen} onClose={onClose} />;
 
   const votesList = receipt.votes || [];
   const preVotesList = (receipt as any).preVotes || (receipt as any).earlyVotes || [];
@@ -96,6 +88,15 @@ export function ReceiptSheet({
       combinedVotes.push(pv);
     }
   });
+
+  // A receipt row can come back with nothing actually in it — no votes cast and no proxy
+  // appointed. Rendering the card in that state produced an official-looking receipt carrying
+  // a reference number, above a "Download receipt" button that would save a PDF certifying
+  // nothing. There is no receipt until there is something to receipt for.
+  const hasProxyAppointed = !!(proxy?.proxyName && !revokeSuccess);
+  if (combinedVotes.length === 0 && !hasProxyAppointed) {
+    return <NoReceipt open={isOpen} onClose={onClose} />;
+  }
 
   const view = {
     reference: data?.referenceId ?? "—",
@@ -325,6 +326,28 @@ export function ReceiptSheet({
           <p className="rounded-xl bg-foreground/3 p-3 text-xs text-foreground/60">
             This receipt is timestamped and serves as evidence of your
             participation and votes at the meeting.
+          </p>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+// Deliberately rendered without the Dialog `footer`, so there is no Download button — an
+// empty receipt must not be downloadable.
+function NoReceipt({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <Dialog open={open} onClose={onClose} side="right">
+      <DialogHeader onBack={onClose} title="Vote receipt" />
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-foreground/15 p-10 text-center">
+        <FileX2 className="h-8 w-8 text-foreground/30" />
+        <div>
+          <p className="text-sm font-medium tracking-[-0.14px] text-foreground">
+            Receipt not available
+          </p>
+          <p className="mt-1 text-sm text-foreground/60">
+            You haven&apos;t cast any votes for this meeting yet. Once you vote — or appoint a
+            proxy — your receipt will appear here.
           </p>
         </div>
       </div>

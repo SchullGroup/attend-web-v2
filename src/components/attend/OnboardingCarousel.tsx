@@ -102,7 +102,7 @@ export function OnboardingCarousel() {
                   src={slide.image}
                   alt=""
                   fill
-                  sizes="295px"
+                  sizes="342px"
                   className="object-cover object-top"
                   priority={i === 0}
                 />

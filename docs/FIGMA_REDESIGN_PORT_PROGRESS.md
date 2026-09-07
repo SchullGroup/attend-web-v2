@@ -945,6 +945,162 @@ the Zoom live-room wrappers (`agm/live`, `events/live` shells).
     a browser** — `/agm` and `/profile` both redirect to login without a session, so the RSVP
     resume, the gate's loading beat, and the toggle race all still need a real signed-in pass.
 
+- **2026-09-07 (15)** — Login shell polish + Launches/General rebuilt to their frames.
+  - **The phone mockup was invisible.** `OnboardingCarousel`'s image box had `flex-1` — in a
+    column flex that sets `flex-basis:0%` on the vertical axis, which **overrides the explicit
+    height**. With no definite height to grow into, the box collapsed to zero and a `fill` image
+    inside it rendered nothing. (The pre-carousel markup had `flex-1` too, but its `<Image>` used
+    explicit width/height so it had intrinsic size — switching to `fill` is what exposed it.)
+  - **Then the phone's sides were cropped.** The box was `295×420` (0.70) while the artwork is
+    0.74–0.80. `object-cover` crops whichever axis overflows, so a box *narrower in proportion*
+    than the image trims the sides. Now sized by aspect ratio (`43/50` = 0.86) so it stays wider
+    than any export and crops the **bottom** instead — the bleed the frame wants. Comment in the
+    file warns to keep that ratio above 0.80 if the artwork is re-exported. `sizes` bumped
+    295px → 342px to match.
+  - Auth split is now **50/50** (was 45/55, cap 640px → 720px), and the form side is **plain
+    white** — this reverses the earlier "form sits on a light gradient" instruction at the user's
+    request; the grey read as dirty against the white page padding.
+  - **Event detail (LAUNCH + GENERAL) rebuilt to the "About event" frame.** The hero now shows
+    `flyerUrl || bannerUrl` — previously it was **always a flat brand-colour block** while the
+    artwork rendered as a separate poster further down, so an event with a perfectly good flyer
+    still showed a big empty rectangle. Brand colour stays as the backdrop, so no-artwork and
+    broken-URL cases still read as branded. Also: no in-page Back (the shell's "About event" bar
+    is the context), "Details" → "About this event", share button dropped, column capped at
+    680px. Gated on `isSimpleLayout` — **AGM and Innovation are untouched**, keeping their agenda
+    panel, action tiles, share button and uncropped poster.
+  - **General list now matches the Launches frame.** `EventRow` moved out of `events/page.tsx`
+    into shared `components/attend/EventListRow.tsx` (with `tileTint`/`fmtTime`), taking a
+    `fallbackIcon` prop — Rocket for Launches, CalendarDays for General. `/general` gained the
+    All / Past Events / Bookmarked tabs and the two-column row grid, replacing its `EventCard`
+    grid. NavShell gives `/general` a title+sub like Launches has.
+  - ⚠️ **The frame's "120 Registered" on list rows is not buildable.** `EventListItem` has no
+    `registeredCount` — it exists on `EventDetail` only. Rows show date/time instead; noted in
+    `EventListRow`. Needs the field added to the list endpoint.
+  - **Flagged, not removed:** the Launch detail page still carries an **"Audience Access"** row
+    (Press / VIP Guests / Public) that is **hardcoded labels with no backend data**, and a
+    "Launching soon — N days to go" card. Neither is in the frames; both sit between the
+    description and the CTA. Left in pending a call, since deleting features wasn't the ask.
+  - `EventCard` now has one consumer left (`(guest)/guest/page.tsx`) — still live, not orphaned.
+
+- **2026-09-07 (16)** — AGM detail: "More" menu + venue map, per the new frame.
+  - **New `components/ui/Menu.tsx`.** There was no dropdown primitive in the app — the only menu
+    (NavShell's account caret) is bespoke. Extracted its pattern (full-screen click-away catcher
+    behind an absolute panel, trigger lifted above the catcher so a second click toggles rather
+    than being swallowed) and added the two things it lacks: **Escape to close** and
+    `role="menu"` / `aria-haspopup` / `aria-expanded`. Deliberately not a portal — `Dialog`
+    portals at `z-[60]`, so a sheet opened from an item lands above and the menu closing beneath
+    it is the wanted behaviour.
+  - **Action row is now Proxy / Pre-AGM Voting / More.** The More menu holds **My receipts**,
+    **Minutes** and **QR check-in**. Receipts and Minutes reuse the existing `ReceiptSheet` /
+    `MinutesSheet` — same `{eventId, open, onClose}` contract as the proxy/pre-vote sheets, so
+    they just mount alongside them; each already handles its own loading, empty and 403 states.
+    QR stays a navigation (it's a full page). **Before this, receipts and minutes were not
+    reachable from the event page at all** — only from the `/agm/*` hub via `AgmSubNav`.
+  - ⚠️ **Fixed a real inversion:** the whole AGM block was gated `!isEnded`, so once a meeting
+    ended it took Minutes and My receipts with it — the two things you specifically want *after*
+    an AGM, and this page's only route to them. The section now renders for ended AGMs; Proxy and
+    Pre-AGM Voting carry their own `!isEnded` guards instead, since neither is actionable then.
+  - **New `components/attend/VenueMap.tsx`** — address line + embedded map, between the action
+    row and Details, shown only when `event.venue` is set and the event isn't VIRTUAL. Uses the
+    **keyless** `maps.google.com/maps?q=…&output=embed` URL (works today, no setup), and switches
+    to the official `maps/embed/v1/place` endpoint automatically if `NEXT_PUBLIC_GOOGLE_MAPS_KEY`
+    is ever set. An "Open in Maps" link keeps the address actionable if the iframe is blocked.
+    Safe here because cross-origin isolation is opt-in (`?coi=1` / `/zoom-meeting.html` only).
+  - ⚠️ **Map accuracy is bounded by the data.** `EventDetail` has **no lat/lng and no structured
+    address** — only free-text `venue`. A precise string geocodes well; a vague one ("Head
+    Office") will not. Fixing that needs geo fields on the event.
+  - **Not built — the frame's attendee avatar stack.** `EventDetail` exposes no attendee list and
+    no avatar data at all (just the scalar `registeredCount`), so it can't be done without
+    inventing people. Needs a backend field.
+  - **Follow-up:** migrate NavShell's account menu onto the new `Menu` primitive (left alone here
+    — it's a working user-visible control and swapping it is separate risk).
+  - **Verification:** `tsc --noEmit` clean, dev server compiles. **Not exercised signed in** —
+    `/agm` still redirects to login without a session, so the menu, the two sheets, the
+    ended-AGM behaviour and the map all need a browser pass.
+
+- **2026-09-07 (17)** — ⚠️ **Empty receipts were downloadable.** Found immediately on opening the
+  new More → My receipts on a meeting with no votes. `ReceiptSheet` only guarded `!receipt`; when
+  the API returned a receipt row that was *empty* (no votes, no proxy) it still rendered the full
+  card — meeting name, "Time of vote —", "Cast via Attend app", and a **reference UUID** — above
+  a working **Download receipt** button. That saves a PDF that looks like an official record of
+  participation and certifies nothing. User: *"do not give an empty downloadable receipt."*
+  - Now returns a shared `NoReceipt` state ("Receipt not available") whenever there are no votes
+    **and** no appointed proxy. Rendered without the Dialog `footer`, so **there is no download
+    button at all** in that state — the fix is structural, not just copy.
+  - The reference shown was `data?.referenceId` — the response envelope's id, not a vote
+    reference — so it was meaningless on an empty receipt as well as misleading.
+  - **Checked `MinutesSheet` for the same class of bug.** Its `!minutes` branch was already
+    correct (renders without a footer). Closed one remaining gap: a minutes row that exists with
+    **blank content** would have rendered an empty document with a live Download button; that now
+    falls into the same "not published yet" state.
+
+- **2026-09-07 (18)** — **Q&A composer gated on the meeting being live.** The AGM side panel
+  offered a question box and a Send button on an AGM scheduled weeks out — a question sent then
+  reaches no Chair and no moderator. `AgmSidePanel` already receives `isLive`, so the Q&A tab now
+  swaps the composer for a "Q&A opens when the meeting starts" state until then.
+  - Replaced rather than disabled: a greyed-out textarea reads as broken, whereas this says *why*
+    it isn't available yet. The tab itself stays visible so the panel doesn't shuffle between
+    three tabs and two.
+  - Note the endpoint (`POST /participant/events/{id}/questions`) does accept submissions at any
+    time — this is a deliberate product gate, not an API limitation. Corrected the stale comment
+    above the composer, which claimed submission worked outside the live room as a feature.
+
+- **2026-09-07 (19)** — **QR check-in is a modal over the event page**, per its frame — it was a
+  navigation to `/qr-checkin`.
+  - New `components/attend/QrCheckinSheet.tsx`: centred `Dialog` with the frame's layout —
+    "QR Check-in" + the "present this at the registration desk" line, the QR card, then the
+    event title / date-time / venue block beneath it so staff and attendee can both see which
+    meeting the code belongs to.
+  - **Carried over every state from the old page** rather than reducing it to the happy path:
+    the virtual-event guard, the loading skeleton, the no-ticket case ("RSVP first to get your
+    code"), the checked-in confirmation with its scanned-at time, and the "waiting for the event
+    team to scan" status strip. Attendance is still staff-scanned — nothing here self-checks-in.
+  - Wired to **both** entry points on the event page: the AGM "More" menu item, and the non-AGM
+    QR pill in the meta row (previously a `<Link>` away).
+  - **Follow-up on the same day:** the first cut had `/qr-checkin` render the sheet itself, which
+    left the modal floating over an empty page under a "Check-in" app bar. It now **forwards to
+    `/events/{id}?qr=1`**, and the event page opens the modal from that param — so a bookmarked
+    or shared check-in link always lands on the event, in context. Reading the param means
+    `useSearchParams`, so `EventDetailPage` is now a thin `Suspense` wrapper around
+    `EventDetailInner`.
+  - **Modal no longer scrolls.** The QR area was `aspect-square w-full`, so it grew with the
+    panel and pushed the dialog past the viewport. It's a fixed 200×200 box now (dialog capped
+    at 360px), which keeps every state — QR, loading, checked-in, no-ticket — the same size.
+
+- **2026-09-07 (20)** — **Launches/General detail is now one white card**, per the challenge-brief
+  frame the user pointed at as the reference structure: banner *inset at the top of the card*
+  rather than bleeding to the page edge, with title, meta, body and the CTA all inside it.
+  - Implemented by carding the existing outer wrapper rather than restructuring the JSX — the
+    CTA is already a sibling of the content column inside that wrapper (it's a grid sibling so
+    it can sit under the content on desktop but below the side panel on mobile for AGM), so
+    styling the wrapper captures banner, body and CTA in one card with no reordering.
+  - Hero drops to `rounded-xl` on these two modules, since it's inset in a padded card now.
+  - Still gated on `isSimpleLayout` — AGM and Innovation keep their existing full-width layout.
+  - The frame's Overview/Prizes tabs are challenge-specific (`/hackathon/[id]`), not part of
+    this; the user cited the frame for its card structure, not its tabs.
+
+- **2026-09-07 (21)** — Side-by-side against the frame; the user confirmed data differences don't
+  matter, to **keep** the map (a deliberate deviation from the frame), and that **no virtual
+  event should ever show one**.
+  - **Banner was a slab on past events.** The hero used the taller `aspect-[649/301]` for
+    `isLive || isEnded`. That aspect exists for the live *video preview* (it holds a play
+    control); an ended event has no player, so it now keeps the frame's short, wide
+    `aspect-[649/193]`. Only `isLive` gets the tall frame.
+  - **Meta row trimmed on Launches/General** to date/time + participant count, per the frame.
+    Format and venue chips stay on the other modules — on these two the venue is already the
+    map's heading immediately below, so the chip was duplicating it.
+  - **Duplicate "Open in Maps" removed.** The Google embed draws its own control over the map,
+    so `VenueMap`'s header link rendered the same button twice. Header is address-only now.
+  - **Virtual events can't get a map**, tightened two ways: `isVirtual` is now case-insensitive
+    (`event.format` upper-cased — a lower-case "virtual" would have slipped through and put a
+    map on an online-only event), and the single `VenueMap` call site stays gated on
+    `!isVirtual && event.venue`. Confirmed by grep there is no other map or maps embed anywhere
+    in `src/`.
+  - ⚠️ **Kept against the frame: the QR check-in pill** on non-AGM in-person/hybrid events. The
+    frame has none, but it is the *only* entry to a check-in code for those events (AGM reaches
+    it via the More menu) — removing it would strand in-person attendees. One line to drop if
+    that's wanted.
+
 ## Deltas from the new frames (flag for review)
 
 5. **"Pending Approval" state NOT built** — there is no backend field for it.
