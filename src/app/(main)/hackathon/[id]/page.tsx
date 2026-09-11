@@ -11,6 +11,7 @@ import { ChallengeDetailData } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { cn, formatDate } from "@/lib/utils";
+import { EventBanner } from "@/components/attend/EventBanner";
 import { useGoBack } from "@/hooks/useGoBack";
 
 // Laid out to Figma's challenge-detail frame: a purely decorative banner (no text or
@@ -144,13 +145,6 @@ export default function HackathonDetailPage({
     challenge.branding?.brandColor ||
     (challenge as any).organizerPrimaryColor ||
     "#c084fc";
-  const heroStyle: React.CSSProperties = challenge.bannerUrl
-    ? {
-        backgroundImage: `url(${challenge.bannerUrl})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }
-    : { background: `linear-gradient(135deg, ${brandPrimary} 0%, ${brandAccent} 100%)` };
 
   return (
     <div
@@ -182,9 +176,18 @@ export default function HackathonDetailPage({
         </Link>
       )}
 
-      {/* Banner — per-challenge photo when the organiser supplied one, else the brand
-          gradient. Decorative only: the title and CTAs live on the page below it. */}
-      <div className="aspect-[540/160] w-full overflow-hidden rounded-xl" style={heroStyle} />
+      {/* Banner — the same three-tier chain the event detail page uses (flyer → company logo on
+          its own colour → module poster), replacing a brand gradient. Decorative only: the title
+          and CTAs live on the page below it.
+          `organizerLogo` isn't on ChallengeDetail, so tier 2 here is `branding.logoUrl` only —
+          which is the preferred source anyway, being the company's mark rather than a registrar's. */}
+      <EventBanner
+        flyerUrl={challenge.bannerUrl}
+        logoUrl={challenge.branding?.logoUrl}
+        module="HACKATHON"
+        seed={challenge.organizerName || challenge.title}
+        className="aspect-[540/160] w-full rounded-xl"
+      />
 
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">{challenge.title}</h1>

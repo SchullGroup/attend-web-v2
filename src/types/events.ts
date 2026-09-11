@@ -36,6 +36,17 @@ export interface EventListItem {
   registered: boolean;
   /** True only once a real RSVP (`EventRegistration` row) exists. */
   hasRsvped?: boolean;
+  /**
+   * How many people have RSVP'd. The detail response calls this `registeredCount`; the LIST
+   * response calls it `rsvpCount`.
+   *
+   * Optional and treated as unproven: the backend's list schema declares it, but that schema is
+   * known to be stale in both directions (it omits `flyerUrl`, `organizerLogo` and `branding`,
+   * which list responses demonstrably do return). So every consumer must render only when it is
+   * actually present rather than defaulting to 0 — a card claiming "0 registered" for an event
+   * with attendees is worse than a card that says nothing.
+   */
+  rsvpCount?: number | null;
   branding?: EventBranding;
   flyerUrl?: string | null;
   bannerUrl?: string | null;

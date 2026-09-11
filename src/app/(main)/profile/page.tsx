@@ -1,6 +1,5 @@
 "use client";
 import { Suspense } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Lock,
@@ -16,7 +15,6 @@ import { useGetMe, useLogout } from "@/api/auth/hooks";
 import { useGetMyEvents, useGetSavedEvents } from "@/api/events/hooks";
 import { useGetDocuments } from "@/api/documents/hooks";
 import { useGetNotificationPreferences } from "@/api/notifications/hooks";
-import { useUserStore } from "@/lib/user-store";
 import { Button } from "@/components/ui/Button";
 import { cn, initialsFor } from "@/lib/utils";
 import { MyProfilePanel } from "@/components/attend/profile/MyProfilePanel";
@@ -53,11 +51,14 @@ function SettingsInner() {
   const raw = params.get("section");
   const section: SectionKey | null = isSection(raw) ? raw : null;
 
-  const { kycStatus } = useUserStore();
   const { data: userResponse, isLoading, error } = useGetMe();
   const currentUser = userResponse?.data;
   const { mutate: logout } = useLogout();
-  const verified = kycStatus === "full";
+  // This page deliberately reads no KYC state at all. It used to derive `verified` from
+  // `useUserStore().kycStatus`, which seeds synchronously from localStorage["attend:demo:kyc"] —
+  // a key `useLogout` used to leave behind, so user A could verify, log out, user B log in on the
+  // same browser, and this page would tell B they were verified. The nudge that depended on it
+  // is gone (see below); don't reintroduce the store read if it ever comes back.
 
   // Same queries the panels themselves call — react-query dedupes on the shared key, so these
   // only surface the live counts on the rows rather than adding requests.
@@ -175,8 +176,9 @@ function SettingsInner() {
               <p className="truncate text-sm font-semibold tracking-[-0.14px] text-foreground">
                 {currentUser.fullName}
               </p>
-              {/* The frame shows an @handle here; this backend has no username, so the email
-                  stands in rather than inventing one. */}
+              {/* The frame shows an @handle here. The backend does have a username (§25), but
+                  it is deliberately not surfaced anywhere in this app — see MyProfilePanel —
+                  so the email stands in. */}
               <p className="truncate text-xs text-foreground/60">{currentUser.email}</p>
             </div>
           </div>
@@ -188,16 +190,17 @@ function SettingsInner() {
           </button>
         </div>
 
-        {/* Not in the frames, but still the only prompt to finish KYC from here. */}
-        {!verified && (
-          <Link
-            href="/intro"
-            className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-100"
-          >
-            <span>Complete identity verification to unlock voting</span>
-            <ChevronRight className="h-4 w-4 shrink-0" />
-          </Link>
-        )}
+        {/* KYC nudge — REMOVED 2026-09-10 on request, same as the one on Home. Verification is
+            demanded at the point of opening an AGM now, so Settings says nothing about it.
+
+            The component still exists and still works (KycNudgeBanner) — it opens the
+            verification sheet in place, and renders nothing for an already-verified user, so it
+            needs no condition around it. To restore: uncomment the import and the line below.
+
+            ⚠️ With Home's copy commented out too, KycNudgeBanner now has NO live consumer
+            anywhere, so nothing will catch it breaking. Check it renders before trusting a
+            revert. */}
+        {/* <KycNudgeBanner message="Complete identity verification to unlock voting" /> */}
 
         {rows.map(({ key, icon: Icon, label, meta }) => (
           <button

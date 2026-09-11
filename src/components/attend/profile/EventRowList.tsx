@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ChevronRight, Bookmark } from "lucide-react";
 import type { EventListItem } from "@/types";
 import { useUnsaveEvent } from "@/api/events/hooks";
+import { EventThumb } from "../EventThumb";
 import { initialsFor } from "@/lib/utils";
 
 // The frames render My Events and Saved Events as the same compact row: square artwork tile,
@@ -47,7 +48,8 @@ export function EventRowList({
     <ul className="flex flex-col gap-2">
       {events.map((e) => {
         const organiser = e.registerName || e.organizerName || "";
-        const logo = e.branding?.logoUrl || e.organizerLogo || null;
+        // This list tints by brand/module colour rather than the pastel tile tint, because the
+        // fallback here is white initials rather than a grey icon.
         const tint =
           e.branding?.brandColor ||
           e.brandPrimary ||
@@ -60,17 +62,12 @@ export function EventRowList({
             className="flex items-center gap-3 rounded-xl border border-foreground/6 bg-white p-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
           >
             <Link href={`/events/${e.id}`} className="flex min-w-0 flex-1 items-center gap-3">
-              <span
-                className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[10px] text-xs font-bold text-white"
-                style={logo ? undefined : { background: tint }}
-              >
-                {logo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={logo} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  initialsFor(organiser)
-                )}
-              </span>
+              <EventThumb
+                event={e}
+                tint={tint}
+                className="h-11 w-11 rounded-[10px] text-xs font-bold text-white"
+                fallback={initialsFor(organiser)}
+              />
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold tracking-[-0.14px] text-foreground">
                   {e.title}

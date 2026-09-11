@@ -2,28 +2,35 @@
 import { useEffect, useRef, useState } from "react";
 import { CircleUserRound, Lock, Mail, Pencil, Phone, Loader2 } from "lucide-react";
 import { useGetMe, useUpdateProfile } from "@/api/auth/hooks";
+import type { UpdateProfileRequest } from "@/types/auth/requests";
 import { uploadClient } from "@/api/upload/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { initialsFor } from "@/lib/utils";
 import { PanelShell } from "./PanelShell";
 
-// Figma's "My profile" frame. Full Name and Phone Number are editable; Email is locked (the
-// frame shows a padlock), because changing it would re-open email verification.
+// Figma's "My profile" frame, against the real `PATCH /api/v1/auth/me` contract (backend doc
+// §25). Email stays locked with the padlock the frame shows — it's the login identifier and a
+// verified contact point, so changing it needs request → OTP to the new address → swap, not a
+// straight write. `POST /api/v1/auth/change-password` already covers the password.
 //
-// The frame also shows a Username field — there is no such thing on this backend, so it is
-// omitted rather than faked, and the header shows the email instead.
+// The frame draws "Full Name" as one field, but the API has firstName/lastName and the backend
+// deliberately won't guess a split. This renders two inputs rather than splitting on whitespace
+// as an earlier pass did — that mangles multi-word surnames and middle names, and `MeResponse`
+// already carries the two separately, so there was never a reason to guess.
 //
-// ⚠️ The save endpoint does not exist yet (see authClient.updateProfile). Save is real and
-// wired; until the backend adds the route it fails, and the copy says "please try again
-// later" rather than surfacing a 404 the user can do nothing about.
+// ⚠️ NO USERNAME FIELD, deliberately. The backend added one in §25 and this form briefly had it,
+// but the user's decision is that it must not be exposed anywhere: "lets never add the username
+// field at all so no one even sees it." It's optional server-side, so omitting it is harmless —
+// accounts simply never get one. Please don't re-add it because the API supports it.
 export function MyProfilePanel({ onBack }: { onBack: () => void }) {
   const { data: meResp } = useGetMe();
   const me = meResp?.data;
   const { mutate: updateProfile, isPending } = useUpdateProfile();
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -39,10 +46,13 @@ export function MyProfilePanel({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     if (!me || seeded.current) return;
     seeded.current = true;
-    setFullName(me.fullName || "");
+    setFirstName(me.firstName || "");
+    setLastName(me.lastName || "");
     setPhone(me.phoneNumber || "");
     setAvatarUrl(me.avatarUrl ?? null);
   }, [me]);
+
+  const namesBlank = !firstName.trim() || !lastName.trim();
 
   async function onPickAvatar(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -63,31 +73,60 @@ export function MyProfilePanel({ onBack }: { onBack: () => void }) {
 
   function onSave(e: React.FormEvent) {
     e.preventDefault();
+    if (namesBlank) return;
     setStatus(null);
 
-    // fullName is what the UI edits; send the split pair too since the backend stores
-    // first/last separately and we don't yet know which shape it will accept.
-    const [firstName, ...rest] = fullName.trim().split(/\s+/);
-    updateProfile(
-      {
-        fullName: fullName.trim(),
-        firstName: firstName || undefined,
-        lastName: rest.length ? rest.join(" ") : undefined,
-        phoneNumber: phone.trim() || undefined,
-        ...(avatarUrl && avatarUrl !== me?.avatarUrl ? { avatarUrl } : {}),
+    // PATCH semantics: omit anything the user didn't change, so saving a phone here can't
+    // clobber a name edited on another device. `avatarUrl` may be sent as "" (an explicit
+    // clear); "" on a name or phone is a 400 by design, so those are omitted instead.
+    const payload: UpdateProfileRequest = {};
+    const nextFirst = firstName.trim();
+    const nextLast = lastName.trim();
+    const nextPhone = phone.trim();
+
+    if (nextFirst !== (me?.firstName || "")) payload.firstName = nextFirst;
+    if (nextLast !== (me?.lastName || "")) payload.lastName = nextLast;
+    if (nextPhone !== (me?.phoneNumber || "")) payload.phone = nextPhone;
+    if (avatarUrl && avatarUrl !== me?.avatarUrl) payload.avatarUrl = avatarUrl;
+
+    if (Object.keys(payload).length === 0) {
+      setStatus({ tone: "ok", text: "Nothing to save — no changes made." });
+      return;
+    }
+
+    const phoneChanged = payload.phone !== undefined;
+
+    updateProfile(payload, {
+      onSuccess: () =>
+        setStatus({
+          tone: "ok",
+          // §25: changing the number clears phoneVerified, and that flag gates OTP delivery
+          // and notification routing — so say so rather than letting them find out later.
+          text: phoneChanged
+            ? "Profile updated. Your new number needs verifying before it can receive alerts."
+            : "Your profile has been updated.",
+        }),
+      onError: (err: any) => {
+        // Put the picture back to what's actually stored. The upload succeeds on its own
+        // (it's a separate Cloudinary call), so without this the panel kept showing a new
+        // photo that was never persisted — and disagreed with the avatar in the left pane,
+        // which reads from the shared profile cache.
+        setAvatarUrl(me?.avatarUrl ?? null);
+
+        const code = err?.response?.status;
+        const msg = err?.response?.data?.message;
+        setStatus({
+          tone: "err",
+          text:
+            code === 409
+              ? // Phone is the only unique field this form can send. Prefer the server's wording.
+                msg || "That phone number already belongs to another account."
+              : code === 400
+                ? msg || "Please check the details you entered and try again."
+                : "Couldn't save your changes. Please try again later.",
+        });
       },
-      {
-        onSuccess: () => setStatus({ tone: "ok", text: "Your profile has been updated." }),
-        onError: () => {
-          // Put the picture back to what's actually stored. The upload succeeds on its own
-          // (it's a separate Cloudinary call), so without this the panel kept showing a new
-          // photo that was never persisted — and disagreed with the avatar in the left pane,
-          // which reads from the shared profile cache.
-          setAvatarUrl(me?.avatarUrl ?? null);
-          setStatus({ tone: "err", text: "Couldn't save your changes. Please try again later." });
-        },
-      }
-    );
+    });
   }
 
   const initials = me?.initials || initialsFor(me?.fullName || "");
@@ -129,22 +168,41 @@ export function MyProfilePanel({ onBack }: { onBack: () => void }) {
           </div>
         </div>
 
-        <Input
-          name="fullName"
-          label="Full Name"
-          leftIcon={<CircleUserRound className="h-4 w-4" />}
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-        />
+        {/* Two inputs, not the frame's single "Full Name" — see the note at the top of the file.
+            Neither may be blank (the API rejects "" for these), hence maxLength 50 per §25. */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            name="firstName"
+            label="First Name"
+            maxLength={50}
+            leftIcon={<CircleUserRound className="h-4 w-4" />}
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            error={firstName.length > 0 && !firstName.trim() ? "Required" : undefined}
+          />
+          <Input
+            name="lastName"
+            label="Last Name"
+            maxLength={50}
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            error={lastName.length > 0 && !lastName.trim() ? "Required" : undefined}
+          />
+        </div>
 
         <Input
-          name="phoneNumber"
+          name="phone"
           label="Phone Number"
           inputMode="tel"
           leftIcon={<Phone className="h-4 w-4" />}
           placeholder="Not provided"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
+          hint={
+            phone.trim() !== (me?.phoneNumber || "")
+              ? "Changing this will require verifying the new number."
+              : undefined
+          }
         />
 
         <div className="space-y-1.5">
@@ -173,7 +231,13 @@ export function MyProfilePanel({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
-        <Button type="submit" fullWidth size="lg" loading={isPending} disabled={uploading}>
+        <Button
+          type="submit"
+          fullWidth
+          size="lg"
+          loading={isPending}
+          disabled={uploading || namesBlank}
+        >
           {isPending ? "Saving…" : "Save Changes"}
         </Button>
       </form>

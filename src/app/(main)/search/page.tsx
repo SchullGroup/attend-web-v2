@@ -14,7 +14,9 @@ function SearchInner() {
   const q = useSearchParams().get("q") ?? "";
 
   const { data: evData, isLoading: evLoading } = useGetEvents({ search: q || undefined, size: 100 });
-  const { data: chData, isLoading: chLoading } = useGetChallenges({ search: q || undefined });
+  // size: the events query beside this one already passes 100; without it challenges default
+  // to 20 per page and a search could silently miss matches beyond that.
+  const { data: chData, isLoading: chLoading } = useGetChallenges({ search: q || undefined, size: 100 });
 
   const isLoading = !!q && (evLoading || chLoading);
   const events = evData?.data?.events ?? [];

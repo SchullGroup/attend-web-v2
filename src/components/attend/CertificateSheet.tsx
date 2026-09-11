@@ -1,9 +1,8 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, Download, Award, Clock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useGetCertificate, useGetChallenge } from "@/api/hackathon/hooks";
-import { hackathonClient } from "@/api/hackathon/client";
 import { downloadNodeAsPdf } from "@/lib/dom-to-pdf";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
@@ -36,25 +35,80 @@ export function CertificateSheet({
   const isWinner = cert?.certificateType === "WINNER";
   const fileName = `certificate-${cert?.certificateNumber || challengeId}.pdf`;
 
+  // The certificate the organiser actually uploaded lives behind `downloadPath` — a route
+  // named /public/ for a reason: it's meant to be hit as a plain browser navigation, not
+  // fetched from JS. The first cut of this did `apiClient.get(downloadPath, {responseType:
+  // "blob"})`, which is exactly the wrong shape twice over — (1) apiClient attaches the
+  // Authorization header to anything not on its publicEndpoints allowlist, which this path
+  // isn't on, sending a bearer token to a route designed to need none; (2) reading a
+  // cross-origin redirect's body via script is subject to CORS, the same failure mode already
+  // documented on documentsClient's counted download (redirects to Cloudinary/OBS, which sends
+  // no CORS headers). A plain resource load — <object>/<iframe>/window.open — is a browser
+  // navigation, not a script-mediated read, so neither problem applies: no header gets
+  // attached, and CORS enforcement doesn't cover navigation. `next.config.ts` rewrites
+  // /api/v1/:path* to the backend, so this relative path resolves same-origin regardless.
+  //
+  // Confirmed with the real endpoint: this navigation reaches the file — but the response
+  // carries `Content-Disposition: attachment`, so the browser forces a save instead of an
+  // inline render for ANY consumer of this URL (window.open, <object>, <iframe>, a raw link —
+  // the header wins over all of them). That's actually correct for Download, which wants a
+  // save. It rules out `<object data={certificateUrl}>` for the *preview*, which needs bytes
+  // with no disposition attached at all — only achievable by fetching them ourselves and
+  // handing the browser a `blob:` URL, which carries no HTTP headers of its own.
+  const certificateUrl = cert?.downloadPath || null;
+  const canShowPdf = !!certificateUrl && cert?.issued && cert?.downloadReady !== false;
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewFailed, setPreviewFailed] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !canShowPdf || !certificateUrl) return;
+    let objectUrl: string | null = null;
+    let cancelled = false;
+
+    // Confirmed via the browser console (2026-09-09): downloadPath 302s to a Huawei OBS bucket
+    // that sends no Access-Control-Allow-Origin, so a direct browser fetch() of it is blocked
+    // by CORS no matter what headers we send — that's decided entirely by the bucket's own
+    // response, which this app doesn't control. Routing through our own /api/certificate-pdf
+    // (server-to-server fetch, exempt from CORS) and re-fetching THAT — same-origin — is what
+    // actually gets the bytes.
+    fetch(`/api/certificate-pdf?path=${encodeURIComponent(certificateUrl)}`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        return res.blob();
+      })
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        // #toolbar=0&navpanes=0&scrollbar=0 is the browser PDF viewer's own open-parameter
+        // convention (Chrome/Edge's PDFium viewer and Firefox's pdf.js both honour it) — it
+        // suppresses the viewer's built-in download/print/menu chrome, which otherwise sits on
+        // top of the artwork inside our own panel that already has its own Download button.
+        // Revoking still needs the bare objectUrl below; the fragment doesn't change the blob
+        // it points at.
+        setPreviewUrl(`${objectUrl}#toolbar=0&navpanes=0&scrollbar=0`);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Certificate preview fetch failed:", certificateUrl, err);
+        setPreviewFailed(true);
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      setPreviewUrl(null);
+    };
+  }, [isOpen, canShowPdf, certificateUrl]);
+
   async function handleDownload() {
     setDownloading(true);
     try {
-      // Prefer the canonical server-rendered PDF (it carries the organiser's
-      // artwork and matches the verifier). Fall back to a snapshot of the on-page
-      // card only if that path is missing or fails, so the button is never dead.
-      if (cert?.downloadPath) {
-        try {
-          const blob = await hackathonClient.downloadCertificatePdf(cert.downloadPath);
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = fileName;
-          a.click();
-          setTimeout(() => URL.revokeObjectURL(url), 60_000);
-          return;
-        } catch {
-          /* fall through to the DOM snapshot */
-        }
+      if (certificateUrl) {
+        // A real navigation to the download route, not the preview's fetched blob — this is
+        // the one place `Content-Disposition: attachment` is exactly what's wanted, and the
+        // user has already confirmed this path saves the file correctly.
+        window.open(certificateUrl, "_blank");
+        return;
       }
       if (certRef.current) {
         await downloadNodeAsPdf(certRef.current, fileName);
@@ -137,12 +191,34 @@ export function CertificateSheet({
         </>
       }
     >
-      {/* certRef wraps the on-screen artwork → the PDF fallback is an exact snapshot. */}
-      <div
-        ref={certRef}
-        className="relative overflow-hidden rounded-2xl border border-[#e7ded0] p-6"
-        style={{ background: "linear-gradient(180deg, #fbf8f2 0%, #f6f1e6 100%)" }}
-      >
+      {/* The organiser's real certificate. previewUrl is a blob: URL we built from a plain
+          fetch — see the note above on why the raw certificateUrl can't be embedded directly
+          (its response forces a download rather than an inline render). */}
+      {previewUrl ? (
+        <object
+          data={previewUrl}
+          type="application/pdf"
+          className="h-[420px] w-full rounded-2xl border border-foreground/10 bg-foreground/2"
+          aria-label="Attendance certificate"
+        >
+          {/* Browsers without an inline PDF viewer (notably iOS Safari) render this instead. */}
+          <iframe src={previewUrl} title="Attendance certificate" className="h-full w-full" />
+        </object>
+      ) : canShowPdf && !previewFailed ? (
+        <div className="h-[420px] w-full animate-pulse rounded-2xl bg-foreground/4" />
+      ) : (
+        <>
+          {/* Fallback only — a locally drawn stand-in, NOT the organiser's artwork. Labelled
+              so it can't be mistaken for the official document. certRef wraps it so the
+              snapshot download still has something to capture. */}
+          <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            Showing a preview — download the PDF for your official certificate.
+          </p>
+          <div
+            ref={certRef}
+            className="relative overflow-hidden rounded-2xl border border-[#e7ded0] p-6"
+            style={{ background: "linear-gradient(180deg, #fbf8f2 0%, #f6f1e6 100%)" }}
+          >
         <ChevronCorner />
 
         <div className="relative flex flex-col gap-4">
@@ -193,8 +269,10 @@ export function CertificateSheet({
               </div>
             </div>
           </div>
-        </div>
-      </div>
+            </div>
+          </div>
+        </>
+      )}
     </Sheet>
   );
 }

@@ -6,6 +6,7 @@ import { useGetEvents } from "@/api/events/hooks";
 import { EventListItem } from "@/types";
 import { Input } from "@/components/ui/Input";
 import { AgmHero, AgmSubNav } from "@/components/attend/AgmSubNav";
+import { EventThumb } from "@/components/attend/EventThumb";
 import { cn, formatDate } from "@/lib/utils";
 
 // Ported from the figma-redesign branch. Clean adoption — AgmSubNav/AgmHero and
@@ -21,15 +22,6 @@ const STATUS_TABS: { key: StatusTab; label: string }[] = [
   { key: "live", label: "Live" },
   { key: "upcoming", label: "Upcoming" },
 ];
-
-// Deterministic pastel tile per organiser, matching Home's approach (no real
-// per-organiser logo/branding available from the API yet).
-const TILE_TINTS = ["#f9b6ff", "#8ba6ff", "#c3e1d0", "#dbe1c3", "#f6f6f6", "#e2e2e2"];
-function tileTint(seed: string) {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 997;
-  return TILE_TINTS[h % TILE_TINTS.length];
-}
 
 function fmtTime(startTime?: string) {
   if (!startTime) return "--";
@@ -121,13 +113,7 @@ export default function AgmPage() {
 }
 
 function AgmListCard({ event: e }: { event: EventListItem }) {
-  const organiser = e.registerName || e.organizerName;
   const isLive = e.status === "LIVE";
-  // The event's own branding first, the organiser's mark only as a fallback. This card used
-  // `organizerLogo` alone, which on an AGM is the registrar (Meristem) rather than the company
-  // holding the meeting — so every row wore the registrar's logo beside the company's name.
-  // Every other list in the app already resolves it in this order.
-  const logo = e.branding?.logoUrl || e.organizerLogo;
 
   return (
     <Link
@@ -137,17 +123,11 @@ function AgmListCard({ event: e }: { event: EventListItem }) {
       href={`/events/${e.id}`}
       className="flex items-center gap-2.5 rounded-xl border border-foreground/6 bg-white p-1.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
     >
-      <div
-        className="flex h-[60px] w-[60px] shrink-0 items-center justify-center overflow-hidden rounded-[10px]"
-        style={{ backgroundColor: tileTint(organiser || e.title) }}
-      >
-        {logo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={logo} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <Building2 className="h-6 w-6 text-foreground/60" strokeWidth={1.75} />
-        )}
-      </div>
+      <EventThumb
+        event={e}
+        className="h-15 w-15 rounded-[10px]"
+        fallback={<Building2 className="h-6 w-6 text-foreground/60" strokeWidth={1.75} />}
+      />
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-1">
         <p className="truncate text-sm font-medium tracking-[-0.14px] text-foreground">
           {e.title}
