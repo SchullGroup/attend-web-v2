@@ -1851,3 +1851,65 @@ Do NOT commit unless the user says so. Do NOT add Claude as a git co-author.
     untouched.
 
   `tsc` clean; no warm-wash colours left anywhere in `src/`.
+
+- **2026-09-11 (42)** — **Live room (`LiveRoom.tsx`) restyled to the Figma live-room frame.**
+  Kept as a **separate page** and the **video box left exactly as it was** (Zoom draws its own
+  contents; Minimise and the collapsed bar are unchanged) — per the user, this pass is layout and
+  styling only. Applies to both `/agm/live` and `/events/live`, since both render `LiveRoom`.
+  - **Same panel layout as the AGM event page** — superseded by (43): the `minmax(0,1fr)` + 400px
+    grid used here came out almost 50/50 inside NavShell's 960px column.
+  - **Left column order now follows the frame:** video → title → "You're Confirmed" →
+    LIVE · date/time · N Registered → segmented amber quorum bar with the shareholder total on
+    the right (AGM, participants only) → "Details". Title moved from above the grid into the
+    column, at the event page's `text-2xl font-medium`.
+  - **Removed, per the frame:** the organiser label above the title (the blue "QA"), the brand
+    logo tile, the "Not live" pill, the "N watching" count, and the three Quorum / Resolution /
+    Status boxes under the video. The watching count's field-probing helper went with it.
+  - **Top row is just "← Leave meeting"**, restyled like the event page's Back. The frame has no
+    back control, but this page is where people *leave the meeting from* — the sidebar isn't a
+    substitute for guests/proxies who arrived by link. The LIVE pill moved into the meta line
+    rather than onto the video, because the video box is Zoom's and was to be left alone.
+  - **Right panel:** tabs are text-only with a dark underline (was icon + `text-xs`), in the
+    frame's order **Agenda · Q&A · Resolution** ("Ballot" renamed), opening on **Agenda**. The
+    Agenda tab now always shows — it used to disappear when an event had no agenda;
+    `AgendaPanel` already has an empty state. Non-AGM rooms: Agenda · Q&A · Press Kit · Polls.
+    The outer white card is gone, so the content that sat on it (resolution cards, the open
+    resolution's voting block) now carries its own white card.
+  - ⚠️ **Behaviour change: an AGM room no longer opens on the ballot.** To stop a voter missing a
+    vote because they're on Agenda, the amber/red "Voting open · Resolution N · Xs remaining" strip
+    under the video (kept — it only appears while a vote is open, which the frame doesn't depict)
+    is now a button that jumps to the Resolution tab.
+  - **Deliberately not built (user's call):** the frame's Appoint a Proxy / Pre-AGM Voting / QR
+    check-in tiles, and its "Confirm Attendance" button — someone on this page is already in the
+    meeting, and pre-voting closes once it's live.
+  - **Small mismatches left, flag only:** the frame's "You're Confirmed" is green; the event page
+    renders it in `text-primary` (navy), and this room follows the frame (`text-emerald-700`).
+    The frame's "Today, 12:00 PM" is relative; both pages print the full date.
+
+  `tsc` clean in `src/` — the only errors are in the generated `.next/types/validator.ts`, which is
+  stale (it still lists deleted routes like `(kyc)/bvn`) and unrelated to this change. **Not
+  verified in a browser** — `/agm/live` needs a signed-in session.
+
+- **2026-09-11 (43)** — **Live room + AGM event page: 60/40 split, panel pinned to the right edge.**
+  User, comparing with the frame: *"the area with the video box is wider than the area with the
+  agendas…"*. (42) had both pages on `minmax(0,1fr)` + a fixed 400px panel inside NavShell's 960px
+  column, which gave the video side ~464px against the panel's 400 — almost 50/50, with dead space
+  right of the column on wide screens. The frame (measured at 1440) is sidebar 259 | video side
+  ~712 | panel ~469: the panel is ~40% of the area right of the sidebar, pinned to the window edge,
+  full height, on its own background behind a divider.
+  - **Settings' pinned-panel technique, reused**, with the numbers in one place: new
+    `src/lib/pinned-panel.ts`. Panel `clamp(360px, (100vw − 259px) × 0.4, 560px)`, fixed right,
+    `top-16` under the top bar, own scroll, same grey gradient as the Settings panel. The content
+    column's width is **derived** from it (`100vw − 340px − panel`; 340 = sidebar 259 + padding 32
+    + gap 32 + ~17 scrollbar), so it can't slide under the panel. NavShell's 960 cap is untouched
+    for every other page — on wide screens these columns extend past it, still inside the viewport.
+  - Resulting video side | panel: 1280 → ~532 | 408 · 1440 → ~628 | 472 · 1920 → ~1020 | 560.
+  - ⚠️ **Two-pane now starts at `xl` (1280), was `lg` (1024).** At 1024 the video side would be
+    ~324px (the old grid gave it ~269). Between 1024 and 1279 the panel now stacks under the
+    content, as on mobile.
+  - Event page: AGM only (Launches/General untouched). The CTA takes the content column's width so
+    it lines up with the video; `lg:col-start-1` went with the grid.
+  - The video box is unchanged — ZoomStage is `w-full`, so it just gets wider.
+
+  `tsc` clean in `src/` (only the stale `.next/types` errors). **Not verified in a browser** — both
+  routes need a signed-in session; check 1280 / 1440 / 1920 on Windows Chrome.

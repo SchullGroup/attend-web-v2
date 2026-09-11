@@ -5,7 +5,6 @@ import {
   ArrowLeft,
   Play,
   Users,
-  MessageSquare,
   Vote,
   Send,
   Check,
@@ -16,12 +15,11 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckCircle,
+  CheckCircle2,
   ThumbsUp,
   Clock,
-  BarChart2,
   FileBox,
   DownloadCloud,
-  CalendarDays,
 } from "lucide-react";
 import { useGetEvent, useGetStream, useGetCountdown, useGetQuorum, useGetActivePoll, useRespondToPoll, useGetPressKit, useGuestEventView, useGuestResolutions, useGuestQuestions, useGuestSubmitQuestion, useGuestUpvoteQuestion, useGuestPolls, useGuestRespondToPoll, useGuestProxyVote, useGuestVote } from "@/api/events/hooks";
 import { useGetMe } from "@/api/auth/hooks";
@@ -37,7 +35,8 @@ import {
 } from "@/api/agm/hooks";
 import { useQaSocket } from "@/api/agm/qa-socket";
 import { Button } from "@/components/ui/Button";
-import { cn, toEmbedUrl, fileDisplayName } from "@/lib/utils";
+import { cn, toEmbedUrl, fileDisplayName, formatDate } from "@/lib/utils";
+import { PINNED_MAIN, PINNED_PANEL, PINNED_PANEL_VARS } from "@/lib/pinned-panel";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { Resolution, type AgendaItemDetail, type SpeakerItem } from "@/types";
 import { useSession } from "@/hooks/useSession";
@@ -47,6 +46,7 @@ import { SourceBreakdown } from "@/components/attend/SourceBreakdown";
 import Cookies from "js-cookie";
 
 type Tab = "qa" | "ballot" | "poll" | "presskit" | "agenda";
+const QUORUM_SEGMENTS = 20;
 type VoteChoice = "FOR" | "AGAINST" | "ABSTAIN";
 
 function fmtCountdown(total: number): string {
@@ -100,51 +100,12 @@ export function LiveRoom({
   // `eventTitle` — reading only `title` left every guest on the "Live session" fallback.
   const title =
     event?.title ?? (event as { eventTitle?: string } | undefined)?.eventTitle ?? "Live session";
-  const organiser = event?.registerName || event?.organizerName || "";
-  // §7 register branding — present on both participant and guest event payloads.
-  const brandColor = event?.branding?.brandColor || undefined;
-  const brandLogo = event?.branding?.logoUrl || undefined;
   const isLive = event?.status === "LIVE";
 
   // Stream link: prefer the gated /stream endpoint (only resolves when live +
   // registered); fall back to the streamUrl the admin set on the event.
   const { data: streamData } = useGetStream(eventId, isLive && !isGuest);
   const { data: quorumData } = useGetQuorum(eventId, isLive && !isGuest);
-
-  const watching = (() => {
-    const qMap = (quorumData?.data ?? {}) as Record<string, unknown>;
-    const liveCountFromQuorum =
-      qMap.attendeeCount ??
-      qMap.attendeesCount ??
-      qMap.currentAttendees ??
-      qMap.activeAttendees ??
-      qMap.presentCount ??
-      qMap.onlineCount ??
-      qMap.activeViewers ??
-      qMap.viewersCount;
-
-    const sMap = (streamData?.data ?? {}) as Record<string, unknown>;
-    const liveCountFromStream =
-      sMap.activeViewers ??
-      sMap.viewersCount ??
-      sMap.onlineCount ??
-      sMap.attendeeCount ??
-      sMap.attendeesCount;
-
-    const eMap = (event ?? {}) as Record<string, unknown>;
-    const liveCountFromEvent =
-      eMap.attendeesCount ??
-      eMap.attendeeCount ??
-      eMap.activeViewers ??
-      eMap.viewersCount ??
-      eMap.onlineCount ??
-      eMap.currentAttendees;
-
-    if (typeof liveCountFromQuorum === "number" && liveCountFromQuorum > 0) return liveCountFromQuorum;
-    if (typeof liveCountFromStream === "number" && liveCountFromStream > 0) return liveCountFromStream;
-    if (typeof liveCountFromEvent === "number" && liveCountFromEvent > 0) return liveCountFromEvent;
-    return event?.registeredCount ?? 0;
-  })();
   
   let streamUrl = "";
   if (isGuest) {
@@ -199,13 +160,14 @@ export function LiveRoom({
   const cdSecs =
     typeof cdData?.data?.secondsUntilStart === "number" ? cdData.data.secondsUntilStart : null;
 
-  // Live quorum (AGM ballot only). Response is a generic map — read the percentage
-  // defensively; show "—" rather than a fabricated number if it's not present.
-  const quorumPct = (() => {
+  // Generic map with no published schema — same keys the AGM event page reads; no bar if absent.
+  const quorum = (() => {
     const m = (quorumData?.data ?? {}) as Record<string, unknown>;
-    const raw =
+    const pctRaw =
       m.quorumPercentage ?? m.percentage ?? m.currentPercentage ?? m.presentPercentage ?? m.attendancePercentage;
-    return typeof raw === "number" ? Math.round(raw) : null;
+    const totalRaw = m.totalShareholders ?? m.totalEligible ?? m.eligibleCount ?? m.totalShares ?? m.totalAttendees;
+    if (typeof pctRaw !== "number") return null;
+    return { pct: Math.round(pctRaw), total: typeof totalRaw === "number" ? totalRaw : null };
   })();
 
   // Only AGMs poll resolutions for the live ballot.
@@ -316,9 +278,6 @@ export function LiveRoom({
 
   const allClosed =
     resolutions.length > 0 && resolutions.every((r) => (r.status || "").toUpperCase() === "CLOSED");
-  // Open while a resolution is live, Closed only when every one has closed,
-  // otherwise Waiting (resolutions exist but none has been opened yet).
-  const ballotStatus = openRes ? "Open" : allClosed ? "Closed" : resolutions.length ? "Waiting" : "—";
   const openPos = openRes ? sortedRes.findIndex((r) => r.id === openRes.id) + 1 : null;
 
   // Real-time Q&A over WebSocket; polling stays as a slow (30s) fallback.
@@ -360,12 +319,11 @@ export function LiveRoom({
   // Guests and proxies land straight in this room and never see the event detail page,
   // so the running order has to be reachable from here too. The guest /view payload is
   // typed as EventDetail but is known to diverge (it sends eventTitle, not title), so
-  // read defensively and only offer the tab when data actually arrived.
+  // read defensively. The tab always shows, as in the frame; AgendaPanel has an empty state.
   const agendaItems = (event as { agenda?: AgendaItemDetail[] } | undefined)?.agenda ?? [];
   const speakerItems = (event as { speakers?: SpeakerItem[] } | undefined)?.speakers ?? [];
-  const hasAgenda = agendaItems.length > 0 || speakerItems.length > 0;
 
-  const [tab, setTab] = useState<Tab>(showBallot ? "ballot" : "qa");
+  const [tab, setTab] = useState<Tab>("agenda");
   const [pollChoice, setPollChoice] = useState<string | null>(null);
   const [pollMsg, setPollMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [vote, setVote] = useState<VoteChoice | null>(null);
@@ -408,6 +366,7 @@ export function LiveRoom({
   useEffect(() => {
     const saved = sessionStorage.getItem("attend:liveTab");
     if (
+      saved === "agenda" ||
       saved === "qa" ||
       (!showBallot && saved === "poll") ||
       (showBallot && saved === "ballot") ||
@@ -587,59 +546,18 @@ export function LiveRoom({
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <Link href={resolvedBackHref} className="inline-flex items-center gap-1 text-sm text-foreground/60 hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> {backLabel}
-        </Link>
-        <div className="flex items-center gap-2">
-          {isLive ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-              Live
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-foreground/4 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-foreground/60">
-              Not live
-            </span>
-          )}
-          {watching > 0 && (
-            <span className="flex items-center gap-1 text-xs text-foreground/60">
-              <Users className="h-3.5 w-3.5" />
-              {watching.toLocaleString()} watching
-            </span>
-          )}
-        </div>
-      </div>
+    <div className="flex flex-col gap-6">
+      <Link
+        href={resolvedBackHref}
+        className="inline-flex w-fit items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" /> {backLabel}
+      </Link>
 
-      <div className="flex items-center gap-3">
-        {brandLogo && (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={brandLogo}
-            alt=""
-            className="h-11 w-11 shrink-0 rounded-xl bg-white object-cover ring-1 ring-border"
-            // A broken logo URL must not leave a torn-image icon in the header.
-            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-          />
-        )}
-        <div className="min-w-0">
-          {organiser && (
-            <p
-              className="text-xs font-semibold uppercase tracking-wide text-primary"
-              // Tint with the register's brand colour when set; fall back to the theme primary.
-              style={brandColor ? { color: brandColor } : undefined}
-            >
-              {organiser}
-            </p>
-          )}
-          <h1 className="text-xl font-bold text-foreground md:text-2xl">{title}</h1>
-        </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-5">
-        {/* Stream */}
-        <div className="lg:col-span-3">
+      {/* Same pinned-panel layout as the AGM event page, so the room and the detail page match. */}
+      <div className="flex flex-col gap-6" style={PINNED_PANEL_VARS}>
+        <div className={cn("flex min-w-0 flex-col gap-6", PINNED_MAIN)}>
+          <div>
           {videoHidden && (
             <div className="flex items-center justify-between rounded-xl bg-slate-900 px-4 py-3">
               <div className="flex items-center gap-3">
@@ -730,9 +648,12 @@ export function LiveRoom({
               Hidden in the read-only guest ballot: "Voting open · 30s remaining" is a call
               to act, and the guest has nothing to act with. */}
           {showBallot && openRes && !ballotReadOnly && (
-            <div
+            // A button because the room opens on Agenda — this is the way to the open vote.
+            <button
+              type="button"
+              onClick={() => selectTab("ballot")}
               className={cn(
-                "mt-2 flex items-center gap-2 rounded-xl px-4 py-2.5 transition-colors",
+                "mt-2 flex w-full items-center gap-2 rounded-xl px-4 py-2.5 text-left transition-colors",
                 countdown <= 10 ? "bg-red-600" : "bg-amber-500",
               )}
             >
@@ -741,58 +662,109 @@ export function LiveRoom({
                 Voting open · Resolution {openPos ?? "—"}
                 {countdown > 0 ? ` · ${countdown}s remaining` : ""}
               </p>
+            </button>
+          )}
+
+          </div>
+
+          <div>
+            <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">{title}</h1>
+            {!isGuest && event?.hasRsvped && (
+              <div className="mt-2 flex items-center gap-1.5">
+                <CheckCircle2 className="h-[18px] w-[18px] text-emerald-700" />
+                <span className="text-xs font-medium tracking-[-0.12px] text-emerald-700">You&apos;re Confirmed</span>
+              </div>
+            )}
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs tracking-[-0.12px] text-foreground/70">
+              {isLive && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                  Live
+                </span>
+              )}
+              {event?.date && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5" />
+                  {formatDate(event.date)}
+                  {event.startTime ? `, ${event.startTime}` : ""}
+                </span>
+              )}
+              {event && event.registeredCount > 0 && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5" />
+                  {event.registeredCount.toLocaleString()} Registered
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Quorum is a participant-only endpoint, so read-only guests never get the bar. */}
+          {showBallot && !ballotReadOnly && quorum && (
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-xs tracking-[-0.12px] text-foreground">
+                  Quorum <span className="text-[10px] text-foreground/50">({quorum.pct}%)</span>
+                </p>
+                <div className="mt-1.5 flex gap-[3px]" role="img" aria-label={`Quorum ${quorum.pct}%`}>
+                  {Array.from({ length: QUORUM_SEGMENTS }, (_, i) => (
+                    <span
+                      key={i}
+                      className={cn(
+                        "h-2.5 w-1.5 rounded-[1px]",
+                        i < Math.round((Math.min(quorum.pct, 100) / 100) * QUORUM_SEGMENTS)
+                          ? "bg-amber-400"
+                          : "bg-foreground/10",
+                      )}
+                    />
+                  ))}
+                </div>
+              </div>
+              {quorum.total !== null && (
+                <div className="text-right">
+                  <p className="text-sm font-medium text-foreground">{quorum.total.toLocaleString()}</p>
+                  <p className="inline-flex items-center gap-1 text-xs text-foreground/60">
+                    <Users className="h-3.5 w-3.5" /> Shareholders
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Also hidden for read-only guests: Quorum is a participant-only endpoint (so it
-              renders "—" for them), and the Status cell is the "Waiting"/"Open" badge again. */}
-          {showBallot && !ballotReadOnly && (
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              <div className="rounded-xl border border-foreground/6 bg-white p-3 text-center">
-                <p className="text-xs text-foreground/60">Quorum</p>
-                <p className="text-base font-semibold text-foreground">
-                  {quorumPct != null ? `${quorumPct}%` : "—"}
-                </p>
-              </div>
-              <div className="rounded-xl border border-foreground/6 bg-white p-3 text-center">
-                <p className="text-xs text-foreground/60">Resolution</p>
-                <p className="text-base font-semibold text-foreground">
-                  {openPos ?? "—"} of {resolutions.length || "—"}
-                </p>
-              </div>
-              <div className="rounded-xl border border-foreground/6 bg-white p-3 text-center">
-                <p className="text-xs text-foreground/60">Status</p>
-                <p className="text-base font-semibold text-foreground">{ballotStatus}</p>
-              </div>
-            </div>
+          {event?.description && (
+            <section className="flex flex-col gap-2.5">
+              <h2 className="text-base font-medium tracking-[-0.32px] text-foreground">Details</h2>
+              <p className="whitespace-pre-line text-sm leading-relaxed tracking-[-0.14px] text-foreground/70">
+                {event.description}
+              </p>
+            </section>
           )}
         </div>
 
-        {/* Right panel */}
-        <div className="lg:col-span-2">
-          <div className="overflow-hidden rounded-xl border border-foreground/6 bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
-            <div className="flex border-b border-foreground/6">
+        <aside className={cn("flex min-w-0 flex-col gap-3", PINNED_PANEL)}>
+            <div className="flex gap-1 border-b border-foreground/10">
               {[
-                { id: "qa" as Tab, label: "Q&A", icon: MessageSquare },
-                ...(hasAgenda ? [{ id: "agenda" as Tab, label: "Agenda", icon: CalendarDays }] : []),
-                ...(isLaunch ? [{ id: "presskit" as Tab, label: "Press Kit", icon: FileBox }] : []),
-                ...(showBallot ? [{ id: "ballot" as Tab, label: "Ballot", icon: Vote }] : []),
-                ...(!showBallot ? [{ id: "poll" as Tab, label: "Polls", icon: BarChart2 }] : []),
-              ].map(({ id, label, icon: Icon }) => (
+                { id: "agenda" as Tab, label: "Agenda" },
+                { id: "qa" as Tab, label: "Q&A" },
+                ...(showBallot ? [{ id: "ballot" as Tab, label: "Resolution" }] : []),
+                ...(isLaunch ? [{ id: "presskit" as Tab, label: "Press Kit" }] : []),
+                ...(!showBallot ? [{ id: "poll" as Tab, label: "Polls" }] : []),
+              ].map(({ id, label }) => (
                 <button
                   key={id}
                   onClick={() => selectTab(id)}
                   className={cn(
-                    "flex flex-1 items-center justify-center gap-1.5 py-3 text-xs font-semibold",
-                    tab === id ? "border-b-2 border-primary text-primary" : "text-foreground/60",
+                    "flex-1 border-b-2 px-3 py-2 text-sm tracking-[-0.14px] transition-colors",
+                    tab === id
+                      ? "border-foreground font-semibold text-foreground"
+                      : "border-transparent text-foreground/60 hover:text-foreground",
                   )}
                 >
-                  <Icon className="h-3.5 w-3.5" /> {label}
+                  {label}
                 </button>
               ))}
             </div>
 
-            <div className="max-h-105 overflow-y-auto p-4">
+            <div>
               {tab === "agenda" && (
                 <div className="flex flex-col gap-3">
                   <AgendaPanel speakers={speakerItems} agenda={agendaItems} />
@@ -920,7 +892,7 @@ export function LiveRoom({
                           const showResult = r.forCount + r.againstCount + r.abstainCount > 0;
                           const { label, tone } = statusBadge(r);
                           return (
-                            <div key={r.id} className="rounded-xl border border-foreground/6 p-3">
+                            <div key={r.id} className="rounded-xl border border-foreground/6 bg-white p-3">
                               <div className="flex items-start justify-between gap-2">
                                 <p className="text-[11px] text-foreground/60">Resolution {idx + 1}</p>
                                 <span
@@ -1060,7 +1032,7 @@ export function LiveRoom({
                     </div>
                   )
                 : openRes ? (
-                  <div className="space-y-4">
+                  <div className="space-y-4 rounded-xl border border-foreground/6 bg-white p-4">
                     {advanceNote && (
                       <div className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
                         <Check className="h-3.5 w-3.5" /> {advanceNote}
@@ -1319,7 +1291,7 @@ export function LiveRoom({
                       // the count move live, the same as the open-resolution panel does.
                       const showResult = r.forCount + r.againstCount + r.abstainCount > 0;
                       return (
-                        <div key={r.id} className="rounded-xl border border-foreground/6 p-3">
+                        <div key={r.id} className="rounded-xl border border-foreground/6 bg-white p-3">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
                               <p className="text-[11px] text-foreground/60">Resolution {idx + 1}</p>
@@ -1500,8 +1472,7 @@ export function LiveRoom({
                 </div>
               )}
             </div>
-          </div>
-        </div>
+        </aside>
       </div>
     </div>
   );
