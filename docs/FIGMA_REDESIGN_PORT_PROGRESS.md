@@ -1936,3 +1936,17 @@ Do NOT commit unless the user says so. Do NOT add Claude as a git co-author.
 
   `tsc` clean in `src/` (only the stale `.next/types` errors). **Not verified in a browser** — needs a
   signed-in session, and a challenge whose event detail actually carries a `flyerUrl`.
+
+- **2026-09-11 (45)** — **Apply form: "Demo video URL" must be a real link.** It only checked that
+  *something* was typed, so text like "nk kj k k.jn" passed and was submitted as the demo video.
+  - New `isHttpUrl()` in `src/lib/utils.ts`: parses with `new URL`, requires `http:`/`https:` and a
+    dotted hostname. A bare `youtube.com/…` with no scheme is rejected on purpose — the placeholder
+    already shows `https://`.
+  - `projectComplete` now uses it for the demo video, so **Continue stays disabled** until the link is
+    valid. The field shows "Enter a valid link starting with https://" once anything invalid is typed
+    (nothing while empty), and gets `type="url"` for the URL keyboard on phones.
+  - ⚠️ **Not applied to the three sibling link fields** (Source code, Live demo, Pitch video URL) —
+    they still only check for non-empty text. Same one-line change each if wanted.
+
+  `tsc` clean in `src/`. The form isn't a `<form>` (Continue is an `onClick`), so `type="url"` can't
+  trigger the browser's own validation popup. Not verified in a browser (needs a signed-in session).
