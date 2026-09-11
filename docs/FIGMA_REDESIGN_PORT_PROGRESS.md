@@ -1785,3 +1785,69 @@ Do NOT commit unless the user says so. Do NOT add Claude as a git co-author.
     worth keeping from the proposed `CTABanner` snippet reviewed in (37).
   - **Stale header comment on `(main)/page.tsx` fixed** — it still said the attendee counts
     weren't shown, which stopped being true when `rsvpCount` was wired in (35).
+
+- **2026-09-11 (40)** — **Settings page brought closer to the Figma frames.** From a comparison
+  against the "My profile" and "My Events" frames. Decisions taken: pin the panel to the right
+  edge, keep two name fields, shrink logos onto white tiles, fix the event count, person icon for
+  "EC", match the list styling. **Not** done: grey pills behind inactive sidebar items (declined).
+
+  **Pinned right-hand panel** (`profile/page.tsx`). At `lg`+ the open section is a full-height
+  panel fixed to the window's right edge — divider line, its own cool-grey gradient background,
+  its own scroll — sitting under the sticky 64px top bar (`top-16`, the bar's higher z-index
+  hides the seam). Being `fixed`, it escapes the 960px content column without touching the shell.
+  - Its width lives in one CSS variable, `--settings-panel-w: clamp(400px, 34vw, 600px)`, and
+    the list's width is **derived** from it (`calc(100vw - 360px - var(...))`, capped at 520px).
+    That derivation is what guarantees the list never slides under the panel; don't hardcode one
+    without the other. 360px = sidebar 259 + left padding 32 + gap 48 + ~21 scrollbar slack.
+  - ⚠️ **Behaviour change at tablet widths**: the two-pane view now starts at `lg` (1024px), was
+    `md` (768px). Between 768 and 1023 Settings shows one pane at a time with the back arrow —
+    there isn't room beside the sidebar for a list *and* a 400px panel.
+  - With nothing selected, the pinned panel shows "Choose a setting to view it here."
+
+  **Left list**: name block no longer in a card; avatar 56px with the **person icon** as fallback
+  (was initials) plus an `onError` fallback; smaller "Edit Profile". Rows are borderless white
+  with **bare icons** in Figma's set (`Files`, `FolderOpen`, `Vault`, `Bell`, `Lock`,
+  `MessageSquareMore` — all verified present in lucide-react 0.400.0). With the border gone, the
+  open row is marked with a ring. Sign-out row restyled to match.
+
+  🐛 **"My Events" count fixed.** The row said "X events **attended**" but counted the entire list,
+  upcoming RSVPs included — "6 events attended" for someone who'd attended none, disagreeing with
+  the Attended tab one click away. Now uses the tab's own rule, `filterEventsByTab(…, "Attended")`.
+
+  **My profile**: person icon instead of initials, `onError` fallback (tracked by failed URL, so
+  picking a new photo clears it with no reset effect). Two name fields kept — re-confirmed; one
+  "Full Name" box would mean guessing where a multi-part name splits.
+
+  **Upload diagnostics**: the avatar upload's `catch` swallowed the error, so a failed upload
+  (seen 2026-09-11) had nothing to diagnose it by. It now `console.error`s the HTTP status,
+  response body, file type and size. **Cause still unknown** — waiting on the Network tab details.
+  Separately confirmed: the API spec wants `folder` as a **query** param and we send it in the
+  multipart body. Probably harmless (Spring binds both), not yet changed.
+
+  **Logo tiles** (`EventThumb` gains `fit="contain"`): used by `EventRowList`, so it applies to
+  **both** My Events and Saved Events. White tile, thin border, logo `object-contain` with padding,
+  and **logos preferred over flyers** (`logoFirstArtwork`) — a flyer photo shrunk into 44px reads
+  as nothing. Tint + initials remain the no-image fallback. Home and the module lists keep `cover`.
+
+  Still open from the comparison, not requested: evenly-spread tabs (D1), darker company name after
+  "By:" (D3), smaller row chevron (D4), Last Name field has no icon (C3), mobile-phone vs handset
+  icon (C4), Save button shadow (C7).
+
+  `tsc` clean. Not verified in a browser (`/profile` redirects to login without a session).
+
+- **2026-09-11 (41)** — **Phone number locked; top-bar warm gradient removed.**
+  - **Phone is now read-only in My profile**, shown like email: grey row, padlock, no input. It is
+    no longer sent in the save payload, so the form can only change first/last name and the photo.
+    One shared helper line now reads "Your email and phone number can't be changed here." The
+    phone-specific success message and the 409 "number belongs to another account" branch went
+    with it, since this form can no longer send a phone.
+    ⚠️ This is a product decision, not a backend limit — `PATCH /auth/me` does accept a phone
+    change (§25). Consequence: an account with **no phone on file can't add one** from here.
+  - **Warm peach wash removed** from the top bar and from the fade at the top of `<main>`, on
+    request ("remove the brown gradient"). It lived in `NavShell`, so it's gone from **every**
+    page, not just Settings — flat `#f1f1f1` bar again. Likely it was never wanted: in (34) I read
+    "don't forget the gradient" as this top wash, when it probably meant the Browse All Events
+    banner's gradient. The banner's green arcs and the Settings panel's cool-grey background are
+    untouched.
+
+  `tsc` clean; no warm-wash colours left anywhere in `src/`.
