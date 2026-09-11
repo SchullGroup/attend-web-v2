@@ -4,6 +4,7 @@ import { Clock, Bookmark, ChevronRight, CalendarDays } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSaveEvent, useUnsaveEvent } from "@/api/events/hooks";
 import type { EventListItem } from "@/types";
+import { EventThumb } from "./EventThumb";
 import { cn, formatDate } from "@/lib/utils";
 
 // One list card, per Figma: thumbnail, title, "By:", the date/time line, a bookmark toggle
@@ -13,15 +14,6 @@ import { cn, formatDate } from "@/lib/utils";
 //
 // It owns its own save/unsave mutations because those hooks bind the event id at call time,
 // so they can't be looped over in the parent; a child component per row is the right shape.
-
-// Deterministic pastel tile per organiser — matches Home's approach, used when an event has
-// no artwork of its own.
-const TILE_TINTS = ["#f9b6ff", "#8ba6ff", "#c3e1d0", "#dbe1c3", "#f6f6f6", "#e2e2e2"];
-export function tileTint(seed: string) {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 997;
-  return TILE_TINTS[h % TILE_TINTS.length];
-}
 
 export function fmtTime(startTime?: string) {
   if (!startTime) return "--";
@@ -45,29 +37,15 @@ export function EventListRow({
   const organiser = e.registerName || e.organizerName;
   const { mutate: save, isPending: saving } = useSaveEvent(e.id);
   const { mutate: unsave, isPending: unsaving } = useUnsaveEvent(e.id);
-  const art = e.flyerUrl || e.bannerUrl || e.organizerLogo || null;
 
   return (
     <div className="relative flex gap-2.5 rounded-xl border border-foreground/6 bg-white p-1.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]">
       <Link href={`/events/${e.id}`} className="flex min-w-0 flex-1 gap-2.5">
-        <div
-          className="flex h-[60px] w-[60px] shrink-0 items-center justify-center overflow-hidden rounded-[10px]"
-          style={{ backgroundColor: tileTint(organiser || e.title) }}
-        >
-          {art ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={art}
-              alt=""
-              className="h-full w-full object-cover"
-              onError={(ev) => {
-                (ev.currentTarget as HTMLImageElement).style.display = "none";
-              }}
-            />
-          ) : (
-            <FallbackIcon className="h-6 w-6 text-foreground/60" strokeWidth={1.75} />
-          )}
-        </div>
+        <EventThumb
+          event={e}
+          className="h-15 w-15 rounded-[10px]"
+          fallback={<FallbackIcon className="h-6 w-6 text-foreground/60" strokeWidth={1.75} />}
+        />
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-1 pr-16">
           <p className="truncate text-sm font-medium tracking-[-0.14px] text-foreground">
             {e.title}

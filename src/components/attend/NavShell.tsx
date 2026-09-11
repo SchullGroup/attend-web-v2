@@ -13,9 +13,9 @@ import {
   Search,
   LogOut,
   ArrowLeft,
-  ChevronDown,
+  ChevronsUpDown,
 } from "lucide-react";
-import { cn, initialsFor } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useLogout } from "@/api/auth/hooks";
 import { useGetKycStatus } from "@/api/kyc/hooks";
 import { useGetEvent, useGuestEventView } from "@/api/events/hooks";
@@ -53,13 +53,17 @@ const NAV = [
   { label: "Account", href: "/profile", icon: UserIcon, match: (p: string, m?: string) => p.startsWith("/profile") },
 ];
 
-// Figma titles the top bar per-section ("Events" on Home, "AGM" on /agm, etc.)
+// Figma titles the top bar per-section ("Home" on Home, "AGM" on /agm, etc.)
 // — a short static label per top-level route, not the page's own H1.
+//
+// Home said "Events" until 2026-09-10, on the strength of an earlier frame. The current
+// dashboard frame clearly reads "Home", which also stops the bar contradicting the sidebar's
+// highlighted Home tab. Don't flip it back without checking the frame.
 // `sub` is optional — Figma gives the Innovation section a two-line title block in the
 // bar (title + tagline) where other sections get just a short label. Where a `sub` is
 // set, the page must NOT also render its own heading, or the two stack up.
 const SECTION_TITLE: { test: (p: string) => boolean; label: string; sub?: string }[] = [
-  { test: (p) => p === "/", label: "Events" },
+  { test: (p) => p === "/", label: "Home" },
   { test: (p) => p.startsWith("/agm"), label: "AGM" },
   // The challenge brief titles the bar "About challenge" (Figma); the other
   // /hackathon/* routes keep the section name.
@@ -108,7 +112,13 @@ export function NavShell({ children }: { children: React.ReactNode }) {
   const currentUser = session.user;
   const displayName = currentUser?.fullName || "User";
   const displayEmail = currentUser?.email || "";
-  const displayInitials = initialsFor(displayName);
+  // The design shows the user's photo here. We already store one (`avatarUrl`, set from the
+  // Profile panel's upload) — this card just never read it. A generic person icon is the
+  // fallback for an account with no photo (initials were used until 2026-09-10), and
+  // `avatarFailed` covers a URL that 404s: without it a dead link renders a torn-image icon,
+  // since the fallback lives in the other branch.
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  const avatarUrl = !isGuest && !avatarFailed ? currentUser?.avatarUrl || null : null;
 
   function handleSignOut() {
     if (isGuest) {
@@ -189,6 +199,12 @@ export function NavShell({ children }: { children: React.ReactNode }) {
         <div className="px-8 pt-6">
           <img src="/attend-logo.png" alt="Attend" style={{ height: 22, width: "auto" }} />
         </div>
+        {/* The active item's green is hardcoded, NOT `bg-primary/10 text-primary`, which is what
+            it used to be. `--primary` is hsl(222 39% 11%) — a near-black navy — so the active pill
+            came out grey-blue while the design's accent is the brand green (same green as the logo
+            and the Browse All Events banner). Deliberately scoped here rather than fixed in the
+            token: `--primary` also drives every button, focus ring, badge, the quorum bar and the
+            avatar chips, and none of those turn green in the design. */}
         <nav className="flex flex-col gap-1 px-8 pt-14">
           {NAV.map((item) => {
             const active = item.match(pathname, currentModule);
@@ -211,7 +227,9 @@ export function NavShell({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 className={cn(
                   "flex items-center gap-2.5 rounded-full px-3 py-3 text-[15px] tracking-[-0.3px] transition-colors",
-                  active ? "bg-primary/10 font-medium text-primary" : "text-foreground/70 hover:bg-foreground/4",
+                  active
+                    ? "bg-[#e6f4ec] font-medium text-[#0A3D2E]"
+                    : "text-foreground/70 hover:bg-foreground/4",
                 )}
               >
                 <Icon className="h-[18px] w-[18px]" strokeWidth={active ? 2.25 : 1.75} />
@@ -252,8 +270,18 @@ export function NavShell({ children }: { children: React.ReactNode }) {
             onClick={() => setAccountMenuOpen((v) => !v)}
             className="relative z-10 flex w-full items-center gap-2 rounded-full bg-white p-1.5 shadow-[0px_1px_4px_0px_rgba(0,0,0,0.08)]"
           >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-              {displayInitials}
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-xs font-semibold text-primary">
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  onError={() => setAvatarFailed(true)}
+                />
+              ) : (
+                <UserIcon className="h-4 w-4" strokeWidth={1.75} />
+              )}
             </div>
             <div className="min-w-0 flex-1 text-left">
               <p className="truncate text-sm font-medium tracking-[-0.28px] text-foreground">
@@ -263,28 +291,35 @@ export function NavShell({ children }: { children: React.ReactNode }) {
                 {isGuest ? "Guest" : displayEmail}
               </p>
             </div>
-            <ChevronDown className="h-4 w-4 shrink-0 text-foreground/60" />
+            <ChevronsUpDown className="h-4 w-4 shrink-0 text-foreground/60" />
           </button>
         </div>
       </aside>
 
       {/* Top header */}
       {/* The background MUST be opaque — this bar is sticky, so a translucent fill
-          (it was bg-black/2) let page content scroll visibly through it. These are
-          the opaque equivalents of that 2% tint over each breakpoint's page background:
-          white → #fafafa, #f6f6f6 → #f1f1f1. */}
-      <header className="sticky top-0 z-20 border-b border-foreground/10 bg-[#fafafa] md:bg-[#f1f1f1] md:pl-[259px]">
+          (it was bg-black/2) let page content scroll visibly through it. #fafafa is the
+          opaque equivalent of that 2% tint over white for mobile.
+
+          On desktop the flat #f1f1f1 is replaced by the frame's warm wash: neutral on the
+          left where the section title sits, warming towards the top-right behind the search
+          and bell. Every stop is a solid colour, for the opacity reason above. */}
+      <header className="sticky top-0 z-20 border-b border-foreground/10 bg-[#fafafa] md:bg-[linear-gradient(100deg,#f1f1f1_0%,#f1f1f1_40%,#f6efe9_72%,#f9ece4_100%)] md:pl-[259px]">
         {isGuest && (
           <div className="flex select-none items-center justify-center gap-1.5 border-b border-slate-800 bg-slate-900 px-4 py-1.5 text-center text-xs font-semibold text-white">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
             Guest
           </div>
         )}
-        {/* Same container as <main> below, so the section title lines up with the
-            content's left edge and the bell with its right edge, end to end. */}
+        {/* NOT capped to the content column's 960px. The title keeps the same left padding as
+            <main>, so it still lines up with the page heading below — but the bar itself runs
+            the full width, which pushes the search and bell out to the window's right edge
+            rather than parking them at the right edge of a 960px column with empty space
+            beyond. That's what the frame does, and it's the whole point of `justify-between`
+            here. */}
         {/* min-h rather than h, so the bar grows for the sections that carry a
             two-line title block (see SECTION_TITLE `sub`) and stays 64px otherwise. */}
-        <div className="mx-auto flex min-h-16 max-w-[1152px] items-center justify-between gap-4 px-4 py-3 md:px-8">
+        <div className="flex min-h-16 items-center justify-between gap-4 px-4 py-3 md:px-8">
           <div className="flex items-center gap-3 md:hidden">
             {!isExactRoot && (
               <button onClick={handleBack} aria-label="Go back" className="-ml-2 rounded-lg p-2 text-foreground/60 transition-colors hover:bg-foreground/5 hover:text-foreground">
@@ -309,7 +344,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearch}
                 className="h-10 w-[255px] rounded-full border border-foreground/5 bg-foreground/3 pl-10 pr-3 text-sm tracking-[-0.14px] placeholder:text-foreground/40 focus-visible:border-primary focus-visible:outline-none"
-                placeholder="Search events, companies, challenges…"
+                placeholder="Search for events"
               />
             </div>
             <button
@@ -330,19 +365,38 @@ export function NavShell({ children }: { children: React.ReactNode }) {
             </button>
             <Link
               href="/profile"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary md:hidden"
+              className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-sm font-semibold text-primary md:hidden"
             >
-              {displayInitials}
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  onError={() => setAvatarFailed(true)}
+                />
+              ) : (
+                <UserIcon className="h-5 w-5" strokeWidth={1.75} />
+              )}
             </Link>
           </div>
         </div>
       </header>
 
       {/* Main content */}
-      <main className="md:pl-[259px]">
-        {/* Figma's frame caps content at 818px, which was drawn for a ~1440px canvas and
-            reads cramped on a wide monitor — widened to 1280px on request. */}
-        <div className="mx-auto max-w-[1152px] px-4 py-6 pb-28 md:px-8 md:py-10 md:pb-16">
+      {/* The gradient sits on <main>, not on the column inside it, so the warm wash runs the
+          full width under the header and fades out downwards. On the inner column it would
+          paint a visible 960px-wide band with hard edges on a wide monitor. */}
+      <main className="bg-[linear-gradient(180deg,#f7f1ec_0%,rgba(247,241,236,0)_220px)] md:pl-[259px]">
+        {/* 960px is a middle ground, chosen 2026-09-10. The frame's content column measures
+            ~768px, which is why it shows ~2.5 cards per carousel row where we showed ~3.5 — but a
+            768px column strands most of a widescreen. Must stay equal to the header's inner
+            container above, or the bar's title stops lining up with the page heading below it.
+
+            LEFT-aligned, not `mx-auto`. Centring a 960px column in the space beside the sidebar
+            pushed everything toward the middle of the screen and left a gap against the sidebar;
+            the frame starts its content right after the sidebar. */}
+        <div className="max-w-240 px-4 py-6 pb-28 md:px-8 md:py-10 md:pb-16">
           {children}
         </div>
       </main>

@@ -33,7 +33,9 @@ export default function EventsPage() {
   const { data, isLoading } = useGetEvents({
     search: query || undefined,
     status: tab === "past" ? "ENDED" : undefined,
-    size: tab === "past" ? 50 : undefined,
+    // Never leave this undefined — the backend defaults to 20 per page, and this list filters
+    // client-side, so anything past the 20th event was invisible on the default tab.
+    size: tab === "past" ? 50 : 100,
   });
   const apiEvents = data?.data?.events ?? [];
 

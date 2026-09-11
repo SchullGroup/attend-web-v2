@@ -10,6 +10,8 @@ export interface Session {
     fullName: string;
     email?: string | null;
     phone?: string | null;
+    /** The user's uploaded profile photo. Null for most accounts — always have a fallback. */
+    avatarUrl?: string | null;
     role: string;
     capabilities: ("VIEW" | "QA" | "VOTE")[];
     createdAt?: string;
@@ -52,6 +54,7 @@ export function useSession(): Session {
             fullName: user.fullName,
             email: user.email,
             phone: user.phoneNumber,
+            avatarUrl: user.avatarUrl,
             role: "Shareholder",
             capabilities: ["VIEW", "QA", "VOTE"],
             createdAt: user.createdAt,

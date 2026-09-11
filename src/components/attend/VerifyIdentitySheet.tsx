@@ -14,6 +14,8 @@ import {
   useBvnSelfieCheck,
 } from "@/api/kyc/hooks";
 import { clearKycProgress } from "@/lib/kyc-progress";
+import { isKycDeclined, isKycFull, isKycUnderReview } from "@/lib/kyc-gate";
+import { KycStatusNotice } from "./KycStatusNotice";
 
 // Figma's identity frames — verification as three stacked modals over the page the user is
 // already on, replacing the old full-page /bvn → /chn → /liveness wizard.
@@ -32,7 +34,10 @@ import { clearKycProgress } from "@/lib/kyc-progress";
 // Neither identity number is persisted on the device. The BVN needed for the selfie re-check
 // is read back from GET /participant/kyc; the NIN lives in component state for the life of
 // the modal and is then gone.
-type Stage = "id" | "face" | "done";
+// "review" is not a step the user walks through — it's a terminal notice for the two states
+// that the form cannot move: already submitted and waiting on an officer, or declined by one.
+// See `isKycActionable` in lib/kyc-gate for why re-running the form there is a loop.
+type Stage = "id" | "face" | "done" | "review";
 type Mode = "bvn" | "nin";
 
 // The capture is downscaled before encoding — a modern phone camera is 8-12MP, which is a
@@ -46,19 +51,34 @@ const OVAL_H = 272;
 export function VerifyIdentitySheet({
   open,
   onClose,
+  onDismiss,
   live = false,
   onVerified,
   mode = "bvn",
   contextLabel,
+  dismissLabel = "Close",
 }: {
   open: boolean;
+  /** The sheet is closing. Fires on every close, including after a successful verification. */
   onClose: () => void;
+  /**
+   * The user backed out WITHOUT verifying — the X, the backdrop, or Escape on a form stage.
+   *
+   * Separate from `onClose` on purpose. A host that enforces verification (bouncing the user
+   * somewhere else when they decline) must not run that enforcement when they *succeed* — and
+   * success also closes the sheet. Hooking a bounce to `onClose` ejects every user who just
+   * verified from the page they verified for. Falls back to `onClose` when not supplied.
+   */
+  onDismiss?: () => void;
   /** Event is in session — the frame adds a LIVE NOW badge. */
   live?: boolean;
   onVerified?: () => void;
   mode?: Mode;
   /** Fills "confirm your attendance at ___" — e.g. "this product launch". */
   contextLabel?: string;
+  /** Label for the notice's dismiss button. A host that navigates away on dismiss should say
+   *  where it goes ("Back to AGMs") rather than leaving the move unannounced. */
+  dismissLabel?: string;
 }) {
   const isNin = mode === "nin";
   const idLabel = isNin ? "NIN" : "BVN";
@@ -67,10 +87,12 @@ export function VerifyIdentitySheet({
   const { data: meData } = useGetMe();
   const currentUser = meData?.data;
 
-  const { data: kycResp } = useGetKycStatus(!isNin);
+  const { data: kycResp, isLoading: kycLoading } = useGetKycStatus(!isNin);
   const kyc = kycResp?.data;
   const step1Done = !!kyc?.steps?.step1?.completed;
   const verifiedBvn = kyc?.bvn;
+  // NIN has no backend and so no status to read — it always walks the form.
+  const settled = !isNin && (isKycUnderReview(kyc) || isKycDeclined(kyc));
 
   const [stage, setStage] = useState<Stage>("id");
   const [idNumber, setIdNumber] = useState("");
@@ -113,9 +135,11 @@ export function VerifyIdentitySheet({
       return;
     }
     if (userStartedTyping.current) return;
-    setStage(!isNin && step1Done ? "face" : "id");
+    // Order matters: a settled status (under review / declined) outranks resuming the form,
+    // because for those the form has nothing left to achieve.
+    setStage(settled ? "review" : !isNin && step1Done ? "face" : "id");
     setErrorMsg(null);
-  }, [open, isNin, step1Done]);
+  }, [open, isNin, step1Done, settled]);
 
   useEffect(() => stopCamera, []);
   useEffect(() => {
@@ -295,17 +319,88 @@ export function VerifyIdentitySheet({
     onClose();
   }
 
+  /** Backed out without verifying. The only path that triggers a host's enforcement. */
+  function dismiss() {
+    stopCamera();
+    setCapturing(false);
+    (onDismiss ?? onClose)();
+  }
+
   function finish() {
     // onVerified BEFORE close, deliberately. The host's onClose treats a close as a dismissal
     // and discards whatever action the gate was holding; running it the other way round would
     // clear that action before this callback could use it, which is exactly the bug where
     // verifying an AGM never actually submitted the RSVP it was gating.
     onVerified?.();
+    // `close`, never `dismiss` — reaching here means the user finished, so a host that bounces
+    // declining users must not bounce this one.
     close();
+  }
+
+  // ── Terminal notice: submitted-and-waiting, or declined ─────────────────────
+  //
+  // Reached two ways: opened while already in one of those states (the stage effect above), or
+  // landed in one after submitting (the `done` stage below falls through to here). Deliberately
+  // offers no automatic retry — an officer decline that silently re-runs the form is the loop
+  // this whole design exists to prevent, so "Try again" is an explicit choice.
+  if (stage === "review") {
+    return (
+      <Dialog open={open} onClose={dismiss} className="max-w-[380px]">
+        <KycStatusNotice
+          kyc={kyc}
+          isLoading={kycLoading}
+          actions={
+            <>
+              {isKycDeclined(kyc) && (
+                <Button
+                  fullWidth
+                  size="lg"
+                  onClick={() => {
+                    userStartedTyping.current = true; // don't let the stage effect pull us back
+                    setErrorMsg(null);
+                    setStage("id");
+                  }}
+                >
+                  Try again
+                </Button>
+              )}
+              <Button
+                fullWidth
+                size="lg"
+                variant={isKycDeclined(kyc) ? "outline" : undefined}
+                onClick={dismiss}
+              >
+                {dismissLabel}
+              </Button>
+            </>
+          }
+        />
+      </Dialog>
+    );
   }
 
   // ── Stage 3: confirmed ──────────────────────────────────────────────────────
   if (stage === "done") {
+    // A completed submission does not always mean verified — it can land in the KYC-officer
+    // review queue, or come back declined. Showing "You're Confirmed!" for those was a lie the
+    // gates then contradicted by blocking the user, so defer to the notice instead. This reads
+    // a status that `useKycStep3` has already refetched (it returns its invalidation promise).
+    if (!isNin && !isKycFull(kyc)) {
+      return (
+        <Dialog open={open} onClose={finish} className="max-w-[380px]">
+          <KycStatusNotice
+            kyc={kyc}
+            isLoading={kycLoading}
+            actions={
+              <Button fullWidth size="lg" onClick={finish}>
+                Done
+              </Button>
+            }
+          />
+        </Dialog>
+      );
+    }
+
     return (
       <Dialog open={open} onClose={finish} className="max-w-[380px]">
         <div className="flex flex-col items-center gap-4 py-2 text-center">
@@ -330,12 +425,12 @@ export function VerifyIdentitySheet({
   // ── Stage 2: face registration (dark panel per the frame) ───────────────────
   if (stage === "face") {
     return (
-      <Dialog open={open} onClose={close} className="max-w-[340px] border-white/10 bg-[#1c1c1c]">
+      <Dialog open={open} onClose={dismiss} className="max-w-[340px] border-white/10 bg-[#1c1c1c]">
         <div className="flex flex-col items-center gap-1 text-center">
           <div className="flex w-full items-start justify-between">
             <span />
             <button
-              onClick={close}
+              onClick={dismiss}
               aria-label="Close"
               className="flex h-8 w-8 items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/10 hover:text-white"
             >
@@ -412,7 +507,7 @@ export function VerifyIdentitySheet({
 
   // ── Stage 1: identity number (+ DOB and consent, BVN only) ──────────────────
   return (
-    <Dialog open={open} onClose={close} className="max-w-[420px]">
+    <Dialog open={open} onClose={dismiss} className="max-w-[420px]">
       <form onSubmit={onSubmitId} className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -432,7 +527,7 @@ export function VerifyIdentitySheet({
           </div>
           <button
             type="button"
-            onClick={close}
+            onClick={dismiss}
             aria-label="Close"
             className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-foreground/50 transition-colors hover:bg-foreground/4 hover:text-foreground"
           >

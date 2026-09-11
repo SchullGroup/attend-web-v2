@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { UploadField } from "@/components/attend/UploadField";
 import { useSubmitProject, useGetMyTeam, useGetChallenge } from "@/api/hackathon/hooks";
+import { useGoBack } from "@/hooks/useGoBack";
 import { cn } from "@/lib/utils";
 
 // Shared figma field style for the raw <textarea> — mirrors the Input component
@@ -17,6 +18,9 @@ function SubmitPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const challengeId = searchParams.get("challengeId") ?? "";
+  // Both the header back control and the form's Cancel: return where the user came from, and
+  // fall back to the challenge on a directly-opened link, where `router.back()` does nothing.
+  const goBack = useGoBack(challengeId ? `/hackathon/${challengeId}` : "/hackathon");
   const teamIdParam = searchParams.get("teamId") ?? "";
 
   const [form, setForm] = useState({
@@ -116,7 +120,7 @@ function SubmitPageInner() {
   return (
     <div className="flex flex-col gap-6">
       <button
-        onClick={() => router.back()}
+        onClick={goBack}
         className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Back
@@ -257,7 +261,7 @@ function SubmitPageInner() {
         )}
 
         <div className="flex justify-end gap-3 pt-2">
-          <Button type="button" variant="outline" onClick={() => router.back()}>
+          <Button type="button" variant="outline" onClick={goBack}>
             Cancel
           </Button>
           <Button type="submit" loading={isPending} disabled={!valid || !teamId}>

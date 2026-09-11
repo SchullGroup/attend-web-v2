@@ -10,6 +10,17 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // The identity-verification wizard's routes, retired 2026-09-10 when verification became a
+  // modal raised at the point of use. /intro and /success were live entry points and may sit in
+  // bookmarks or old transactional email, so they land on the AGM hub — now where verification
+  // is prompted — rather than a 404. Temporary (307), since these paths may be reused.
+  async redirects() {
+    return ["/intro", "/success", "/bvn", "/chn", "/liveness", "/face-capture"].map((source) => ({
+      source,
+      destination: "/agm",
+      permanent: false,
+    }));
+  },
   // Cross-origin isolation enables SharedArrayBuffer, which the Zoom Web SDK needs
   // for gallery view / multi-video (seeing your own tile). We apply it ONLY when a
   // page opts in with `?coi=1` ΓÇö the live room adds that flag (and reloads) for Zoom

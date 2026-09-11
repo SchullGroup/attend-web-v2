@@ -1079,6 +1079,130 @@ the Zoom live-room wrappers (`agm/live`, `events/live` shells).
   - The frame's Overview/Prizes tabs are challenge-specific (`/hackathon/[id]`), not part of
     this; the user cited the frame for its card structure, not its tabs.
 
+- **2026-09-09 (23)** — ⚠️ **The certificate on screen was never the real one.**
+  `CertificateSheet` hand-drew the whole thing in JSX — a CSS gradient card, `ChevronCorner()`
+  built from five rotated divs, a lucide `<Award/>` as the "seal", `border-t` rules for
+  signature lines, hardcoded serif "Certificate / of attendance". Only the name, event title
+  and verification number came from the API. That's why it looked nothing like what admin
+  uploads.
+  - The genuine artwork **was already reachable** — `cert.downloadPath`
+    (`/api/v1/public/certificates/{id}/download`), which `hackathonClient`'s own comment
+    describes as *"rendered onto the organiser's artwork where they uploaded one"*. It was only
+    ever fetched when Download was pressed, so **the download had always been correct and only
+    the preview was invented** — the two were different artefacts entirely.
+  - Now fetched on open (when `issued && downloadReady !== false`) and rendered as the PDF
+    itself in an `<object type="application/pdf">` with an `<iframe>` child for browsers with no
+    inline viewer (iOS Safari). The object URL is revoked on close — an un-revoked one pins the
+    whole PDF in memory.
+  - **The same blob backs Download**, so what's on screen is byte-identical to what saves.
+  - The hand-drawn card survives **only as a fallback** (fetch failed / no `downloadPath`),
+    behind an amber "Showing a preview — download the PDF for your official certificate" note so
+    it can't be mistaken for the official document. `certRef` still wraps it so the
+    `downloadNodeAsPdf` snapshot path has something to capture.
+  - **No `certificateUrl`/image field exists** anywhere in `src/api` or `src/types` (repo-wide
+    grep) — the PDF blob is the only way to show the real artwork, which is why it's fetched
+    rather than linked.
+  - ⚠️ **Follow-up the same day — the fetch-as-blob approach above was itself wrong, and the
+    fallback fired for a real user.** User supplied the actual `getCertificate` payload:
+    `downloadPath`, `issued: true` and `downloadReady: true` were all present and correct, so
+    the JSON was never the problem — the PDF fetch was failing. Root cause, found from the
+    codebase's own evidence rather than guessed: `downloadPath` is a `/public/` route, meant to
+    be hit as a plain browser navigation, but `apiClient.get(downloadPath, {responseType:
+    "blob"})` is a **script-mediated read**, which is wrong in two ways at once —
+    (a) `/api/v1/public/certificates/...` is **not** in `api-client.ts`'s `publicEndpoints`
+    allowlist, so the interceptor attached a Bearer token to a route designed to need none;
+    (b) reading a cross-origin redirect's body via script is subject to CORS, the exact failure
+    already documented on `documentsClient`'s counted download (redirects to Cloudinary/OBS,
+    which sends no CORS headers).
+  - **Fixed by dropping the fetch entirely.** `certificateUrl` is now the raw `downloadPath`,
+    referenced directly: `<object data={certificateUrl}>` for the preview (with an `<iframe>`
+    child for browsers with no inline PDF viewer), and `window.open(certificateUrl, "_blank")`
+    for Download — matching `DocumentVaultPanel`'s already-proven fallback pattern exactly. A
+    plain resource load is a **browser navigation, not a script read**: it carries no
+    Authorization header and isn't subject to CORS, so neither failure mode applies. The
+    `next.config.ts` rewrite (`/api/v1/:path*` → backend) makes the relative path same-origin
+    regardless of where the final file is actually stored.
+  - Net effect: no more `useEffect`, no blob/object-URL lifecycle to manage, no
+    `hackathonClient` import in this file at all — simpler than the version it replaced, not
+    just more correct. The hand-drawn card remains, unchanged, as the fallback for the one case
+    that's still a real gap: `downloadPath` missing entirely (logged via
+    `console.warn("Certificate has no fetchable PDF yet:", …)` so that case stays distinguishable
+    from everything else instead of collapsing into the same silent fallback again).
+  - ⚠️ **Second follow-up, same day — the pure-navigation fix above broke the preview a
+    different way.** User tested it: the `<object>` area rendered blank and the browser forced
+    a save-file prompt instead. That's `Content-Disposition: attachment` on the response —
+    confirmed behaviour, not a guess, since `window.open`/`<object>`/`<iframe>` all hit the same
+    URL and all got the same forced download. **That header wins over every embedding technique
+    for a direct navigation**; no client-side trick displays it inline while pointed straight at
+    that URL. It also means the CORS theory in the entry above was likely never the real cause —
+    the wrongly-attached Bearer token being rejected fits the original symptom just as well and
+    is now the leading explanation, though this still hasn't been confirmed with an actual
+    console error, only ruled out by elimination.
+  - **Fixed by splitting preview from download**, since they now need different things from the
+    same URL: **Download** still calls `window.open(certificateUrl, "_blank")` — confirmed
+    working, and `Content-Disposition: attachment` is exactly what's wanted there. **Preview**
+    fetches the same URL with a bare `fetch()` (deliberately not `apiClient` — no interceptor,
+    no Bearer token) and renders the resulting blob: `URL.createObjectURL(blob)` into the
+    `<object>`. A `blob:` URL carries no HTTP headers of its own, so the disposition header
+    that forces a download for a direct navigation has no effect on it — the browser just
+    renders whatever bytes it holds.
+  - `previewFailed` is now only set from that `fetch()`'s own `.catch` (logged via
+    `console.error("Certificate preview fetch failed:", …)`) — the earlier unreliable
+    `<object onError>` handler is gone, since it never fired for the disposition-forced-download
+    case in the first place.
+  - ⚠️ **Third follow-up, same day — root cause now confirmed with an actual console error, not
+    elimination.** User pasted the real browser output:
+    > *"Access to fetch at 'https://attend-assets-prod.obs.af-south-1.myhuaweicloud.com/
+    > certificates/...' (redirected from '.../certificates/{id}/download') from origin
+    > 'http://localhost:3000' has been blocked by CORS policy: No
+    > 'Access-Control-Allow-Origin' header is present on the requested resource."*
+    So the CORS theory from the first entry above was right all along — it just took this log
+    line to make it fact instead of a guess. `downloadPath` 302s to a Huawei OBS bucket that
+    sends no CORS headers; a **browser** `fetch()` of it can never read the response no matter
+    what headers the request carries, because CORS is enforced against what the bucket sends
+    back, which this app has zero control over. Neither of the two previous fixes could ever
+    have worked — they both still ended in a script-mediated read of that same bucket response.
+  - **Fixed with a same-origin proxy** — new `src/app/api/certificate-pdf/route.ts`, mirroring
+    the exact pattern (and reasoning) already in `src/app/api/proxy-image/route.ts` for the same
+    Huawei bucket: a **server-to-server** fetch is exempt from CORS entirely (it's a
+    browser-only policy), so this route fetches the PDF on the server and re-serves it from our
+    own origin. The preview's `fetch()` now hits `/api/certificate-pdf?path=<downloadPath>`
+    instead of the raw URL — same-origin, so the browser reads it fine — then blobs it exactly
+    as before. Locked to the one known path shape
+    (`/^\/api\/v1\/public\/certificates\/[a-zA-Z0-9-]+\/download$/`), not an open relay.
+    Download is untouched (`window.open(certificateUrl, "_blank")` on the real endpoint,
+    confirmed working by the user — CORS doesn't apply to navigation, only to script reads).
+  - Lesson for next time this shape of bug shows up: **ask for the console error before the
+    first fix, not after the second.** Two iterations were spent on theories (auth header,
+    then disposition-only) that were each plausible from the code alone but wrong, when the
+    actual `Access-Control-Allow-Origin` message would have pointed straight at the real
+    fix immediately.
+  - **Fourth follow-up, same day — the real certificate now shows, but with Chrome's own PDF
+    viewer chrome on top of it** (its download/print/⋮ toolbar), which duplicates this panel's
+    own Download button. That toolbar is the browser's, not this app's — suppressed the standard
+    way: the blob URL now carries the PDF-viewer open-parameter fragment
+    `#toolbar=0&navpanes=0&scrollbar=0` (honoured by Chrome/Edge's PDFium viewer and Firefox's
+    pdf.js; the fragment is appended only on the copy handed to `<object>`/`<iframe>` — revoking
+    the blob on cleanup still uses the bare, un-suffixed URL).
+
+- **2026-09-09 (24)** — **Home cards fall back to the organiser logo.** `imageOf` was
+  `flyerUrl || bannerUrl || null`, so an event with no flyer showed a pastel tint + a module
+  icon. Replaced with `artworkOf()`: `flyerUrl || bannerUrl || branding?.logoUrl ||
+  organizerLogo`.
+  - `branding.logoUrl` **before** `organizerLogo` — on an AGM the latter is the *registrar's*
+    mark (Meristem), not the company's. Same ordering as `AgmListCard`/`EventRowList`.
+  - `artworkOf` returns a `kind` too, because fit differs: a flyer is a photo and fills the
+    frame (`object-cover`), a logo is a mark and must be **contained + padded**, or a square
+    logo gets cropped to the card's letterbox.
+  - **Fixed a dead fallback while here:** the old `onError` set `display:none` on the broken
+    `<img>`, leaving a bare tint — the module icon lives in the *other* branch and could never
+    render. Failure is state now, so a dead URL properly falls through to the icon.
+  - Both carousels now share one `CardArtwork` component instead of duplicating the block.
+  - **Flag:** `src/components/attend/EventCard.tsx` is dead code — nothing imports it (the guest
+    page defines its own). Left alone, but it's a stale copy that will mislead.
+  - **Flag:** `BACKEND-FIX-certificate-eligibility.md` records the certificate endpoint 4xxing
+    for Selected applicants, so many users still hit "No certificate found" regardless of (23).
+
 - **2026-09-07 (21)** — Side-by-side against the frame; the user confirmed data differences don't
   matter, to **keep** the map (a deliberate deviation from the frame), and that **no virtual
   event should ever show one**.
@@ -1124,3 +1248,540 @@ the Zoom live-room wrappers (`agm/live`, `events/live` shells).
 2. `_landing/*`, `zoom-test`, and the Zoom live wrappers remain intentionally untouched.
 Do NOT commit unless the user says so. Do NOT add Claude as a git co-author.
 
+
+- **2026-09-10 (22)** — Backend status doc (2026-08-28) reviewed end to end against this app.
+  Most of its 25 sections are organiser/admin/judge-side or pure backend; the participant-facing
+  findings are below. **§25 gave us the real profile-update contract, and ours was wrong.**
+  - `authClient.updateProfile` was a guess I'd marked `⚠️ ASSUMED` — wrong on four counts, all
+    now corrected: **`PUT` → `PATCH`**, **`phoneNumber` → `phone`**, **`fullName` dropped**
+    (no such field — it was being silently ignored), and **`username` added** (real, nullable,
+    unique, 3-30 chars, lowercased server-side).
+  - `MeResponse` gained `username`, and its `avatarUrl` now documents that it is **presigned and
+    expires in an hour** — must be read from a fresh `/me`, never persisted.
+  - **"Full Name" is now two inputs.** An earlier pass rendered one field and split on
+    whitespace; §25 states the backend deliberately won't guess a split, and `MeResponse` already
+    carries `firstName`/`lastName` separately — so the split was both lossy (multi-word surnames,
+    middle names) and unnecessary.
+  - **PATCH semantics honoured properly**: only changed fields are sent, so saving a phone here
+    can't clobber a name edited elsewhere. `""` is sent *only* for `username`/`avatarUrl`, where
+    §25 defines it as an explicit clear; `""` on a name or phone is a 400 by design, so those are
+    omitted instead. A no-op save short-circuits with "nothing to save".
+  - **`409` now reads distinctly** ("username or phone already belongs to another account")
+    instead of collapsing into the single generic failure, and a phone change warns that the new
+    number needs re-verifying (§25: changing it clears `phoneVerified`, which gates OTP delivery).
+  - Settings header shows `@username` when set, falling back to email — the frame's `@handle`,
+    now that something real backs it.
+  - ⚠️ **Still may 404 until backend deploys §25.** That doc's own deployment note has §16-19
+    committed-but-undeployed as of 2026-08-31 and doesn't list §20-25 as deployed. The soft
+    failure path covers it; the difference is this now points at the route that will exist.
+
+  **Confirmed already correct — no change needed:**
+  - **§24** (join-time restrictions removed) explicitly warns FE apps not to gate Join on a
+    countdown. Ours already gates on `event.status === "LIVE"`; the only `countdown` in the event
+    page is the resolution voting window.
+  - **§7g** (streamUrl can now be null) — the `missingStreamLink` → disabled "Join link not
+    available yet" empty state already handles it.
+  - **§18** (endpoint now 200 for every certificate state) — `CertificateSheet` already branches
+    on `issued`/`eligible` and prefers `cert.message`, so this self-resolves. Worth testing the
+    "never entered" and "still running" cases against §18's copy table.
+
+  **Flags I raised that turned out to be non-issues on inspection:**
+  - **§22** (submitted-document URLs are 1-hour presigned) — we only ever *write* those fields in
+    `hackathon/apply/page.tsx`. There is no read-back UI, so the expiry can't bite us.
+  - **§3** (`finalPosition` int → nullable Integer) — zero references anywhere in `src/`.
+  - **§25 avatar expiry vs cache** — `useGetMe` inherits the 60s global `staleTime`, well inside
+    the hour. Only exposure is a tab left untouched 60+ min (`refetchOnWindowFocus` is false).
+
+  **Open, deliberately not taken in this pass:**
+  - ⚠️ **Zoom signing does not use the backend at all.** `src/app/api/zoom/signature/route.ts` is
+    our own Next route holding `ZOOM_SDK_SECRET` and signing the JWT itself — its own comment says
+    *"Temporary — the real backend will own this endpoint."* §21 confirms the real routes now
+    exist, including a **new guest one** (`POST /api/v1/guest/events/{id}/zoom/signature`, takes
+    `X-Guest-Token`). `ZoomStage` currently makes one unconditional call to the local route with
+    `role: 0` and has **no guest path at all** — the same file where `role: 0` was flagged while
+    chasing "only admin can see video". Needs its own scoping: it moves where the SDK secret
+    lives, adds a branch that has never existed, and §21 has no test coverage.
+  - **§13** — winners now hold *two* certificates (winner + participation), but
+    `GET .../certificate` returns one object, winner-first, so our sheet can only ever show one.
+    Needs a backend list endpoint; not worth faking client-side.
+
+- **2026-09-10 (23)** — ⚠️ **A newly created Innovation Challenge never appeared in the app.**
+  Reported from admin: challenge created, `Published`, future-dated, absent from `/hackathon`.
+  - **Root cause, measured not guessed: the backend's default page size is 20.** Confirmed by
+    calling `/api/v1/guest/events` with no `size` — it returns exactly 20, and the response
+    carries `{events, page, size, totalCount}`. The org has **69 events**.
+  - `hackathon/page.tsx` pulls the **whole** events collection and filters to
+    `HACKATHON`/`INNOVATION_CHALLENGE` **client-side**, and was the only list page in the app
+    passing **no `size` at all** (AGM pages pass 50, home and search pass 100, general passes
+    100/50). So it only ever saw the first 20 events of 69 and filtered *those* — any challenge
+    outside that window was structurally invisible, regardless of its status or date.
+  - **Two more instances of the same bug found while confirming it:**
+    - `events/page.tsx` — `size: tab === "past" ? 50 : undefined`, so the **default Launches tab
+      was capped at 20** too.
+    - `search/page.tsx` — `useGetChallenges` had no `size` (its sibling `useGetEvents` had 100),
+      so a challenge search could silently miss matches past the 20th.
+  - All three now pass `size: 100`. **Note this is still a ceiling, not pagination** — at ~100
+    events per organisation these pages will start dropping rows again. The real fix is either
+    server-side filtering (pass `eventType`, as the AGM pages do) or real pagination; client-side
+    filtering of a page-limited response is the underlying flaw.
+
+- **2026-09-10 (24)** — Home card artwork: **flyer and logo now both just fill the card.**
+  Took three passes to land; worth recording why the first two were wrong:
+  1. `object-contain` on a pastel tint — most logos ship with their own white/grey backdrop, so
+     it read as a mismatched rectangle sticker pasted onto an unrelated pastel.
+  2. Blurred over-scaled backdrop + crisp centred logo — no seam, but it still left visible
+     margin around the mark, which was the actual complaint.
+  3. **`object-cover` for both kinds.** User: *"The logo should fill the cards, there shouldnt
+     be any space round it."* Filling crops a logo's own built-in whitespace, which is exactly
+     what should be cropped.
+  - This let the `kind: "flyer" | "logo"` distinction go entirely — `artworkOf` is now a
+     one-liner returning `string | null` and `CardArtwork` renders a single `<img>`. The
+     `tileTint` background survives only as the backdrop to the module-icon fallback, which is
+     what it was always for.
+
+- **2026-09-10 (25)** — ⚠️ **Pre-existing hydration failure on the home page, found incidentally**
+  while checking the above (it is *not* caused by (23)/(24) — confirmed against the diff).
+  - The dev log showed the server rendering the amber KYC nudge (`<a href="/intro">`) where the
+    client rendered `<section>`, so React discarded and re-rendered the whole page tree.
+  - **Same root cause as the `/agm` gate bypass fixed on 2026-09-06**: `useUserStore().kycStatus`
+    seeds itself synchronously from `localStorage` in a lazy `useState` initializer. The server
+    has no localStorage so it reads `"none"` (nudge shown); the client's *first* render already
+    reads `"full"` (nudge hidden). Guaranteed mismatch for any verified user.
+  - Home now gates the nudge on `useGetKycStatus()`'s resolved response instead. Both renders
+    agree (nothing until the answer lands), and it stops trusting a cached value that logout
+    used to leave behind. `useUserStore` is no longer used on this page.
+  - ⚠️ **Not verified in a browser** — `/` redirects to login without a session, so the render
+    that produced the error can't be reproduced here. The cause is confirmed from the log; the
+    fix needs a signed-in reload to confirm the error is actually gone.
+
+- **2026-09-10 (26)** — **Detail-page banners now use a three-tier fallback** instead of an empty
+  colour field. New shared `src/components/attend/EventBanner.tsx`:
+  1. **flyer/banner** → fills the frame (unchanged behaviour).
+  2. **no flyer → the company logo**, centred on its own background colour.
+  3. **no logo → a stock poster**, picked by module.
+  - Replaces two different weak fallbacks: `events/[id]` drew solid `brandPrimary` with the
+    organiser's initials at 160px `white/10` clipped off the bottom-right corner (the empty blue
+    slab on "TRADE EVENT"), and `hackathon/[id]` drew a `brandPrimary → brandAccent` gradient.
+  - **Tier 2 gets "the logo's background colour" without reading a pixel.** An over-scaled,
+    heavily blurred copy of the logo fills the frame with the crisp logo centred on top, so the
+    surround *is* the logo's own colour by construction — flat white gives white, brand pink
+    gives that pink, a gradient keeps the gradient. Sampling the colour would need
+    `getImageData()`, which taints the canvas on a cross-origin image, and these logos come from
+    the Huawei bucket proven (2026-09-09) to send no CORS headers — it would have to be proxied
+    through `/api/proxy-image`, handle transparent PNGs having no background at all, and swap the
+    colour in after load, flashing on every banner. For the common flat-background logo the two
+    approaches are identical.
+    - Note this is deliberately the *opposite* of the home cards, where the same blur treatment
+      was rejected in (24) because the logo had to fill with no margin. Different ask: here a
+      centred logo with a coloured surround is what the frame shows.
+    - `tileTint()` remains the base layer underneath, visible only behind a transparent-PNG logo
+      (blurring transparent pixels shows nothing).
+  - **Tier 3 posters are mapped to modules, not hashed** — the two `HeroCard` assets are
+    thematically paired: whiteboard/workshop → Innovation, red auditorium → AGM/Launch/General.
+    Renamed to say which is which and to drop a space from a served path (the same footgun as the
+    onboarding slides): `hero-card-workshop.png`, `hero-card-auditorium.png`.
+  - Broken URLs now fall *through* to the next tier via state, rather than the old
+    `style.display = "none"` on error, which left an empty frame because the fallback lived in
+    the other branch and could never render.
+  - ⚠️ **Both posters are ~800 KB PNGs, which is the wrong format for a photograph.** Re-exported
+    as JPEG/WebP at the same 1180px they'd be ~100–150 KB. They're served to every event with no
+    flyer and no logo. I can't re-encode images here — flagging for an asset pass. Cached after
+    first load, so not a blocker.
+  - `ChallengeDetail` carries no `organizerLogo`, so tier 2 on the challenge page reads
+    `branding.logoUrl` only — which is the preferred source anyway (the company's mark, not a
+    registrar's).
+
+- **2026-09-10 (27)** — `tileTint` deduped: it was copy-pasted in **five** places
+  (`agm/page`, `hackathon/page`, `hackathon/my-applications`, `(main)/page`, and an exported copy
+  in `EventListRow`). Now a single definition in `src/lib/utils.ts` that all of them import —
+  found the fifth only by grepping after the first four, and `EventListRow`'s was exported, so it
+  was checked for external importers first (there were none; only the component itself is used).
+
+- **2026-09-10 (28)** — Help centre contacts updated in `HelpPanel.tsx`:
+  `support@experienceattend.com`, shown as `+234 700 ATTEND`, dialling `+234700288363` (the
+  vanity letters keypad-mapped — A=2 T=8 T=8 E=3 N=6 D=3 → 288363, or `tel:` has nothing to
+  dial). Verified these are the only hardcoded support contacts in the app; the landing page
+  carries social links only.
+  - ⚠️ `+234 700 288363` is 9 digits after the country code where a standard Nigerian mobile is
+    10. Normal for an 0700 vanity line, but a phone number can't be tested from here — worth
+    confirming it connects.
+
+- **2026-09-10 (29)** — ⚠️ **The blurred-fill idea in (26) was wrong; replaced with real pixel
+  sampling.** A logo that was an Earth photo on **black** produced a washed-out purple-grey
+  banner rather than a black one. The reason is simple and I should have seen it before shipping
+  it: blurring averages the *whole image*, so it yields the average colour of the artwork, which
+  is not the colour of its background. The two only coincide when a logo is mostly background
+  already — which is why it looked fine in reasoning and failed on the first real logo.
+  - New `src/hooks/useImageEdgeColor.ts` reads the background colour from the logo's **edge
+    pixels** — four corners plus each edge midpoint on a 32x32 downscale, quantised into
+    16-level buckets so compression noise doesn't split one colour into eight, then averaging
+    the winning bucket's true values. Edges work because a logo's border is almost always
+    backdrop rather than mark.
+  - The CORS objection I used to rule this out is real but already solved in this repo: sampling
+    goes through `/api/proxy-image` (the same route `dom-to-pdf` uses, for the same reason), so
+    the canvas is never tainted. The visible logo still loads direct, so what's on screen never
+    depends on the proxy being up.
+  - Returns null while sampling and on every failure path — proxy refuses the host, image won't
+    load, or the logo is a cut-out PNG whose edges are transparent and so has no background
+    colour at all. `tileTint` covers all of those.
+  - Logo sized up from `max-h-[46%]`/`max-w-[38%]` to `64%`/`54%` — the other half of the report
+    ("so it doesn't look lost").
+  - **Verified end to end against real data this time, not reasoned about:** pulled a live logo
+    URL off the guest events endpoint (a presigned Huawei URL carrying an explicit `:443`, which
+    `URL.hostname` strips, so the proxy allowlist still matches), confirmed `/api/proxy-image`
+    returns it 200 as `image/jpeg`, then replicated the sampling algorithm over the downloaded
+    bytes — all eight edge points came back identical at `rgb(229,229,229)`. Unanimous, and the
+    correct backdrop for that logo.
+
+- **2026-09-10 (30)** — **Back navigation restored on Launch/General event detail.** My own
+  regression: the control exists in `events/[id]/page.tsx` but I gated it behind
+  `!isSimpleLayout` while matching the Launches frame, which shows no in-page back control.
+  `isSimpleLayout` is LAUNCH + GENERAL, so both lost it — and the app-bar title is *context*, not
+  navigation, so those pages had no way back at all. Gate removed; it renders on every module.
+  - All back controls on these pages now use **`useGoBack`** rather than raw `router.back()`.
+    That matters for the stated requirement ("lead back to the page the user is coming from"):
+    `history.back()` returns wherever they actually came from — Home, a search result, the module
+    list — but does **nothing at all** on a directly-opened link, which is precisely the shared-
+    or-pasted-URL case. The hook falls back to a route instead.
+  - The event page's fallback is **module-aware**, since the four modules are reached from four
+    different lists: `AGM → /agm`, `HACKATHON → /hackathon`, `LAUNCH → /events`,
+    `GENERAL → /general`.
+  - Also converted the load-failure state's "Go back" on the same page — that state is exactly
+    where a stale or pasted link lands, i.e. the no-history case where a bare `back()` leaves the
+    user stranded on the error.
+  - Converted the two other raw `router.back()` pages for consistency:
+    `hackathon/resources` and `hackathon/submit` (both call sites there, header + form Cancel),
+    each falling back to the challenge itself. `useRouter` dropped from `resources` where it
+    became unused; kept in `submit`, which still uses `router.push`/`router.replace`.
+  - **No raw `router.back()` remains anywhere in `(main)`.**
+
+  **Audited and deliberately left alone:**
+  - **Nav roots** (`page.tsx`, `agm`, `hackathon`, `events`, `general`, `profile`) — the six
+    sidebar destinations; there's nowhere in-app to go "back" to.
+  - **Immersive live rooms** (`agm/live`, `events/live`) — NavShell already treats these as
+    chrome-less, and the AGM room has its own *Leave meeting* control.
+  - **Transient/dead** — `qr-checkin` now forwards to `/events/{id}?qr=1`; `events/qr-checkin` is
+    unreachable (nothing links to it).
+
+  ⚠️ **Still missing back nav, flagged not fixed** (each currently relies on a tab/pill row that
+  doubles as navigation): `agm/minutes`, `agm/receipt`, `agm/proxy-history` (AgmSubNav pills),
+  `hackathon/my-applications` (tab row), and — the strongest cases, since they have no tab row at
+  all — `notifications` and `search`, both reached from app-bar icons. Say the word.
+
+- **2026-09-10 (31)** — ⏳ **OPEN: banner tier swap.** Requested — HeroCard posters to tier 2,
+  logo treatment down to tier 3 — but not implemented, because it has a consequence needing a
+  decision first: the posters are **local files that always load**, so with them at tier 2 the
+  logo tier can never be reached, making the logo rendering *and* `useImageEdgeColor` dead code.
+  Options are (a) delete the logo treatment and the sampling hook, (b) keep it as a never-firing
+  safety net for a missing poster asset, or (c) make it conditional rather than a chain (e.g.
+  prefer the logo when the organiser has one). Chain is still flyer → logo → poster until then.
+
+- **2026-09-10 (32)** — **List thumbnails now carry the organiser logo, via one shared component.**
+  Reported on the Launches/General list: rows should show the organiser's logo too. Cause was
+  drift — five lists had grown five *different* artwork chains, and two of them never looked at
+  `branding.logoUrl` at all:
+
+  | List | chain before |
+  |---|---|
+  | Home cards (`artworkOf`) | flyer → banner → branding.logoUrl → organizerLogo ✅ |
+  | `EventListRow` (Launches + General) | flyer → banner → organizerLogo — **no branding.logoUrl** |
+  | `hackathon/page.tsx` tile | **organizerLogo only** — no flyer, no banner, no branding |
+  | `AgmListCard` | branding.logoUrl → organizerLogo — no flyer/banner |
+  | `profile/EventRowList` | branding.logoUrl → organizerLogo — no flyer/banner |
+
+  New `src/components/attend/EventThumb.tsx` owns both the resolver (`eventArtwork`, exported and
+  now used by the home cards too, so the ordering has exactly one definition) and the tile.
+  Canonical order stays **flyerUrl → bannerUrl → branding.logoUrl → organizerLogo**;
+  `branding.logoUrl` beats `organizerLogo` because on an AGM the latter is the *registrar's* mark
+  (Meristem), not the company holding the meeting.
+
+  Two real bugs fixed along the way, not just consolidation:
+  - **Blank/whitespace URLs.** The API sends `""` for "no logo", which is truthy-adjacent enough
+    that `organizerLogo` alone passed the `? :` test and rendered a permanently broken `<img>`.
+    `eventArtwork` drops blanks.
+  - **A broken URL blanked the tile instead of falling through.** The old rows set
+    `display:none` on error, which left an empty coloured square — the icon fallback lived in the
+    other branch of the ternary and so could never render (same mistake `EventBanner`'s comment
+    already warns about). `EventThumb` tracks failures **by URL value** rather than as an index,
+    so it walks to the next tier and a refetch that fills in a flyer can't leave the cursor
+    pointing at the wrong one — and no reset effect is needed.
+
+  `tint` is a prop because `EventRowList` tints by brand/module colour (its fallback is white
+  initials) while every other list uses the pastel `tileTint`. `object-cover` fill is retained
+  per (28) — containing a logo reads as a sticker on a mismatched pastel. Sizes moved to the
+  canonical `h-15 w-15` while touching them. `tsc` clean.
+
+- **2026-09-10 (33)** — **KYC: wall → prompt at the point of use.** `agm/layout.tsx` used to
+  replace the whole `/agm` subtree with an "Identity verification required" interstitial whenever
+  `kycStatus !== "FULL_KYC"`. Because it was a *layout*, it blocked the list, minutes, receipts,
+  proxy history, pre-vote, proxy and the live room — an unverified shareholder could not see that
+  an AGM existed. Now: browsing is free, acting is gated, and the modal is raised on opening an AGM.
+
+  **Two findings reshaped the work.** (a) The old page wizard was **already gone** — every
+  `src/app/(kyc)/*` route except `success` was a 7–9 line shim rendering the *same* new sheet, and
+  `/bvn`, `/chn`, `/liveness` had zero inbound links. So this was "remove one wall + 6 dead URLs",
+  not "delete a second flow". (b) `(kyc)/success/page.tsx` was **load-bearing**: the only screen
+  that rendered *under review* and *declined + rejectionReason*. The modal's terminal stage knew
+  only "You're Confirmed!".
+
+  ⚠️ **(b) was an infinite loop waiting to happen**, and the reason most of this diff exists. Every
+  gate keys on `=== "FULL_KYC"`, so `PENDING_REVIEW` reads as unverified. Prompt-on-open +
+  bounce-on-dismiss would have given: open AGM → modal → re-run a form they'd already completed →
+  "Confirmed!" → still not FULL_KYC → bounce → repeat, with no way out.
+
+  **Two invariants now carry the design**, stated as comments where they're enforced:
+  - **Only auto-open when submitting can change the status.** New `src/lib/kyc-gate.ts` splits the
+    entitlement (`isKycFull`, still what every *action* checks) from `isKycActionable`
+    (NO_KYC / PENDING / BASIC_KYC). `PENDING_REVIEW` and `REJECTED` are never auto-prompted — they
+    get a notice, since no amount of re-running BVN + selfie makes an officer approve you.
+  - **Completing verification is never a dismissal.** `finish()` calls `onVerified` then closes, so
+    hooking the bounce to `onClose` would have ejected **every user who successfully verified** from
+    the page they verified for — and Escape on the done stage too. Added a distinct `onDismiss`;
+    only that bounces.
+
+  **Changes:**
+  - `agm/layout.tsx` rewritten: renders children, overlays the sheet on action routes only.
+    **Allowlist of free routes**, not a blocklist (a blocklist fails open for routes added later),
+    compared by **exact equality** — `startsWith("/agm/proxy")` also matches `/agm/proxy-history`.
+    `/agm/proxy-history` is free: its list is necessarily empty for the unverified, and someone
+    who *was* verified and is now under review must still be able to revoke a live proxy.
+    `/agm/pre-vote` and `/agm/proxy` suppress children while gated — they *are* Dialogs, so
+    stacking gave two backdrops and two Escape handlers firing two competing navigations.
+  - `events/[id]`: auto-open broadened from LIVE-only to any AGM, `+ isKycActionable + !qrOpen`
+    (`?qr=1` would otherwise open QrCheckinSheet and the verify sheet together). `openedByGate` ref
+    means only an unrequested prompt bounces — opening it yourself from the banner and closing
+    leaves you put. `router.replace`, never `push`: with `push`, Back re-enters and re-prompts
+    forever. `runPendingKycAction` now re-reads status from the query cache before replaying.
+  - New `KycStatusNotice` (content ported from `/success`) + a `review` stage on the sheet; the
+    terminal stage is status-aware, so it **stops telling PENDING_REVIEW users they're confirmed**.
+    Needed `useKycStep3` to *return* its invalidation promise (as `useKycStep1` already did) —
+    firing and forgetting meant `setStage("done")` read the pre-submit snapshot.
+  - Amber card on the detail page kept (still reachable on review/declined/query-error) and made
+    status-aware; it no longer replaces the whole tile grid, which had been hiding the "More" menu
+    and with it My receipts / Minutes / QR check-in — read-only things whose own routes are free.
+  - Home nudge removed per PM, **parked working** in `KycNudgeBanner` and mounted on Profile so it
+    can't rot. Opens the sheet in place — parking it with its `<Link href="/intro">` intact would
+    have been a landmine that only fired on re-enable. Revert = uncomment 2 lines on Home.
+  - Profile dropped `useUserStore().kycStatus` (localStorage-seeded, `useLogout` never cleared it →
+    user A verifies, logs out, user B logs in on the same browser and is told they're verified).
+  - Deleted `src/app/(kyc)/**`, `VerifyIdentityRoute.tsx`, `(auth)/face-capture` (a redirect stub
+    with zero references). Added `redirects()` to `next.config.ts` so the retired URLs land on
+    `/agm` — verified 307 → `/agm` against the dev server.
+
+  `tsc` clean. ⚠️ **Not verified in a browser** — every `(main)` route redirects to login without a
+  session, so the whole behavioural checklist in the plan is still outstanding. Also asked backend
+  (§3 of `BACKEND_ASKS_2026-09-10.md`) to confirm vote/proxy/join reject non-`FULL_KYC`
+  server-side: this gate is a client overlay, and if the API accepts those calls the `/agm/live`
+  overlay should go back to being a hard block.
+
+- **2026-09-10 (34)** — **Home page reconciled against the Figma dashboard frame.** A layout-by-layout
+  audit against the frame found 20 differences; this is the agreed subset. Two were rejected as
+  fixes on purpose:
+  - **`+ Create Event`** — the frame has it, we don't, and we're not adding it. The frame's URL is
+    `/Dashboard` on the admin host; creating events is an organiser action, not a participant one.
+  - **The 5-item sidebar** — the frame folds General away; we keep 6, since dropping the item
+    would hide a working `/general` module.
+
+  **Changed — `NavShell.tsx`:**
+  - **Active nav pill is green** (`#e6f4ec` / `#0A3D2E`), was `bg-primary/10 text-primary`.
+    ⚠️ `--primary` is `hsl(222 39% 11%)` — a near-black **navy** — so the active item was rendering
+    grey-blue while the design's accent is the brand green (same green as the logo and the Browse
+    banner). Hardcoded **here only**, by decision: `--primary` also drives every button, focus
+    ring, badge, the quorum bar and the avatar chips, and none of those are green in the design.
+  - **User card shows the real photo**, with initials as the fallback and an `onError` flip back to
+    initials (a dead URL otherwise renders a torn image, since the initials sit in the other
+    branch). Required adding `avatarUrl` to the `Session` user type in `useSession.ts` — the hook
+    already fetches `/auth/me` and just wasn't passing the field through. Applied to the mobile
+    avatar chip too.
+  - Trailing icon `ChevronDown` → `ChevronsUpDown`.
+  - **Top bar on `/` now says "Home"**, was "Events". The old comment claimed the frame said
+    "Events" — that was an earlier revision, and it's corrected in place so it doesn't get flipped
+    back. Search placeholder → `Search for events`.
+  - **Content column 1152px → 960px** (`max-w-240`), in both the header's inner container and
+    `<main>`'s column — they must stay equal or the bar's title stops lining up with the page
+    heading. The frame measures ~768px; 960 is the agreed middle ground, since 768 strands most of
+    a widescreen.
+  - **Warm gradient** added: a diagonal wash on the header (neutral at the title, warming toward
+    the search/bell) plus a downward fade on `<main>`. On `<main>`, deliberately **not** on the
+    960px column inside it — there it would paint a visible banded rectangle with hard edges on a
+    wide monitor. All stops opaque, since the header is sticky.
+
+  **Changed — `(main)/page.tsx`:**
+  - **Card artwork was too tall — the biggest single difference.** The frame is ≈**2.6:1**; ours was
+    ≈1.8:1, which is what made the cards read chunky. `LiveCard` `h-[168px]`→`h-[116px]`,
+    `UpcomingCard` `h-[150px]`→`h-[108px]`, and `CarouselSkeleton` shrunk to match so the page
+    doesn't jump as the query resolves. ⚠️ `CardArtwork` uses `object-cover`, so a shorter box
+    crops wide organiser logos harder — worth an eye once there's real data.
+  - **New `CardCarousel.tsx`** replaces both bare `overflow-x-auto` rows. Windows Chrome paints an
+    always-visible scrollbar under those, which appears nowhere in the design. Uses the
+    **existing** `.no-scrollbar` utility (`globals.css:45`) plus dot pagination. Dots are per
+    **page** (`scrollWidth / clientWidth`), not per card — that's what gives three dots for a long
+    list, matching the frame. Clickable, labelled, and hidden when there's only one page. Two
+    details that matter: the ResizeObserver is keyed on the child **count**, not on `children`
+    (a fresh array each render would rebuild the observer continuously), and the page count is
+    rounded, since a sub-pixel `scrollWidth`/`clientWidth` difference otherwise reports a phantom
+    empty page.
+  - Discover chips: **Innovation `#f9b6ff` (bright pink) → `#fde9b0` (amber)** per the frame, and
+    each icon now takes a darker shade of its own chip instead of all three being navy-grey.
+  - Upcoming date drops the year — swapped `formatDate` for the **already-existing**
+    `formatShortDate` (`utils.ts:80`), which returns exactly the frame's "8 Aug".
+  - Browse All Events banner → **half the column** on desktop (`md:w-1/2`), full width on mobile
+    where half a phone can't hold the copy and button side by side. `ChevronRight` →
+    `ArrowRightCircle`.
+
+  **Left alone, with reasons:**
+  - **"2,000 watching"** on live cards — no viewer count on the list endpoint. `LiveRoom` derives
+    one (`LiveRoom.tsx:114`) but from the **quorum** endpoint: per event, gated on live *and*
+    registered. On Home that's one gated call per card, empty for anyone unregistered.
+  - **"120 Registered"** on upcoming cards — deferred. The backend's list schema declares
+    `rsvpCount` and our types don't have it, so we may not be reading a field we already get; but
+    that schema is known stale, so it needs one real response first. Logged in `BACKEND_ASKS`.
+  - **Discover tile copy** — the frame repeats one placeholder line three times; ours is real
+    per-module copy.
+  - **Inactive nav pills** — the frame *looks* like all items sit on light-grey pills over a white
+    sidebar (the inverse of ours). Low confidence, since those pills are near-white in the export,
+    and it would restyle all six items on a guess. Flagged, not built.
+  - **Logos instead of photos** in card artwork is missing flyer data, not layout.
+
+  `tsc` clean. ⚠️ **Not verified in a browser** — Home redirects to `/login` without a session. The
+  scrollbar removal in particular must be checked on **Windows** Chrome, where scrollbars are
+  always on; macOS auto-hides them and would mask the whole problem.
+
+- **2026-09-10 (35)** — **Five follow-ups on the Home page**, after review of (34):
+
+  1. **Content left-aligned** — dropped `mx-auto` from both the header's inner container and
+     `<main>`'s column (they must change together or the bar's title stops lining up with the page
+     heading). Centring a 960px column in the space beside the sidebar pushed everything toward
+     the middle of the screen and left a gap against the sidebar; the frame starts content right
+     after it.
+  2. **Carousels slide on their own** — `CardCarousel` gained `autoPlayMs` (default 5s, `0`
+     disables). Advances a page at a time and wraps. Held back in four cases: one page,
+     `prefers-reduced-motion`, pointer/focus over the row, and permanently once the user takes
+     over (scroll, touch, or a dot) — resuming would drag the row off the card they'd just
+     chosen. The interval reads the live page from `scrollLeft` rather than closing over `page`,
+     so it isn't torn down and rebuilt on every advance. Two traps worth remembering: the
+     takeover signal must be pointer/wheel/touch and **not** `onScroll`, which autoplay's own
+     smooth scroll fires and would use to switch itself off after one slide; and the wheel check
+     compares `deltaX` to `deltaY`, because wheel events bubble from whatever is under the cursor
+     — without that, scrolling the page past a carousel killed its sliding for the session.
+  3. **CTA card gradient** — two concentric arcs of lighter green sweeping in from the right, as
+     one `radial-gradient` with hard stops. Deliberately not a smooth fade: the banded edge *is*
+     the effect, and a soft one reads as a smudge. White at low alpha rather than fixed greens, so
+     it tracks the base colour if the brand green is ever retuned.
+  4. **RSVP count now shows when present** (reverses the deferral in (34), on request). Added
+     `rsvpCount?: number | null` to `EventListItem` — the detail response calls it
+     `registeredCount`, the list response `rsvpCount`. `UpcomingCard` renders the second meta item
+     only on `!= null`, **not** on truthiness: a real 0 is worth showing, and an absent field must
+     render nothing rather than "0 Registered". Label is "Applied" for Innovation, "Registered"
+     otherwise, per the frame. The API client passes list JSON straight through with no
+     whitelisting, so this is self-verifying — if the backend sends the field it appears, and if
+     it doesn't the card looks exactly as it did. Still worth confirming on a real response;
+     the backend ask stays open.
+  5. **Profile icon replaces the initials** in the sidebar user card and the mobile chip (was
+     "EC"). Photo first, person icon as the fallback. `initialsFor` is no longer imported here.
+
+  `tsc` clean. Still unverified in a browser — Home redirects to `/login` without a session.
+  Autoplay and the hidden scrollbar both need a real look on Windows Chrome.
+
+- **2026-09-10 (36)** — **HeroCard poster as the Home card fallback, 2s Live-now slide, gradient
+  geometry fixed.**
+
+  1. **No logo → HeroCard poster.** A Home card for an event with no flyer *and* no organiser logo
+     used to render a tinted box with a small module glyph in it — a grey square with a building
+     icon sitting beside neighbours carrying real photography. It now falls through to the stock
+     poster for its module. The chain is flyer → banner → `branding.logoUrl` → `organizerLogo` →
+     **poster** → icon (the icon is now effectively unreachable, kept only so a missing/renamed
+     asset degrades to a glyph rather than a torn image).
+     - The poster map moved out of `EventBanner.tsx` into **`src/lib/posters.ts`** so both surfaces
+       resolve the same "nothing uploaded" case identically. `posterForEventType()` is there for
+       callers holding a raw `eventType` rather than a resolved module.
+     - **Deliberately NOT applied to `EventThumb`** (the 60x60 list rows and the hackathon tiles).
+       A 1180x436 poster cropped to a 60px square is an unreadable smear of one corner; the module
+       icon is the better answer at that size.
+  2. **Live now slides every 2s** (`autoPlayMs={2000}`). Upcoming keeps the 5s default — those
+     cards carry more to read. Both still pause on hover/focus and stop for good once the user
+     scrolls or picks a dot.
+  3. **CTA gradient geometry corrected.** The first attempt used `115% 190%`, and a vertical radius
+     that large makes an almost-vertical edge — the arc that's meant to bulge left barely curved,
+     and two stacked stops added a second band the design doesn't have. Now a single crisp arc:
+     `radial-gradient(ellipse 46% 58% at 90% 50%, …)`. The `58%` is the load-bearing number — only
+     just over the 50% half-height, which is what bends the boundary hard while still letting the
+     wedge reach the top and bottom edges (so it has no visible cap inside the card). The arc
+     crosses mid-height at 44% of the width and sweeps out to ~67% at the edges. Hard stop, not a
+     fade: the crisp boundary is the effect.
+
+  ⚠️ **Performance note now that the posters are on Home.** Both are **~800KB PNGs at 1180x436**
+  (`hero-card-auditorium.png` 868K, `hero-card-workshop.png` 765K) — the wrong format for
+  photographs, flagged before but previously only loaded on a detail page. They now load on the
+  dashboard for any event lacking artwork. It's one download per poster, not per card (same URL,
+  so the browser caches it), but ~800KB for a 300x116 thumbnail is still heavy on mobile data.
+  Re-encoding to WebP at ~1200px wide should cut them by roughly 10x. Not done here — converting
+  binary assets is its own change.
+
+  `tsc` clean; both posters verified serving 200 from the dev server. Still unverified in a
+  browser (Home redirects to `/login` without a session).
+
+- **2026-09-10 (37)** — **Home touch-ups + a real carousel bug.**
+
+  🐛 **`CardCarousel` reported 1 page for rows that actually scrolled**, which hid the dots *and*
+  disabled autoplay — the Live now row looked like it had no carousel at all. Cause was mine:
+  `pageCountOf` used `Math.round(scrollWidth / clientWidth)`. Four 300px cards in a ~900px row is
+  **1.41** screenfuls, and `round(1.41)` is **1**. Now `Math.ceil`, keeping a 2px slack (which is
+  what `round` was there for — a sub-pixel scrollWidth/clientWidth difference is normal at some
+  zoom levels, and bare `ceil` would invent an empty second page for a row that fits exactly).
+
+  Two related fixes fell out of it. The active dot and the scroll target now both work off the
+  **real scrollable range** (`scrollWidth - clientWidth`) rather than in viewport-width steps:
+  with 1.41 screenfuls there is only 0.41 of a viewport left to scroll, so `scrollLeft /
+  clientWidth` could never reach 1 and the last dot never lit up, nor could clicking it reach the
+  end. Extracted as `pageCountOf` / `pageFromScroll` / `scrollLeftForPage` so the three callers
+  (measure, onScroll, the autoplay interval) can't drift apart again.
+
+  Also:
+  - **Cards larger**, ratio held at ~2.6:1 — Live `w-[300px]/h-[116px]` → `w-[340px]/h-[130px]`,
+    Upcoming `w-[280px]/h-[108px]` → `w-[320px]/h-[122px]`, skeleton to `w-[320px]/h-[186px]`
+    (artwork 122 + the 64px text block) so the page doesn't jump on load.
+  - **Upcoming also slides at 2s**, matching Live now.
+  - **Search + bell moved to the window's right edge.** The header's inner container was capped at
+    the content column's 960px, so `justify-between` parked them at that column's right edge with
+    empty space beyond. The cap is gone; the title keeps `md:px-8` so it still lines up with the
+    page heading below, but the bar now spans the full width.
+
+  **Reviewed a proposed `CTABanner` snippet** (linear `#06231A`→`#1F5C3F` base + a 500px soft
+  radial glow). Not adopted — it produces two smooth effects where the design has one crisp arc,
+  and its fixed-size glow lands near the card's horizontal middle and fades out before the right
+  edge. Assessment given in chat. Worth taking from it if revisited: `rounded-2xl` (the reference
+  corners look nearer 16px than our 12px) and `whitespace-nowrap` on the Explore button.
+
+  `tsc` clean. Still unverified in a browser.
+
+- **2026-09-10 (38)** — **KYC nudge removed from Settings/Profile too**, on request — the amber
+  "Complete identity verification to unlock voting" row. Verification is demanded at the point of
+  opening an AGM now, so no screen nudges for it.
+
+  `KycNudgeBanner` is kept and still works; the mount is commented out with a restore breadcrumb,
+  matching Home. Profile also no longer reads any KYC state at all (the `useUserStore().kycStatus`
+  read went with the nudge in (34) — noted in the file so the localStorage-seeded value isn't
+  reintroduced if the nudge returns).
+
+  ⚠️ **`KycNudgeBanner` now has no live consumer anywhere.** Mounting it on Profile was
+  specifically what kept it from rotting — the whole point of (34) §5 — so that safety net is
+  gone: nothing will catch it breaking, and a future revert should verify it renders rather than
+  assume. Warning left at both commented-out mounts, and Home's comment (which claimed Profile
+  still mounted it) corrected.
+
+  `tsc` clean.
+
+- **2026-09-11 (39)** — **Small follow-ups, both offered earlier.**
+  - **Revoke-proxy error message corrected** in `PreVoteSheet.tsx` and `agm/proxy-history`. The
+    fallback read *"Proxy revocation endpoint (DELETE …) is currently unavailable on the server"*
+    — true when written (2026-07-22), false since the backend built it (confirmed in the API spec
+    2026-09-10). It fired on any generic failure, so it blamed a missing endpoint for problems
+    that weren't that and would send whoever read it debugging the wrong thing. Now a plain
+    "We couldn't revoke your proxy just now. Please try again." The server's own message still
+    wins whenever it says something specific.
+  - **CTA banner**: `rounded-xl` → `rounded-2xl` (the reference corners read nearer 16px), and
+    `whitespace-nowrap` on the Explore pill so it can't wrap on a narrow card. The two parts
+    worth keeping from the proposed `CTABanner` snippet reviewed in (37).
+  - **Stale header comment on `(main)/page.tsx` fixed** — it still said the attendee counts
+    weren't shown, which stopped being true when `rsvpCount` was wired in (35).

@@ -2,6 +2,7 @@
 import { Suspense, use, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Clock, MapPin, Users, Bookmark, Share2,
   QrCode, CheckCircle2, Check, Monitor, Wifi, Vote, FileText,
@@ -24,7 +25,11 @@ import { VenueMap } from "@/components/attend/VenueMap";
 import { QrCheckinSheet } from "@/components/attend/QrCheckinSheet";
 import { Menu, MenuItem } from "@/components/ui/Menu";
 import { VerifyIdentitySheet } from "@/components/attend/VerifyIdentitySheet";
-import { useGetKycStatus } from "@/api/kyc/hooks";
+import { EventBanner } from "@/components/attend/EventBanner";
+import { useGoBack } from "@/hooks/useGoBack";
+import { useSession } from "@/hooks/useSession";
+import { useGetKycStatus, kycKeys } from "@/api/kyc/hooks";
+import { isKycActionable, isKycDeclined, isKycFull, isKycUnderReview } from "@/lib/kyc-gate";
 import { VoteButtons, type VoteChoice } from "@/components/attend/VoteButtons";
 import { AgendaPanel, PanelCard } from "@/components/attend/AgendaPanel";
 import type { AgendaItemDetail, Resolution, SpeakerItem } from "@/types";
@@ -133,9 +138,17 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
 
   const mod = event ? moduleOf(event.eventType) : "GENERAL";
 
-  // Figma dev note on the LIVE frame: an unverified user landing on an AGM that is already
-  // in session gets the verification modal straight away, rather than having to find the
-  // banner first. Dismissing it must not immediately re-open it, hence verifyDismissed.
+  // Real history-back, so it returns wherever the user actually came from — Home, a search
+  // result, or the module list. The fallback only applies when there's no history to go back to
+  // (a shared or pasted link opened in a fresh tab), where `router.back()` alone does nothing;
+  // it's module-aware because the four modules are each reached from a different list.
+  const goBack = useGoBack(
+    mod === "AGM" ? "/agm" : mod === "HACKATHON" ? "/hackathon" : mod === "LAUNCH" ? "/events" : "/general",
+  );
+
+  // Opening an AGM is the demand point for verification. The `/agm` segment used to carry a
+  // full-page wall, so an unverified user never got this far; now the list is browsable and
+  // this page is where the modal appears.
   //
   // The decision reads the KYC query rather than the store's `kycStatus`, which starts at
   // "none" from localStorage until NavShell syncs it — acting on that would flash the modal
@@ -143,8 +156,13 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
   // a real answer. It deliberately only ever opens: once open, completing verification
   // must not yank the panel away before the user has seen the confirmation stage.
   const agmInSession = mod === "AGM" && event?.status === "LIVE";
-  const { data: kycResp } = useGetKycStatus(mod === "AGM");
-  const kycFull = kycResp?.data?.kycStatus === "FULL_KYC";
+  // `SHAREHOLDER`, not merely signed-in: a refresh-token-only load reports ANONYMOUS, and
+  // firing the query then 401s with `retry: false`, leaving it permanently errored with no data.
+  const session = useSession();
+  const queryClient = useQueryClient();
+  const { data: kycResp } = useGetKycStatus(mod === "AGM" && session.type === "SHAREHOLDER");
+  const kyc = kycResp?.data;
+  const kycFull = isKycFull(kyc);
 
   // No unverified user gets into an AGM — not the live room, not an RSVP. Every path into
   // the meeting runs through requireKyc() below, and /agm/* keeps its own layout gate as the
@@ -175,8 +193,19 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
   function runPendingKycAction() {
     const action = pendingKycAction.current;
     pendingKycAction.current = null;
-    // The live-AGM auto-open has no pending action — it prompts rather than gating a click.
-    action?.();
+    // The auto-open has no pending action — it prompts rather than gating a click.
+    if (!action) return;
+
+    // Re-read the status from the cache rather than trusting `kycFull` from this render.
+    //
+    // Completing the flow does NOT guarantee FULL_KYC — it can land in the officer review
+    // queue. Replaying the action then pushes a user who still can't vote into /agm/live,
+    // where the route gate immediately stops them: a pointless round trip that reads as a
+    // bug. The cache is authoritative here because useKycStep3 awaits its own invalidation.
+    const fresh = queryClient.getQueryData<typeof kycResp>(kycKeys.status);
+    if (!isKycFull(fresh?.data)) return;
+
+    action();
   }
 
   // NIN stands where BVN stands for an AGM, but for the other two attendee-facing modules.
@@ -185,10 +214,42 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
   const needsNin = mod === "HACKATHON" || mod === "LAUNCH";
   const ninContext = mod === "HACKATHON" ? "this challenge" : "this product launch";
 
-  const agmLiveUnverified = agmInSession && !!kycResp && !kycFull;
+  // Any AGM, not only one already in session. Removing the /agm wall made this the demand
+  // point, so it can no longer wait for the meeting to start.
+  //
+  // Three guards, each load-bearing:
+  //   • `!!kycResp`     — never prompt on an unresolved status (that flashes the modal at
+  //                       verified users). Note this fails OPEN, unlike `agmNeedsKyc` above.
+  //   • `isKycActionable` — don't prompt someone whose KYC is already submitted-and-waiting or
+  //                       declined: the form cannot move them, so prompting is an infinite loop
+  //                       (prompt → complete → still not FULL_KYC → prompt). They reach the
+  //                       same sheet's notice stage by choice, from the banner below.
+  //   • `!qrOpen`       — ?qr=1 arrives with QrCheckinSheet already open, and two stacked
+  //                       dialogs share one Escape handler and fight over the body scroll lock.
+  const agmUnverified =
+    mod === "AGM" && !!kycResp && !kycFull && isKycActionable(kyc) && !qrOpen;
+
+  // Set only by the effect below, so a bounce can be limited to a prompt the user did not ask
+  // for. Someone who opens the sheet themselves from the banner and then closes it stays put.
+  const openedByGate = useRef(false);
+
   useEffect(() => {
-    if (agmLiveUnverified && !verifyDismissed) setVerifyOpen(true);
-  }, [agmLiveUnverified, verifyDismissed]);
+    if (agmUnverified && !verifyDismissed) {
+      openedByGate.current = true;
+      setVerifyOpen(true);
+    }
+  }, [agmUnverified, verifyDismissed]);
+
+  // Reset everything KYC-modal-related when the route's event id changes. A dynamic-param
+  // navigation (/events/a → /events/b) can reconcile this same component instance rather than
+  // remounting it, which would leave AGM B unprompted — and worse, `pendingKycAction` holds a
+  // closure that captured A's id, so replaying it would push the WRONG event.
+  useEffect(() => {
+    pendingKycAction.current = null;
+    openedByGate.current = false;
+    setVerifyOpen(false);
+    setVerifyDismissed(false);
+  }, [id]);
 
   const { data: pressKitResp } = useGetPressKit(id, undefined, mod === "LAUNCH");
   const pressKit = pressKitResp?.data;
@@ -306,7 +367,9 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
     return (
       <div className="flex h-[50vh] flex-col items-center justify-center gap-4 text-center">
         <p className="text-sm text-foreground/60">Could not load event details.</p>
-        <Button variant="outline" size="sm" onClick={() => router.back()}>Go back</Button>
+        {/* goBack, not router.back() — this state is exactly where a pasted or stale link lands,
+            i.e. the case with no history, where a bare back() leaves the user stuck here. */}
+        <Button variant="outline" size="sm" onClick={goBack}>Go back</Button>
       </div>
     );
   }
@@ -382,16 +445,15 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
           : undefined
       }
     >
-      {/* Launches/General frames have no in-page back control — the shell's "About event" bar
-          is the context. The other modules keep it, since they're reached from deeper flows. */}
-      {!isSimpleLayout && (
-        <button
-          onClick={() => router.back()}
-          className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> Back
-        </button>
-      )}
+      {/* On every module, including Launches/General. Those two were briefly gated out because
+          their frame shows no in-page back control, but the app-bar title is context, not
+          navigation — it left those pages with no way back at all. */}
+      <button
+        onClick={goBack}
+        className="inline-flex w-fit items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" /> Back
+      </button>
 
       {/* Figma's AGM detail is two-column on desktop: the event itself on the left and a
           persistent Agenda / Q&A / Resolution panel on the right. Only AGMs get the panel
@@ -411,25 +473,22 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
       >
         <div className="flex min-w-0 flex-col gap-6">
 
-      {/* Hero — Figma's detail hero is a *plain* banner: no title, chips, badges or
-          controls sit inside it. Those all live below it on the page background. The
-          brand colour + organiser watermark stands in for the promo image the backend
-          doesn't serve. Live turns it into a video preview with a play control. */}
-      <header
-        className={cn(
-          "relative overflow-hidden",
-          // Inset inside the card on Launches/General, so a slightly tighter radius reads right.
-          isSimpleLayout ? "rounded-xl" : "rounded-2xl",
-          // The taller frame is for the live video preview (it holds a play control). An ENDED
-          // event has no player, so it keeps the frame's short, wide banner rather than the
-          // slab the ended-state was rendering.
-          isLive ? "aspect-[649/301]" : "aspect-[649/193]",
-        )}
-        style={{ background: color }}
-      >
-        {joinedLive && streamUrl ? (
-          // Same embed LiveRoom uses. `credentialless` keeps this cross-origin iframe
-          // loading if the page is ever cross-origin isolated (see next.config headers).
+      {/* Hero — Figma's detail hero is a *plain* banner: no title, chips, badges or controls sit
+          inside it. Those all live below it on the page background. Artwork resolution is the
+          three-tier chain in EventBanner (flyer → company logo on its own colour → module
+          poster), which replaced a solid brand-colour field with the organiser's initials
+          watermarked over it. Live turns it into a video preview with a play control. */}
+      {joinedLive && streamUrl ? (
+        <header
+          className={cn(
+            "relative overflow-hidden",
+            isSimpleLayout ? "rounded-xl" : "rounded-2xl",
+            isLive ? "aspect-[649/301]" : "aspect-[649/193]",
+          )}
+          style={{ background: color }}
+        >
+          {/* Same embed LiveRoom uses. `credentialless` keeps this cross-origin iframe
+              loading if the page is ever cross-origin isolated (see next.config headers). */}
           <iframe
             {...({ credentialless: "" } as any)}
             src={toEmbedUrl(streamUrl)}
@@ -438,27 +497,22 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
             allow="autoplay; fullscreen; picture-in-picture"
             allowFullScreen
           />
-        ) : (
+        </header>
+      ) : (
+        <EventBanner
+          flyerUrl={heroArt}
+          logoUrl={event.branding?.logoUrl || event.organizerLogo}
+          module={mod}
+          seed={organiser || event.title}
+          className={cn(
+            // Inset inside the card on Launches/General, so a slightly tighter radius reads right.
+            isSimpleLayout ? "rounded-xl" : "rounded-2xl",
+            // The taller frame is for the live video preview (it holds a play control). An ENDED
+            // event has no player, so it keeps the frame's short, wide banner.
+            isLive ? "aspect-[649/301]" : "aspect-[649/193]",
+          )}
+        >
           <>
-            {/* The event's own artwork fills the hero when there is any — the frames show a
-                real image here, not a colour field. The brand colour stays as the backdrop
-                behind it, so an event with no flyer still reads as branded rather than blank,
-                and a broken image URL falls back to that instead of an empty frame. */}
-            {heroArt ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={heroArt}
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                }}
-              />
-            ) : (
-              <div className="absolute -bottom-10 -right-8 select-none text-[160px] font-black leading-none text-white/10">
-                {initialsFor(organiser)}
-              </div>
-            )}
             {isLive && (
               <span className="absolute left-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
                 <span className="h-1.5 w-1.5 rounded-full bg-white" /> Live
@@ -477,8 +531,8 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
               </button>
             )}
           </>
-        )}
-      </header>
+        </EventBanner>
+      )}
 
       {/* Title block — the frame runs the title flush with the hero's left edge (no
           organiser tile), then the meta line that replaces the old bordered
@@ -635,24 +689,42 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
           )}
 
           <h2 className="text-base font-medium tracking-[-0.32px] text-foreground">AGM Actions</h2>
-          {!kycFull ? (
+
+          {/* Still reachable despite the arrival prompt: a user under officer review or declined
+              is never auto-prompted, the KYC query can error, and someone who opened the sheet
+              themselves and closed it stays on this page. So the copy has to distinguish "you
+              haven't started" from "we're reviewing you" and "you were declined" — telling a
+              declined user to "Verify" sends them to re-run a form that cannot help them. */}
+          {!kycFull && (
             <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5">
               <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
               <div className="flex-1">
-                <p className="text-sm text-amber-800">Identity verification required to access AGM actions</p>
+                <p className="text-sm text-amber-800">
+                  {isKycDeclined(kyc)
+                    ? "Your identity verification was declined — AGM actions are unavailable"
+                    : isKycUnderReview(kyc)
+                      ? "Your identity verification is under review — AGM actions unlock once it's approved"
+                      : "Identity verification required to access AGM actions"}
+                </p>
               </div>
               <button
                 type="button"
                 onClick={() => setVerifyOpen(true)}
                 className="shrink-0 text-xs font-semibold text-amber-600 hover:underline"
               >
-                Verify
+                {isKycDeclined(kyc) ? "Try again" : isKycUnderReview(kyc) ? "View status" : "Verify"}
               </button>
             </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          )}
+
+          {/* The grid renders either way. It used to be replaced wholesale by the banner above,
+              which also took away the "More" menu — and with it My receipts, Minutes and QR
+              check-in. Those are read-only records, and their own routes (/agm/receipt,
+              /agm/minutes) are ungated, so hiding them here made this page stricter than the
+              routes it links to. Only the two privileged tiles are withheld. */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {/* Neither of these two survives the meeting ending. */}
-              {event.agmProxyEnabled && !isEnded && (
+              {kycFull && event.agmProxyEnabled && !isEnded && (
                 <button type="button" onClick={() => setProxyOpen(true)} className="text-left">
                   <ActionTile
                     icon={<FileText className="h-5 w-5" style={{ color }} />}
@@ -662,7 +734,7 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
               )}
               {/* Pre-voting closes once the meeting is live — live votes are cast in the
                   meeting room's ballot instead. */}
-              {!isLive && !isEnded && (
+              {kycFull && !isLive && !isEnded && (
                 <button type="button" onClick={() => setPreVoteOpen(true)} className="text-left">
                   <ActionTile icon={<Vote className="h-5 w-5" style={{ color }} />} label="Pre-AGM Voting" />
                 </button>
@@ -716,8 +788,7 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
                   </>
                 )}
               </Menu>
-            </div>
-          )}
+          </div>
         </section>
       )}
 
@@ -1069,14 +1140,32 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
         <VerifyIdentitySheet
           open
           live={isLive}
+          // Closing after a SUCCESSFUL verification. Must not bounce, must not mark dismissed —
+          // this is the user who just did what was asked, and they belong on this page.
           onClose={() => {
-            // Dismissed without verifying — drop whatever they were trying to do, so it can't
-            // fire later against a still-unverified account.
+            openedByGate.current = false;
+            setVerifyOpen(false);
+          }}
+          onDismiss={() => {
+            // Declined. Drop whatever they were trying to do, so it can't fire later against a
+            // still-unverified account.
             pendingKycAction.current = null;
             setVerifyOpen(false);
             setVerifyDismissed(true);
+
+            // Bounce only if the modal was pushed at them on arrival. If they opened it
+            // themselves from the banner, closing it leaves them where they were — otherwise
+            // the banner would be a trapdoor.
+            //
+            // `replace`, never `push`: with `push`, Back returns here, the effect re-opens the
+            // modal, and the user is stuck in a loop with no way out but the tab bar.
+            if (openedByGate.current) {
+              openedByGate.current = false;
+              router.replace("/agm");
+            }
           }}
           onVerified={runPendingKycAction}
+          dismissLabel={openedByGate.current ? "Back to AGMs" : "Close"}
         />
       )}
       {ninOpen && (

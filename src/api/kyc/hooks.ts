@@ -54,9 +54,11 @@ export const useKycStep3 = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: KycStep3Request) => kycClient.step3(data),
-    onSuccess: () => {
-      // Final step ΓÇö refresh KYC status everywhere (nav badge, gates).
-      queryClient.invalidateQueries({ queryKey: kycKeys.status });
-    },
+    // Returned, not fired and forgotten, for the same reason as step1 above: the caller's
+    // onSuccess advances the sheet to its terminal stage, and that stage now reports whether
+    // the user came out FULL_KYC or landed in the officer review queue. Without awaiting the
+    // refetch it reads the pre-submit snapshot and tells a PENDING_REVIEW user they're
+    // confirmed — which is exactly the lie the gate then contradicts by blocking them.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: kycKeys.status }),
   });
 };

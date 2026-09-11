@@ -61,10 +61,15 @@ export function PreVoteSheet({
       },
       onError: (err: any) => {
         const msg = err?.response?.data?.message;
+        // The fallback used to say the revoke endpoint was "unavailable on the server". That
+        // was true when it was written (2026-07-22), but the backend has since built it —
+        // confirmed in the API spec on 2026-09-10 — so the old wording blamed a missing
+        // endpoint for any generic failure and would send whoever read it debugging the wrong
+        // thing. The server's own message still wins whenever it says something specific.
         setErrorMsg(
           msg && !msg.includes("Something went wrong")
             ? msg
-            : "Proxy revocation endpoint (DELETE /api/v1/participant/events/{eventId}/proxy) is currently unavailable on the server."
+            : "We couldn't revoke your proxy just now. Please try again."
         );
       },
     });
