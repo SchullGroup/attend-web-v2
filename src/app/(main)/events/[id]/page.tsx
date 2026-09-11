@@ -32,6 +32,7 @@ import { useGetKycStatus, kycKeys } from "@/api/kyc/hooks";
 import { isKycActionable, isKycDeclined, isKycFull, isKycUnderReview } from "@/lib/kyc-gate";
 import { VoteButtons, type VoteChoice } from "@/components/attend/VoteButtons";
 import { AgendaPanel, PanelCard } from "@/components/attend/AgendaPanel";
+import { PINNED_MAIN, PINNED_PANEL, PINNED_PANEL_VARS } from "@/lib/pinned-panel";
 import type { AgendaItemDetail, Resolution, SpeakerItem } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -462,7 +463,6 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
       <div
         className={cn(
           "flex flex-col gap-6",
-          mod === "AGM" && "lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-8",
           // Launches/General: content sits directly on the white page in a narrow left column
           // with a vertical rule down its right edge — NOT a bordered, shadowed card. An
           // earlier pass carded this wrapper, which made the whole page read as one floating
@@ -470,8 +470,9 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
           isSimpleLayout &&
             "lg:max-w-[640px] lg:border-r lg:border-foreground/8 lg:pr-8",
         )}
+        style={mod === "AGM" ? PINNED_PANEL_VARS : undefined}
       >
-        <div className="flex min-w-0 flex-col gap-6">
+        <div className={cn("flex min-w-0 flex-col gap-6", mod === "AGM" && PINNED_MAIN)}>
 
       {/* Hero — Figma's detail hero is a *plain* banner: no title, chips, badges or controls sit
           inside it. Those all live below it on the page background. Artwork resolution is the
@@ -1005,10 +1006,10 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
         )}
 
       {/* Primary CTA — Figma sits it at the end of the content column, full width of that
-          column. (It used to be a viewport-wide fixed bar pinned over the whole app.) It is
-          a grid sibling rather than a child of the column so that it stays under the content
-          on desktop but falls below the side panel on mobile, as the mobile frame shows. */}
-      <div className="pt-1 lg:col-start-1">
+          column. (It used to be a viewport-wide fixed bar pinned over the whole app.) A sibling
+          of the column, not a child, so it falls below the side panel on mobile as the mobile
+          frame shows; on desktop the AGM panel is pinned out of flow, so it follows the content. */}
+      <div className={cn("pt-1", mod === "AGM" && PINNED_MAIN)}>
         {isLive && hasRsvped ? (
           missingStreamLink ? (
             <Button className="w-full gap-2" variant="outline" disabled>
@@ -1285,9 +1286,8 @@ function AgmSidePanel({
   ];
 
   return (
-    // The frame separates the panel from the content with a rule running the full
-    // height of the row, so the aside stretches rather than hugging its content.
-    <aside className="flex flex-col gap-3 lg:border-l lg:border-foreground/10 lg:pl-8">
+    // Pinned to the window's right edge at xl (see lib/pinned-panel); stacks under the content below.
+    <aside className={cn("flex flex-col gap-3", PINNED_PANEL)}>
       <div className="flex gap-1 border-b border-foreground/10">
         {TABS.map((t) => (
           <button
