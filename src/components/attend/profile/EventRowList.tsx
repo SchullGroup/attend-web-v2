@@ -48,8 +48,11 @@ export function EventRowList({
     <ul className="flex flex-col gap-2">
       {events.map((e) => {
         const organiser = e.registerName || e.organizerName || "";
-        // This list tints by brand/module colour rather than the pastel tile tint, because the
-        // fallback here is white initials rather than a grey icon.
+        // The tile follows Figma's Settings frames: the company logo shrunk to fit on a white
+        // tile (`fit="contain"`), unlike Home and the module lists where artwork fills the tile.
+        //
+        // `tint` only shows when there's no image at all — it's the background for the white
+        // initials fallback, so it uses the brand/module colour rather than the pastel tint.
         const tint =
           e.branding?.brandColor ||
           e.brandPrimary ||
@@ -65,6 +68,7 @@ export function EventRowList({
               <EventThumb
                 event={e}
                 tint={tint}
+                fit="contain"
                 className="h-11 w-11 rounded-[10px] text-xs font-bold text-white"
                 fallback={initialsFor(organiser)}
               />

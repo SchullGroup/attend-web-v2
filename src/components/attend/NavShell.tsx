@@ -299,12 +299,12 @@ export function NavShell({ children }: { children: React.ReactNode }) {
       {/* Top header */}
       {/* The background MUST be opaque — this bar is sticky, so a translucent fill
           (it was bg-black/2) let page content scroll visibly through it. #fafafa is the
-          opaque equivalent of that 2% tint over white for mobile.
+          opaque equivalent of that 2% tint over white for mobile, and #f1f1f1 over the
+          desktop's #f6f6f6.
 
-          On desktop the flat #f1f1f1 is replaced by the frame's warm wash: neutral on the
-          left where the section title sits, warming towards the top-right behind the search
-          and bell. Every stop is a solid colour, for the opacity reason above. */}
-      <header className="sticky top-0 z-20 border-b border-foreground/10 bg-[#fafafa] md:bg-[linear-gradient(100deg,#f1f1f1_0%,#f1f1f1_40%,#f6efe9_72%,#f9ece4_100%)] md:pl-[259px]">
+          A warm peach wash sat here (and faded down the top of <main>) from 2026-09-10 until
+          the user asked for "the brown gradient" to be removed on 2026-09-11. Flat again. */}
+      <header className="sticky top-0 z-20 border-b border-foreground/10 bg-[#fafafa] md:bg-[#f1f1f1] md:pl-[259px]">
         {isGuest && (
           <div className="flex select-none items-center justify-center gap-1.5 border-b border-slate-800 bg-slate-900 px-4 py-1.5 text-center text-xs font-semibold text-white">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
@@ -384,10 +384,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* Main content */}
-      {/* The gradient sits on <main>, not on the column inside it, so the warm wash runs the
-          full width under the header and fades out downwards. On the inner column it would
-          paint a visible 960px-wide band with hard edges on a wide monitor. */}
-      <main className="bg-[linear-gradient(180deg,#f7f1ec_0%,rgba(247,241,236,0)_220px)] md:pl-[259px]">
+      <main className="md:pl-[259px]">
         {/* 960px is a middle ground, chosen 2026-09-10. The frame's content column measures
             ~768px, which is why it shows ~2.5 cards per carousel row where we showed ~3.5 — but a
             768px column strands most of a widescreen. Must stay equal to the header's inner
