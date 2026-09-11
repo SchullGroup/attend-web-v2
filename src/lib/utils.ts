@@ -47,6 +47,16 @@ export function fileDisplayName(
   return fallback;
 }
 
+// A full http(s) address with a real domain — "youtube.com/…" without a scheme doesn't count.
+export function isHttpUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw.trim());
+    return (u.protocol === "https:" || u.protocol === "http:") && u.hostname.includes(".");
+  } catch {
+    return false;
+  }
+}
+
 // Admins paste whatever stream link they have (often a YouTube/Vimeo *watch*
 // URL). Watch URLs can't be iframed, so convert known providers to their embed
 // form; anything else is returned unchanged (assumed already embeddable).

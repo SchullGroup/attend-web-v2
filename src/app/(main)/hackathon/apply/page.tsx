@@ -12,7 +12,7 @@ import { useApplicationConfig, useSubmitApplication, useGetMyApplications } from
 import { useGetChallenge } from "@/api/hackathon/hooks";
 import { useGetMe } from "@/api/auth/hooks";
 import { InnovationApplicationRequest } from "@/types/innovation";
-import { cn } from "@/lib/utils";
+import { cn, isHttpUrl } from "@/lib/utils";
 import { useGoBack } from "@/hooks/useGoBack";
 
 // Laid out to Figma's apply flow: the shared right-anchored `Dialog` sheet (side="right"
@@ -134,7 +134,7 @@ function ApplyPageInner() {
     (!show.sourceCode || sourceCodeUrl.trim().length > 0) &&
     (!show.liveDemo || liveDemoUrl.trim().length > 0) &&
     (!show.pitchVideo || pitchVideoUrl.trim().length > 0) &&
-    (!show.demoVideo || demoVideoUrl.trim().length > 0) &&
+    (!show.demoVideo || isHttpUrl(demoVideoUrl)) &&
     (!show.pitchDeck || !!pitchDeckFile) &&
     (!show.additionalDocs || !!additionalDocsFile);
 
@@ -387,11 +387,17 @@ function ApplyPageInner() {
                   {show.demoVideo && (
                     <Input
                       name="demoVideoUrl"
+                      type="url"
                       label="Demo video URL"
                       leftIcon={<Video className="h-4 w-4" />}
                       placeholder="https://youtube.com/watch?v=..."
                       value={demoVideoUrl}
                       onChange={(e) => setDemoVideoUrl(e.target.value)}
+                      error={
+                        demoVideoUrl.trim() && !isHttpUrl(demoVideoUrl)
+                          ? "Enter a valid link starting with https://"
+                          : undefined
+                      }
                     />
                   )}
                   {show.pitchDeck && (
