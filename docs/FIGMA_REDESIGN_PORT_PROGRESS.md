@@ -1913,3 +1913,26 @@ Do NOT commit unless the user says so. Do NOT add Claude as a git co-author.
 
   `tsc` clean in `src/` (only the stale `.next/types` errors). **Not verified in a browser** — both
   routes need a signed-in session; check 1280 / 1440 / 1920 on Windows Chrome.
+
+- **2026-09-11 (44)** — **Innovation challenge page (`hackathon/[id]`): 60/40 layout, Back, real flyer.**
+  - ⚠️ **The flyer never showed — always the whiteboard poster.** The banner was fed
+    `challenge.bannerUrl`, and `bannerUrl` doesn't exist on the backend (their 2026-09-11 note; the
+    live `/v3/api-docs` has it on no schema). The challenge response
+    (`ParticipantChallengeDetailResponse`) has **no image field at all** — `flyerUrl` is only on
+    `ParticipantEventDetailResponse`. So the page now **always** fetches the event detail (same id;
+    it was already the fallback when the challenge call fails) and feeds its `flyerUrl` to
+    `EventBanner`. Logo and poster remain the fallbacks. The loading gate is unchanged — it still
+    only waits on the event call when the challenge call failed.
+    ⚠️ The backend note calls `flyerUrl` "Product-Launch-only (null elsewhere)". If a challenge that
+    has a flyer still shows the poster, the backend isn't returning it on the event detail for
+    challenges — a backend fix, not ours.
+  - **Back button added** at the top. `useGoBack("/hackathon")` was already wired, but only the
+    load-error state rendered a button.
+  - **Resources panel uses the AGM pages' pinned 60/40 layout** (`lib/pinned-panel.ts`): from 1280px
+    it's fixed to the window's right edge, full height, own scroll. Still opened and closed by the
+    "Challenge Resources" row and its ×. The brief is held at the 60% width whether or not the panel
+    is open, so opening it never reflows the page (it was a 672px column that switched to a grid
+    with a 360px panel on open). Below 1280 the panel stacks under the content.
+
+  `tsc` clean in `src/` (only the stale `.next/types` errors). **Not verified in a browser** — needs a
+  signed-in session, and a challenge whose event detail actually carries a `flyerUrl`.

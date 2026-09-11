@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { cn, formatDate } from "@/lib/utils";
 import { EventBanner } from "@/components/attend/EventBanner";
 import { useGoBack } from "@/hooks/useGoBack";
+import { PINNED_MAIN, PINNED_PANEL, PINNED_PANEL_VARS } from "@/lib/pinned-panel";
 
 // Laid out to Figma's challenge-detail frame: a purely decorative banner (no text or
 // controls inside it), the title/meta on the page beneath it, Overview | Prizes tabs,
@@ -52,9 +53,10 @@ export default function HackathonDetailPage({
 
   // The challenge *detail* endpoint can fail (e.g. a backend 500) even when the
   // challenge exists. Since an innovation challenge is also a real event, fall back
-  // to the event detail (same id) so the page still works with live data.
+  // to the event detail (same id) so the page still works with live data. Always fetched:
+  // it's the only response that carries the flyer (the challenge one has no image field).
   const challengeFailed = !chLoading && (!!chError || !liveChallenge);
-  const { data: evData, isLoading: evLoading } = useGetEvent(challengeFailed ? id : "");
+  const { data: evData, isLoading: evLoading } = useGetEvent(id);
   const { data: myTeamData } = useGetMyTeam(id);
   const { data: resData } = useGetResources(id);
   const resources = resData?.data ?? [];
@@ -79,7 +81,6 @@ export default function HackathonDetailPage({
         hasRsvped: ev.hasRsvped,
         resourceCount: 0,
         branding: ev.branding,
-        bannerUrl: ev.bannerUrl,
         brandPrimary: ev.brandPrimary,
         brandAccent: ev.brandAccent,
         myTeam: team
@@ -148,18 +149,22 @@ export default function HackathonDetailPage({
 
   return (
     <div
-      className={cn(
-        "challenge-scope",
-        resourcesOpen
-          ? "lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-8"
-          : "flex w-full max-w-2xl flex-col gap-6",
-      )}
+      className="challenge-scope flex flex-col gap-6"
       style={{
         "--brand-primary": brandPrimary,
         "--brand-accent": brandAccent,
+        ...PINNED_PANEL_VARS,
       } as React.CSSProperties}
     >
-      <div className="flex w-full max-w-2xl flex-col gap-6">
+      <button
+        onClick={goBack}
+        className="inline-flex w-fit items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" /> Back
+      </button>
+
+      {/* Held at the 60% width whether or not Resources is open, so opening it never reflows the brief. */}
+      <div className={cn("flex w-full max-w-2xl flex-col gap-6 xl:max-w-none", PINNED_MAIN)}>
       {/* LIVE banner — only shown when the session is live */}
       {isLive && (
         <Link
@@ -177,12 +182,12 @@ export default function HackathonDetailPage({
       )}
 
       {/* Banner — the same three-tier chain the event detail page uses (flyer → company logo on
-          its own colour → module poster), replacing a brand gradient. Decorative only: the title
-          and CTAs live on the page below it.
-          `organizerLogo` isn't on ChallengeDetail, so tier 2 here is `branding.logoUrl` only —
-          which is the preferred source anyway, being the company's mark rather than a registrar's. */}
+          its own colour → module poster). Decorative only: the title and CTAs live below it.
+          The flyer is read off the event detail — this used `challenge.bannerUrl`, a field the
+          backend doesn't have, so it always fell through to the poster.
+          `organizerLogo` isn't on ChallengeDetail, so tier 2 here is `branding.logoUrl` only. */}
       <EventBanner
-        flyerUrl={challenge.bannerUrl}
+        flyerUrl={ev?.flyerUrl}
         logoUrl={challenge.branding?.logoUrl}
         module="HACKATHON"
         seed={challenge.organizerName || challenge.title}
@@ -438,7 +443,7 @@ export default function HackathonDetailPage({
       </div>
 
       {resourcesOpen && (
-        <aside className="mt-6 flex flex-col gap-3 lg:mt-0 lg:border-l lg:border-foreground/10 lg:pl-8">
+        <aside className={cn("flex flex-col gap-3", PINNED_PANEL)}>
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold tracking-[-0.14px] text-foreground">Challenge Resources</h2>
             <button
