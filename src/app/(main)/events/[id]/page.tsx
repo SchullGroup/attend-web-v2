@@ -161,7 +161,11 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
   // firing the query then 401s with `retry: false`, leaving it permanently errored with no data.
   const session = useSession();
   const queryClient = useQueryClient();
-  const { data: kycResp } = useGetKycStatus(mod === "AGM" && session.type === "SHAREHOLDER");
+  // AGM (BVN) and Innovation/Launch (NIN) both read this: BVN gates AGM actions on `kycStatus`,
+  // NIN gates Innovation/Launch RSVPs on `ninVerified`. One query, one cache key.
+  const { data: kycResp } = useGetKycStatus(
+    (mod === "AGM" || mod === "HACKATHON" || mod === "LAUNCH") && session.type === "SHAREHOLDER",
+  );
   const kyc = kycResp?.data;
   const kycFull = isKycFull(kyc);
 
@@ -209,9 +213,10 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
     action();
   }
 
-  // NIN stands where BVN stands for an AGM, but for the other two attendee-facing modules.
-  // Nothing is verified server-side yet, so this decides when to *show* the sheet, never
-  // whether the RSVP is allowed.
+  // NIN stands where BVN stands for an AGM, but for the other two attendee-facing modules —
+  // and it's only a gate for the RSVP, not identity verification. The backend check is two
+  // steps (NIN lookup, then a face match); only the face match sets `ninVerified`, and that
+  // flag is what lets the RSVP through. Not skippable: someone who can't pass it can't RSVP.
   const needsNin = mod === "HACKATHON" || mod === "LAUNCH";
   const ninContext = mod === "HACKATHON" ? "this challenge" : "this product launch";
 
@@ -327,13 +332,28 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
       requireKyc(doRsvp);
       return;
     }
-    // Innovation and Launch RSVPs collect a NIN first, per the NIN frames. There's no NIN
-    // endpoint yet, so this can't gate on a verification result — the sheet resolves locally
-    // and hands control back here, and the RSVP then goes through exactly as before.
+    // Innovation and Launch RSVPs need the NIN check passed first. Someone who already passed
+    // it RSVPs straight away; anyone else gets the NIN sheet, and the RSVP only fires from its
+    // success path (`rsvpAfterNin`). Fails closed: an unresolved status reads as "not passed",
+    // so the worst case is showing the sheet to someone who has already done it.
     if (needsNin) {
+      if (kyc?.ninVerified) {
+        doRsvp();
+        return;
+      }
       setNinOpen(true);
       return;
     }
+    doRsvp();
+  }
+
+  // The NIN sheet's success callback. Re-reads `ninVerified` from the query cache rather than
+  // trusting this render's `kyc` — same reasoning as `runPendingKycAction`: the sheet's face
+  // step awaits its own status refetch, so the cache is authoritative, while this render's
+  // copy may predate it. Never RSVPs on a failed or abandoned check.
+  function rsvpAfterNin() {
+    const fresh = queryClient.getQueryData<typeof kycResp>(kycKeys.status);
+    if (!fresh?.data?.ninVerified) return;
     doRsvp();
   }
 
@@ -1176,7 +1196,7 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
           live={isLive}
           contextLabel={ninContext}
           onClose={() => setNinOpen(false)}
-          onVerified={doRsvp}
+          onVerified={rsvpAfterNin}
         />
       )}
     </div>

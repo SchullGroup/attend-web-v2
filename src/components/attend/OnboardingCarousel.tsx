@@ -14,17 +14,26 @@ const SLIDES = [
     subtext:
       "Join shareholder meetings, follow proceedings, participate in discussions & vote securely from anywhere.",
     image: "/auth/onboarding-slide-1.png",
+    width: 1336,
+    height: 1680,
+    full: { src: "/auth/phone-1.png", width: 1168, height: 2419 },
   },
   {
     headline: ["Be there", "when it", "happens."],
     subtext: "Experience product launches and brand moments live, wherever you are.",
     image: "/auth/onboarding-slide-2.png",
+    width: 1195,
+    height: 1613,
+    full: { src: "/auth/phone-2.png", width: 1195, height: 2465 },
   },
   {
     headline: ["Ideas", "deserve a", "stage."],
     subtext:
       "Join shareholder meetings, follow proceedings, participate in discussions & vote securely from anywhere.",
     image: "/auth/onboarding-slide-3.png",
+    width: 1195,
+    height: 1613,
+    full: { src: "/auth/phone-3.png", width: 1195, height: 2465 },
   },
 ] as const;
 
@@ -53,7 +62,7 @@ export function OnboardingCarousel() {
 
       <div className="relative z-10 mt-14 w-full max-w-[342px] flex-1 overflow-hidden">
         <div
-          className="flex transition-transform duration-500 ease-out"
+          className="absolute inset-y-0 left-0 flex transition-transform duration-500 ease-out"
           style={{
             width: `${SLIDES.length * 100}%`,
             transform: `translateX(-${index * (100 / SLIDES.length)}%)`,
@@ -62,10 +71,10 @@ export function OnboardingCarousel() {
           {SLIDES.map((slide, i) => (
             <div
               key={i}
-              className="flex shrink-0 flex-col items-center"
+              className="flex h-full shrink-0 flex-col items-center"
               style={{ width: `${100 / SLIDES.length}%` }}
             >
-              <div className="flex w-full max-w-[342px] flex-col gap-6">
+              <div className="flex w-full max-w-[342px] shrink-0 flex-col gap-6">
                 <h1
                   className="whitespace-pre-line text-white"
                   style={{
@@ -83,28 +92,32 @@ export function OnboardingCarousel() {
                 </p>
               </div>
 
-              {/* Phone mockup — bleeds off the bottom of the card, per Figma's overflow-clip.
-                  `fill` (rather than fixed width/height) because the three exports don't
-                  share one aspect ratio; object-cover crops each to the same on-screen box.
-                  shrink-0, NOT flex-1: this is a column flex item, so flex-1 sets
-                  flex-basis:0% on the vertical axis and overrides an explicit height. The panel
-                  has no definite height to grow into, so the box collapsed to zero and the
-                  `fill` image rendered nothing — which is why the phone was invisible.
-
-                  The box is sized by aspect ratio rather than fixed px so it stays PROPORTIONALLY
-                  WIDER than the artwork (43/50 = 0.86, vs 0.74-0.80 for the three exports). That
-                  matters: object-cover crops whichever axis overflows, so a box narrower in
-                  proportion than the image crops the phone's SIDES off. Wider means it crops the
-                  bottom instead, which is the bleed the frame wants. Keep this ratio above 0.80
-                  if the exports are ever replaced. */}
-              <div className="relative mt-10 w-full max-w-[342px] shrink-0 aspect-[43/50]">
+              {/* Phone mockup: two versions switched by ONE CSS media query, so the photo and its
+                  placement always change together (a <picture> + separate layout query was tried
+                  and a render caught them disagreeing: full-phone layout, cropped photo).
+                  Under 1200px tall: the already-cropped phone, its straight bottom edge pinned ON
+                  the card's bottom edge (Figma's bleed); short screens just crop more of it.
+                  1200px+ (about browser zoom under 80% on a 1080p screen): the whole-phone photo
+                  fits, centred in the free space. The track is absolute so slides get a height. */}
+              <div className="mt-auto w-full max-w-[342px] shrink-0 pt-10 [@media(min-height:1200px)]:hidden">
                 <Image
                   src={slide.image}
                   alt=""
-                  fill
+                  width={slide.width}
+                  height={slide.height}
                   sizes="342px"
-                  className="object-cover object-top"
+                  className="block h-auto w-full"
                   priority={i === 0}
+                />
+              </div>
+              <div className="my-auto hidden w-full max-w-[342px] shrink-0 py-10 [@media(min-height:1200px)]:block">
+                <Image
+                  src={slide.full.src}
+                  alt=""
+                  width={slide.full.width}
+                  height={slide.full.height}
+                  sizes="342px"
+                  className="block h-auto w-full"
                 />
               </div>
             </div>
