@@ -60,7 +60,7 @@ export function OnboardingCarousel() {
         ))}
       </div>
 
-      <div className="relative z-10 mt-14 w-full max-w-[342px] flex-1 overflow-hidden">
+      <div className="relative z-10 mt-8 w-full max-w-[342px] flex-1 overflow-hidden">
         <div
           className="absolute inset-y-0 left-0 flex transition-transform duration-500 ease-out"
           style={{
@@ -99,7 +99,7 @@ export function OnboardingCarousel() {
                   the card's bottom edge (Figma's bleed); short screens just crop more of it.
                   1200px+ (about browser zoom under 80% on a 1080p screen): the whole-phone photo
                   fits, centred in the free space. The track is absolute so slides get a height. */}
-              <div className="mt-auto w-full max-w-[342px] shrink-0 pt-10 [@media(min-height:1200px)]:hidden">
+              <div className="mt-auto w-full max-w-[342px] shrink-0 pt-6 [@media(min-height:1200px)]:hidden">
                 <Image
                   src={slide.image}
                   alt=""

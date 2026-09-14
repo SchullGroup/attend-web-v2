@@ -10,7 +10,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="flex min-h-screen items-stretch bg-white p-2 md:p-3">
       {/* Left brand panel — hidden below md, matches the mobile-web breakpoint's
           stacked layout being a separate design (not built from this shell). */}
-      <aside className="relative hidden w-[50%] max-w-[720px] flex-col items-center overflow-hidden rounded-2xl bg-black px-10 pt-16 pb-0 text-center md:flex">
+      {/* pt-10, not Figma's pt-16 — a real browser's own chrome (tabs/address bar) eats into
+          window height beyond what a bare viewport-height render shows, so the Figma padding
+          left less room for the phone than intended at ordinary 90-100% zoom. Freed here rather
+          than shrunk on the phone itself, which stays at the size the frame specifies. */}
+      <aside className="relative hidden w-[50%] max-w-[720px] flex-col items-center overflow-hidden rounded-2xl bg-black px-10 pt-10 pb-0 text-center md:flex">
         {/* Ambient glow, approximating Figma's radial highlight behind the phone */}
         <div
           className="pointer-events-none absolute -right-24 -top-24 h-[560px] w-[560px] rounded-full opacity-60"
