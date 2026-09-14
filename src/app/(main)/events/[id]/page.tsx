@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, use, useRef, useState } from "react";
+import { Suspense, use, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -7,7 +7,7 @@ import {
   ArrowLeft, Clock, MapPin, Users, Bookmark, Share2,
   QrCode, CheckCircle2, Check, Monitor, Wifi, Vote, FileText,
   BookOpen, ShieldAlert, ChevronRight, ChevronDown, Radio, Play, DownloadCloud, FileBox,
-  MoreHorizontal, Receipt, ScrollText, MessagesSquare,
+  MoreHorizontal, Receipt, ScrollText, MessagesSquare, Headset,
 } from "lucide-react";
 import {
   useGetEvent, useRsvp, useCancelRsvp, useJoinWaitlist,
@@ -26,10 +26,11 @@ import { QrCheckinSheet } from "@/components/attend/QrCheckinSheet";
 import { Menu, MenuItem } from "@/components/ui/Menu";
 import { VerifyIdentitySheet } from "@/components/attend/VerifyIdentitySheet";
 import { EventBanner } from "@/components/attend/EventBanner";
+import { EventMediaGallery } from "@/components/attend/EventMediaGallery";
 import { useGoBack } from "@/hooks/useGoBack";
 import { useSession } from "@/hooks/useSession";
 import { useGetKycStatus, kycKeys } from "@/api/kyc/hooks";
-import { isKycActionable, isKycDeclined, isKycFull, isKycUnderReview } from "@/lib/kyc-gate";
+import { useKycGate } from "@/hooks/useKycGate";
 import { VoteButtons, type VoteChoice } from "@/components/attend/VoteButtons";
 import { AgendaPanel, PanelCard } from "@/components/attend/AgendaPanel";
 import { PINNED_MAIN, PINNED_PANEL, PINNED_PANEL_VARS } from "@/lib/pinned-panel";
@@ -93,15 +94,13 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
   const [proxyOpen, setProxyOpen] = useState(false);
   // Reached from the AGM "More" menu — same sheets the /agm hub pages use.
   const [receiptOpen, setReceiptOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [minutesOpen, setMinutesOpen] = useState(false);
   // The frame shows QR check-in as a modal over this page, not a separate screen.
   // ?qr=1 opens it on arrival — that's how /qr-checkin?eventId= forwards here, so a bookmarked
   // or shared check-in link still lands on the event rather than a bare modal.
   const searchParams = useSearchParams();
   const [qrOpen, setQrOpen] = useState(() => searchParams.get("qr") === "1");
-  // Identity verification is a modal over this page now, not a trip to the /bvn wizard.
-  const [verifyOpen, setVerifyOpen] = useState(false);
-  const [verifyDismissed, setVerifyDismissed] = useState(false);
   // NIN — the Innovation/Launch equivalent, shown at the RSVP point.
   const [ninOpen, setNinOpen] = useState(false);
   // Figma: this page IS the live page — "Join Live Event" swaps the hero for the stream
@@ -147,15 +146,9 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
     mod === "AGM" ? "/agm" : mod === "HACKATHON" ? "/hackathon" : mod === "LAUNCH" ? "/events" : "/general",
   );
 
-  // Opening an AGM is the demand point for verification. The `/agm` segment used to carry a
-  // full-page wall, so an unverified user never got this far; now the list is browsable and
-  // this page is where the modal appears.
-  //
-  // The decision reads the KYC query rather than the store's `kycStatus`, which starts at
-  // "none" from localStorage until NavShell syncs it — acting on that would flash the modal
-  // at users who are already verified. Waiting for the response means it only ever opens on
-  // a real answer. It deliberately only ever opens: once open, completing verification
-  // must not yank the panel away before the user has seen the confirmation stage.
+  // Browsing an AGM (details, agenda) is always free — verification is only ever demanded when
+  // someone tries to act (RSVP, appoint a proxy, pre-vote, open the Resolution tab). The `/agm`
+  // segment used to carry a full-page wall in front of everything; that's gone.
   const agmInSession = mod === "AGM" && event?.status === "LIVE";
   // `SHAREHOLDER`, not merely signed-in: a refresh-token-only load reports ANONYMOUS, and
   // firing the query then 401s with `retry: false`, leaving it permanently errored with no data.
@@ -167,51 +160,12 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
     (mod === "AGM" || mod === "HACKATHON" || mod === "LAUNCH") && session.type === "SHAREHOLDER",
   );
   const kyc = kycResp?.data;
-  const kycFull = isKycFull(kyc);
+  const { verifyOpen, kycFull, requireKyc, runPendingKycAction, closeVerify } = useKycGate(kyc);
 
-  // No unverified user gets into an AGM — not the live room, not an RSVP. Every path into
-  // the meeting runs through requireKyc() below, and /agm/* keeps its own layout gate as the
-  // backstop for anyone arriving by direct link.
-  //
-  // Note the two conditions differ on purpose. This one fails CLOSED (an unresolved query
-  // reads as "not verified", so a click can never slip through), while the auto-open below
-  // waits for a real response — opening on a not-yet-loaded status would flash the modal at
-  // users who are already verified.
+  // No unverified user gets into an AGM action — not a proxy, not a vote, not an RSVP. Every
+  // path into one runs through requireKyc() below, and /agm/* keeps its own layout gate as the
+  // backstop for the routes reachable without passing through this page (e.g. /agm/live).
   const agmNeedsKyc = mod === "AGM" && !kycFull;
-
-  // Whatever the user was trying to do when the gate stopped them. Verification used to throw
-  // this away: you'd finish BVN + selfie, be told "your AGM attendance is confirmed", and the
-  // RSVP would never have been sent. The sheet's onVerified runs it once verification lands.
-  // Stored in a ref, not state — a re-render between the click and the callback shouldn't be
-  // able to lose it, and nothing renders off it.
-  const pendingKycAction = useRef<(() => void) | null>(null);
-
-  function requireKyc(action: () => void) {
-    if (agmNeedsKyc) {
-      pendingKycAction.current = action;
-      setVerifyOpen(true);
-      return;
-    }
-    action();
-  }
-
-  function runPendingKycAction() {
-    const action = pendingKycAction.current;
-    pendingKycAction.current = null;
-    // The auto-open has no pending action — it prompts rather than gating a click.
-    if (!action) return;
-
-    // Re-read the status from the cache rather than trusting `kycFull` from this render.
-    //
-    // Completing the flow does NOT guarantee FULL_KYC — it can land in the officer review
-    // queue. Replaying the action then pushes a user who still can't vote into /agm/live,
-    // where the route gate immediately stops them: a pointless round trip that reads as a
-    // bug. The cache is authoritative here because useKycStep3 awaits its own invalidation.
-    const fresh = queryClient.getQueryData<typeof kycResp>(kycKeys.status);
-    if (!isKycFull(fresh?.data)) return;
-
-    action();
-  }
 
   // NIN stands where BVN stands for an AGM, but for the other two attendee-facing modules —
   // and it's only a gate for the RSVP, not identity verification. The backend check is two
@@ -220,42 +174,12 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
   const needsNin = mod === "HACKATHON" || mod === "LAUNCH";
   const ninContext = mod === "HACKATHON" ? "this challenge" : "this product launch";
 
-  // Any AGM, not only one already in session. Removing the /agm wall made this the demand
-  // point, so it can no longer wait for the meeting to start.
-  //
-  // Three guards, each load-bearing:
-  //   • `!!kycResp`     — never prompt on an unresolved status (that flashes the modal at
-  //                       verified users). Note this fails OPEN, unlike `agmNeedsKyc` above.
-  //   • `isKycActionable` — don't prompt someone whose KYC is already submitted-and-waiting or
-  //                       declined: the form cannot move them, so prompting is an infinite loop
-  //                       (prompt → complete → still not FULL_KYC → prompt). They reach the
-  //                       same sheet's notice stage by choice, from the banner below.
-  //   • `!qrOpen`       — ?qr=1 arrives with QrCheckinSheet already open, and two stacked
-  //                       dialogs share one Escape handler and fight over the body scroll lock.
-  const agmUnverified =
-    mod === "AGM" && !!kycResp && !kycFull && isKycActionable(kyc) && !qrOpen;
-
-  // Set only by the effect below, so a bounce can be limited to a prompt the user did not ask
-  // for. Someone who opens the sheet themselves from the banner and then closes it stays put.
-  const openedByGate = useRef(false);
-
-  useEffect(() => {
-    if (agmUnverified && !verifyDismissed) {
-      openedByGate.current = true;
-      setVerifyOpen(true);
-    }
-  }, [agmUnverified, verifyDismissed]);
-
-  // Reset everything KYC-modal-related when the route's event id changes. A dynamic-param
-  // navigation (/events/a → /events/b) can reconcile this same component instance rather than
-  // remounting it, which would leave AGM B unprompted — and worse, `pendingKycAction` holds a
-  // closure that captured A's id, so replaying it would push the WRONG event.
-  useEffect(() => {
-    pendingKycAction.current = null;
-    openedByGate.current = false;
-    setVerifyOpen(false);
-    setVerifyDismissed(false);
-  }, [id]);
+  // A dynamic-param navigation (/events/a → /events/b) can reconcile this same component
+  // instance rather than remounting it. Without this, a pending action queued on AGM A (its
+  // closure captured A's id) could still be sitting there if B's page loads into the same
+  // instance — replaying it would act on the wrong event.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { closeVerify(); }, [id]);
 
   const { data: pressKitResp } = useGetPressKit(id, undefined, mod === "LAUNCH");
   const pressKit = pressKitResp?.data;
@@ -494,6 +418,12 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
       >
         <div className={cn("flex min-w-0 flex-col gap-6", mod === "AGM" && PINNED_MAIN)}>
 
+      {/* Teaser gallery — organiser-uploaded promo images/video, sat above the hero per the
+          Figma reference. Renders nothing when the event has none. */}
+      {event.launchMedia && event.launchMedia.length > 0 && (
+        <EventMediaGallery media={event.launchMedia} />
+      )}
+
       {/* Hero — Figma's detail hero is a *plain* banner: no title, chips, badges or controls sit
           inside it. Those all live below it on the page background. Artwork resolution is the
           three-tier chain in EventBanner (flyer → company logo on its own colour → module
@@ -600,6 +530,33 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
                 {event.registeredCount.toLocaleString()} Registered
               </span>
             )}
+            {/* Resolved AGM override → organisation setting → platform default; the backend
+                sends it for every event type now, "never null" — no module gate needed. Plain
+                mailto: opens whatever mail app the browser is set to hand off to.
+                Pill styled like NavShell's active nav item (same green pair, `#e6f4ec` /
+                `#0A3D2E`), hardcoded rather than text-primary/bg-primary for the same reason
+                NavShell's comment gives: `--primary` resolves to a near-black navy, and this is
+                meant to read as the brand green, not the theme's neutral accent. */}
+            {event.supportEmail && (
+              <a
+                href={`mailto:${event.supportEmail}?subject=${encodeURIComponent(`Help with ${event.title}`)}`}
+                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors hover:brightness-95"
+                style={{ backgroundColor: "#e6f4ec", color: "#0A3D2E" }}
+              >
+                <Headset className="h-3.5 w-3.5" /> Contact us
+              </a>
+            )}
+            {/* Same row as date/attendees/Contact us, not the venue row below — AGM keeps its
+                own entry via the More menu instead (unchanged), matching the frame. */}
+            {mod !== "AGM" && !isVirtual && (
+              <button
+                type="button"
+                onClick={() => setQrOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-foreground/10 px-2.5 py-1 text-xs font-medium transition-colors hover:bg-foreground/4"
+              >
+                <QrCode className="h-3.5 w-3.5" /> QR check-in
+              </button>
+            )}
             {/* The frame's meta line is just date/time and the participant count. Format and
                 venue stay on the other modules; on Launches/General the venue is already the
                 heading of the map directly below, so repeating it here is noise. */}
@@ -624,17 +581,6 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
             </div>
           )}
 
-          {/* AGM reaches this from the "More" menu instead, matching Figma. Both open the
-              same modal over this page rather than navigating to /qr-checkin. */}
-          {mod !== "AGM" && !isVirtual && (
-            <button
-              type="button"
-              onClick={() => setQrOpen(true)}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-foreground/10 px-3 py-1.5 text-xs font-medium tracking-[-0.12px] text-foreground/70 transition-colors hover:bg-foreground/4"
-            >
-              <QrCode className="h-3.5 w-3.5" /> QR check-in
-            </button>
-          )}
         </div>
       </div>
 
@@ -711,42 +657,18 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
 
           <h2 className="text-base font-medium tracking-[-0.32px] text-foreground">AGM Actions</h2>
 
-          {/* Still reachable despite the arrival prompt: a user under officer review or declined
-              is never auto-prompted, the KYC query can error, and someone who opened the sheet
-              themselves and closed it stays on this page. So the copy has to distinguish "you
-              haven't started" from "we're reviewing you" and "you were declined" — telling a
-              declined user to "Verify" sends them to re-run a form that cannot help them. */}
-          {!kycFull && (
-            <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5">
-              <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-              <div className="flex-1">
-                <p className="text-sm text-amber-800">
-                  {isKycDeclined(kyc)
-                    ? "Your identity verification was declined — AGM actions are unavailable"
-                    : isKycUnderReview(kyc)
-                      ? "Your identity verification is under review — AGM actions unlock once it's approved"
-                      : "Identity verification required to access AGM actions"}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setVerifyOpen(true)}
-                className="shrink-0 text-xs font-semibold text-amber-600 hover:underline"
-              >
-                {isKycDeclined(kyc) ? "Try again" : isKycUnderReview(kyc) ? "View status" : "Verify"}
-              </button>
-            </div>
-          )}
-
-          {/* The grid renders either way. It used to be replaced wholesale by the banner above,
-              which also took away the "More" menu — and with it My receipts, Minutes and QR
-              check-in. Those are read-only records, and their own routes (/agm/receipt,
-              /agm/minutes) are ungated, so hiding them here made this page stricter than the
-              routes it links to. Only the two privileged tiles are withheld. */}
+          {/* Both tiles always show now — verification is demanded per action (requireKyc),
+              not up front. An unverified/under-review/declined click still opens the sheet;
+              it reads the KYC status itself and shows the right stage (form, review notice,
+              declined notice), so there's no separate banner duplicating that decision here. */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {/* Neither of these two survives the meeting ending. */}
-              {kycFull && event.agmProxyEnabled && !isEnded && (
-                <button type="button" onClick={() => setProxyOpen(true)} className="text-left">
+              {event.agmProxyEnabled && !isEnded && (
+                <button
+                  type="button"
+                  onClick={() => requireKyc(() => setProxyOpen(true))}
+                  className="text-left"
+                >
                   <ActionTile
                     icon={<FileText className="h-5 w-5" style={{ color }} />}
                     label={hasProxy ? "Change Proxy" : "Appoint a Proxy"}
@@ -755,8 +677,12 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
               )}
               {/* Pre-voting closes once the meeting is live — live votes are cast in the
                   meeting room's ballot instead. */}
-              {kycFull && !isLive && !isEnded && (
-                <button type="button" onClick={() => setPreVoteOpen(true)} className="text-left">
+              {!isLive && !isEnded && (
+                <button
+                  type="button"
+                  onClick={() => requireKyc(() => setPreVoteOpen(true))}
+                  className="text-left"
+                >
                   <ActionTile icon={<Vote className="h-5 w-5" style={{ color }} />} label="Pre-AGM Voting" />
                 </button>
               )}
@@ -765,9 +691,14 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
                   Receipts and Minutes reuse the same sheets the /agm hub pages open; they
                   take the same {eventId, open, onClose} contract as the proxy/pre-vote sheets
                   and portal through Dialog, so they mount with the others at the foot of the
-                  page. QR stays a navigation — it's a full page, not a sheet. */}
+                  page. QR stays a navigation — it's a full page, not a sheet.
+                  Gated like Proxy/Pre-Vote: the trigger click goes through requireKyc rather
+                  than opening the dropdown directly, so an unverified click prompts instead —
+                  the dropdown opens on its own once verification lands. */}
               <Menu
                 align="right"
+                open={moreOpen}
+                onOpenChange={(next) => (next ? requireKyc(() => setMoreOpen(true)) : setMoreOpen(false))}
                 trigger={
                   <ActionTile
                     icon={<MoreHorizontal className="h-5 w-5" style={{ color }} />}
@@ -867,16 +798,20 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
       {/* Launch module section */}
       {mod === "LAUNCH" && (
         <section className="flex flex-col gap-3">
+          {/* Neutral card matching the rest of the page (InfoBlock, speaker rows) — was a
+              hardcoded orange-50/700/900 block that clashed with whatever colour this event's
+              own brand actually is. The countdown number is the one accent, tinted with the
+              same resolved `color` every other per-event accent on this page already uses. */}
           {isUpcoming && (
-            <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
-              <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-orange-700">Launching soon</p>
-              <p className="mb-0.5 text-2xl font-bold text-orange-900">
+            <div className="rounded-xl border border-foreground/6 bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-foreground/50">Launching soon</p>
+              <p className="mb-0.5 text-2xl font-bold" style={{ color }}>
                 {(() => {
                   const d = Math.ceil((new Date(event.date).getTime() - Date.now()) / 86400000);
                   return d > 0 ? `${d} day${d !== 1 ? "s" : ""} to go` : "Launching today!";
                 })()}
               </p>
-              <p className="text-sm text-orange-700">
+              <p className="text-sm text-foreground/60">
                 {new Date(event.date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
                 {event.startTime ? ` at ${event.startTime}` : ""}
               </p>
@@ -894,9 +829,9 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
               </div>
             ))}
           </div>
-          <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
-            <p className="mb-1 text-sm font-semibold text-orange-900">Press Kit</p>
-            <p className="text-sm leading-relaxed text-orange-700">
+          <div className="rounded-xl border border-foreground/6 bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
+            <p className="mb-1 text-sm font-semibold text-foreground">Press Kit</p>
+            <p className="text-sm leading-relaxed text-foreground/60">
               {event.pressKitReleased
                 ? "Press kit and product assets are now available for download."
                 : "Press kit and product assets are released the moment the launch goes live."}
@@ -1022,6 +957,7 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
             isLive={isLive}
             canJoinLive={isLive && hasRsvped && !missingStreamLink}
             onJoinLive={() => requireKyc(() => router.push(`/agm/live?eventId=${id}`))}
+            requireKyc={requireKyc}
           />
         )}
 
@@ -1161,32 +1097,11 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
         <VerifyIdentitySheet
           open
           live={isLive}
-          // Closing after a SUCCESSFUL verification. Must not bounce, must not mark dismissed —
-          // this is the user who just did what was asked, and they belong on this page.
-          onClose={() => {
-            openedByGate.current = false;
-            setVerifyOpen(false);
-          }}
-          onDismiss={() => {
-            // Declined. Drop whatever they were trying to do, so it can't fire later against a
-            // still-unverified account.
-            pendingKycAction.current = null;
-            setVerifyOpen(false);
-            setVerifyDismissed(true);
-
-            // Bounce only if the modal was pushed at them on arrival. If they opened it
-            // themselves from the banner, closing it leaves them where they were — otherwise
-            // the banner would be a trapdoor.
-            //
-            // `replace`, never `push`: with `push`, Back returns here, the effect re-opens the
-            // modal, and the user is stuck in a loop with no way out but the tab bar.
-            if (openedByGate.current) {
-              openedByGate.current = false;
-              router.replace("/agm");
-            }
-          }}
+          // The sheet only ever opens because a click called requireKyc() — never automatically
+          // — so there's nothing to bounce away from either way this closes. A decline just
+          // drops the pending action (closeVerify) and leaves the user exactly where they were.
+          onClose={closeVerify}
           onVerified={runPendingKycAction}
-          dismissLabel={openedByGate.current ? "Back to AGMs" : "Close"}
         />
       )}
       {ninOpen && (
@@ -1227,7 +1142,7 @@ function ActionTile({ icon, label }: { icon: React.ReactNode; label: string }) {
 // endpoint (questions only exist inside the live room's websocket session), so that tab
 // points into the meeting rather than inventing an inbox the backend doesn't serve.
 function AgmSidePanel({
-  eventId, speakers, agenda, resolutions, isLive, canJoinLive, onJoinLive,
+  eventId, speakers, agenda, resolutions, isLive, canJoinLive, onJoinLive, requireKyc,
 }: {
   eventId: string;
   speakers: SpeakerItem[];
@@ -1236,6 +1151,7 @@ function AgmSidePanel({
   isLive: boolean;
   canJoinLive: boolean;
   onJoinLive: () => void;
+  requireKyc: (action: () => void) => void;
 }) {
   const [tab, setTab] = useState<"agenda" | "qa" | "resolution">("agenda");
   // Q&A composer — POST /participant/events/{id}/questions. The endpoint accepts a question
@@ -1312,7 +1228,11 @@ function AgmSidePanel({
         {TABS.map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            // Resolution content (and the ability to vote) is whole-tab-gated — unlike Agenda
+            // and Q&A, which are free to browse. Clicking it while unverified opens the sheet
+            // instead of switching; the switch itself becomes the pending action, so it happens
+            // automatically once verification lands.
+            onClick={() => (t.key === "resolution" ? requireKyc(() => setTab(t.key)) : setTab(t.key))}
             className={cn(
               "flex-1 border-b-2 px-3 py-2 text-sm tracking-[-0.14px] transition-colors",
               tab === t.key

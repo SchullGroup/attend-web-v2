@@ -5,6 +5,23 @@ export interface EventBranding {
   brandColor?: string | null;
 }
 
+// Teaser gallery. `url` is a signed link that expires in ~urlExpiresInSeconds (~1h) — read
+// fresh off the event detail response, never persisted or cached across page loads. Only
+// READY items carry a usable `url`; AWAITING_UPLOAD is organiser-side only and never appears
+// in the participant response, but the check costs nothing.
+export interface LaunchMediaItem {
+  id: string;
+  mediaType: "IMAGE" | "VIDEO";
+  status: "READY" | "AWAITING_UPLOAD";
+  url: string | null;
+  urlExpiresInSeconds?: number;
+  contentType?: string;
+  originalFilename?: string;
+  sizeBytes?: number;
+  title?: string | null;
+  orderIndex?: number;
+}
+
 export interface EventListItem {
   id: string;
   title: string;
@@ -107,6 +124,10 @@ export interface EventDetail {
   bannerUrl?: string | null;
   brandPrimary?: string | null;
   brandAccent?: string | null;
+  /** Resolved AGM override → organisation setting → platform default. Never null per the backend. */
+  supportEmail?: string | null;
+  /** Teaser images/videos. Generalised to every event type as of 2026-09-14; was Launch-only. */
+  launchMedia?: LaunchMediaItem[];
 }
 
 // Public guest browse (`GET /guest/events`) returns a deliberately slim event ΓÇö no

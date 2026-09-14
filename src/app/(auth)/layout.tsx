@@ -15,10 +15,18 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           left less room for the phone than intended at ordinary 90-100% zoom. Freed here rather
           than shrunk on the phone itself, which stays at the size the frame specifies. */}
       <aside className="relative hidden w-[50%] max-w-[720px] flex-col items-center overflow-hidden rounded-2xl bg-black px-10 pt-10 pb-0 text-center md:flex">
-        {/* Ambient glow, approximating Figma's radial highlight behind the phone */}
+        {/* Figma's soft light on the black panel: brightest at the top-right, trailing down the
+            right edge beside the phone; the left half stays pure black. Matched by eye to the
+            frame (no Figma access for exact values), so tune the two layers together. */}
         <div
-          className="pointer-events-none absolute -right-24 -top-24 h-[560px] w-[560px] rounded-full opacity-60"
-          style={{ background: "radial-gradient(circle, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 70%)" }}
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background: [
+              "radial-gradient(ellipse 38% 24% at 82% 16%, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 100%)",
+              "radial-gradient(ellipse 26% 32% at 96% 64%, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 100%)",
+            ].join(", "),
+          }}
         />
 
         <OnboardingCarousel />

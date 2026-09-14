@@ -14,6 +14,8 @@ export function Menu({
   children,
   align = "left",
   className,
+  open: openProp,
+  onOpenChange,
 }: {
   /** Rendered inside the trigger button. */
   trigger: React.ReactNode;
@@ -21,8 +23,22 @@ export function Menu({
   children: (close: () => void) => React.ReactNode;
   align?: "left" | "right";
   className?: string;
+  /**
+   * Optional controlled open state, for a caller that needs to intercept the trigger click
+   * before the menu actually opens (e.g. gating it behind verification) — the trigger click
+   * calls `onOpenChange(true)` rather than opening directly, and the caller decides whether/when
+   * `open` actually becomes true. Omit both for the plain uncontrolled behaviour.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : uncontrolledOpen;
+  const setOpen = (next: boolean) => {
+    if (isControlled) onOpenChange?.(next);
+    else setUncontrolledOpen(next);
+  };
   const close = () => setOpen(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -57,7 +73,7 @@ export function Menu({
 
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(!open)}
         aria-haspopup="menu"
         aria-expanded={open}
         className="relative z-10 w-full text-left"
