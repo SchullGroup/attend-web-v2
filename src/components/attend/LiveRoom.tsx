@@ -43,6 +43,9 @@ import { useSession } from "@/hooks/useSession";
 import { GUEST_TOKEN_KEY, getGuestName } from "@/lib/guest-session";
 import { NomineeBallot, CandidateTally } from "@/components/attend/NomineeBallot";
 import { SourceBreakdown } from "@/components/attend/SourceBreakdown";
+import { VerifyIdentitySheet } from "@/components/attend/VerifyIdentitySheet";
+import { useGetKycStatus } from "@/api/kyc/hooks";
+import { useKycGate } from "@/hooks/useKycGate";
 import Cookies from "js-cookie";
 
 type Tab = "qa" | "ballot" | "poll" | "presskit" | "agenda";
@@ -91,6 +94,13 @@ export function LiveRoom({
   useEffect(() => {
     if (isGuest) setGuestToken(sessionStorage.getItem(GUEST_TOKEN_KEY) ?? "");
   }, [isGuest]);
+
+  // The room itself is free to enter now (agm/layout.tsx no longer walls it off) — guests never
+  // had a KYC record to complete, and a non-AGM room (showBallot false, Launch/General on Zoom)
+  // has no ballot to gate at all. Only a signed-in AGM shareholder's own Resolution tab needs
+  // this; entering as a guest or watching a non-AGM stream never fires the query.
+  const { data: kycResp } = useGetKycStatus(showBallot && !isGuest);
+  const { verifyOpen, requireKyc, runPendingKycAction, closeVerify } = useKycGate(kycResp?.data);
 
   const { data: eventResp } = useGetEvent(eventId, !isGuest);
   const { data: guestViewResp } = useGuestEventView(eventId, guestToken, isGuest && !!guestToken);
@@ -751,7 +761,12 @@ export function LiveRoom({
               ].map(({ id, label }) => (
                 <button
                   key={id}
-                  onClick={() => selectTab(id)}
+                  // Resolution content (and voting) is whole-tab-gated for a signed-in AGM
+                  // shareholder, matching the same tab on the event detail page — guests keep
+                  // their existing read-only/proxy-code ballot, untouched below.
+                  onClick={() =>
+                    id === "ballot" && !isGuest ? requireKyc(() => selectTab(id)) : selectTab(id)
+                  }
                   className={cn(
                     "flex-1 border-b-2 px-3 py-2 text-sm tracking-[-0.14px] transition-colors",
                     tab === id
@@ -1474,6 +1489,17 @@ export function LiveRoom({
             </div>
         </aside>
       </div>
+
+      {/* Opened only by clicking the Resolution tab (requireKyc above) — never automatically —
+          so there is nothing to bounce away from on a decline; it just closes. */}
+      {verifyOpen && (
+        <VerifyIdentitySheet
+          open
+          live={isLive}
+          onClose={closeVerify}
+          onVerified={runPendingKycAction}
+        />
+      )}
     </div>
   );
 }

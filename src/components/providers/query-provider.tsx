@@ -30,7 +30,12 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       {children}
-      <ReactQueryDevtools initialIsOpen={false} />
+      {/* Dev-only. `initialIsOpen={false}` still mounted (closed) the whole devtools panel for
+          every real visitor — it isn't tree-shaken by that prop, only by this check, since
+          `NODE_ENV` is statically known at build time and the branch below is fully eliminated
+          from the production bundle. Also stops any visitor from opening the pane and reading
+          live query keys/cache contents, which shipping it at all made possible. */}
+      {process.env.NODE_ENV === "development" && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   );
 }

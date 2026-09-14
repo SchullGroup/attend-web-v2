@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Image from "next/image";
 import { cn, tileTint } from "@/lib/utils";
 import { POSTER_BY_MODULE, type PosterModule } from "@/lib/posters";
 import { useImageEdgeColor } from "@/hooks/useImageEdgeColor";
@@ -89,11 +90,15 @@ export function EventBanner({
       )}
 
       {showPoster && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        // next/image, not a raw <img>: it's one of two local files, so Next serves a
+        // resized, modern-format variant rather than the full 1180x436 source on every
+        // banner-less event and challenge page.
+        <Image
           src={POSTER[mod]}
           alt=""
-          className="absolute inset-0 h-full w-full object-cover"
+          fill
+          sizes="(min-width: 768px) 960px, 100vw"
+          className="object-cover"
         />
       )}
 

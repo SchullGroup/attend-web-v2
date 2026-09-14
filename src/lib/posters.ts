@@ -9,11 +9,15 @@
 
 export type PosterModule = "AGM" | "HACKATHON" | "LAUNCH" | "GENERAL";
 
+// .webp, not the original .png — same look, ~93% smaller (867KB/765KB -> 63KB/53KB),
+// converted 2026-09-14. PNG is a lossless format meant for flat graphics; these are
+// photographs, where WebP's lossy encoding is nearly indistinguishable at this quality
+// and a fraction of the size. The .png originals are unused now and can be deleted.
 export const POSTER_BY_MODULE: Record<PosterModule, string> = {
-  HACKATHON: "/posters/hero-card-workshop.png",
-  AGM: "/posters/hero-card-auditorium.png",
-  LAUNCH: "/posters/hero-card-auditorium.png",
-  GENERAL: "/posters/hero-card-auditorium.png",
+  HACKATHON: "/posters/hero-card-workshop.webp",
+  AGM: "/posters/hero-card-auditorium.webp",
+  LAUNCH: "/posters/hero-card-auditorium.webp",
+  GENERAL: "/posters/hero-card-auditorium.webp",
 };
 
 /** For callers holding a raw `eventType` rather than a resolved module. */

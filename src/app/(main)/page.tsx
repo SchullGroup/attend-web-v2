@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowRightCircle,
   Building2,
@@ -340,11 +341,14 @@ function CardArtwork({
           onError={() => setFailed(true)}
         />
       ) : !posterFailed ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        // next/image, not a raw <img>: it's a local file, so Next serves a properly resized,
+        // modern-format variant instead of shipping the full 1180x436 source to a ~340px card.
+        <Image
           src={posterForEventType(e.eventType)}
           alt=""
-          className="h-full w-full object-cover"
+          fill
+          sizes="340px"
+          className="object-cover"
           // A local file, so this should never fire — kept so a missing/renamed asset degrades
           // to the icon rather than a torn image.
           onError={() => setPosterFailed(true)}

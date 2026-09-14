@@ -8,14 +8,15 @@ import { VerifyIdentitySheet } from "@/components/attend/VerifyIdentitySheet";
 
 // KYC used to be a WALL here: this layout replaced the whole `/agm` subtree with an "Identity
 // verification required" interstitial, so an unverified shareholder could not even see that an
-// AGM existed. It's now a prompt over the page, and only on the routes that actually perform a
-// privileged action.
+// AGM existed. Browsing is free everywhere now; verification is only ever demanded per action
+// (RSVP, proxy, pre-vote, opening the Resolution tab — see events/[id]/page.tsx and
+// components/attend/LiveRoom.tsx, both of which gate those actions themselves via useKycGate).
 //
-// Browsing is free; acting is gated.
-//
-// The `/events/[id]` AGM detail page runs its own prompt (it lives outside this segment). This
-// layout exists for the routes that can be reached WITHOUT passing through it — most importantly
-// `/agm/live`, which the Home page links to directly for a LIVE AGM.
+// This layout is now only a backstop for the two routes that ARE the action, with no browsing
+// content of their own behind them — see DIALOG_ROUTES below. Every other /agm/* route,
+// including `/agm/live` (which the Home page links to directly for a LIVE AGM, bypassing the
+// detail page entirely), is free to enter; LiveRoom.tsx gates its own Resolution tab and vote
+// casting once inside.
 
 // Routes an unverified user may use freely. An ALLOWLIST of free routes, deliberately, rather
 // than a blocklist of gated ones: a blocklist fails open for every route added later, and this
@@ -25,7 +26,10 @@ import { VerifyIdentitySheet } from "@/components/attend/VerifyIdentitySheet";
 // for someone who has never been able to appoint a proxy, and its one action is revoking your
 // OWN appointment — which somebody who was verified and is now under review (or was declined)
 // must still be able to do. Gate that button in the page if it ever needs it, not the route.
-const FREE_ROUTES = ["/agm", "/agm/minutes", "/agm/receipt", "/agm/proxy-history"];
+//
+// `/agm/live` is free too — see the block comment above. LiveRoom.tsx owns its own gate for the
+// one privileged thing reachable there (casting a ballot vote).
+const FREE_ROUTES = ["/agm", "/agm/minutes", "/agm/receipt", "/agm/proxy-history", "/agm/live"];
 
 // These two "pages" are themselves Dialogs (PreVoteSheet / ProxySheet). Rendering them under the
 // gate stacks two portalled dialogs: two backdrops, and two document-level Escape handlers, so
