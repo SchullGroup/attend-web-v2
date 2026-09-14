@@ -12,6 +12,8 @@ import {
   useKycStep2Skip,
   useKycStep3,
   useBvnSelfieCheck,
+  useNinSubmit,
+  useNinSelfie,
 } from "@/api/kyc/hooks";
 import { clearKycProgress } from "@/lib/kyc-progress";
 import { isKycDeclined, isKycFull, isKycUnderReview } from "@/lib/kyc-gate";
@@ -27,13 +29,16 @@ import { KycStatusNotice } from "./KycStatusNotice";
 //           step3. CHN has no field by design (it was always optional and the frames don't
 //           show one); it's settled with the skip endpoint so KYC can still reach "complete".
 //
-//   "nin" — Innovation / Launch attendees at the RSVP point. There is NO backend for this
-//           yet, so it collects the NIN, plays the same three stages, and resolves locally.
-//           It must never be the reason someone can't RSVP.
+//   "nin" — the gate in front of Innovation / Launch RSVPs. NOT identity verification, and it
+//           never touches `kycStatus`. Two real backend steps: the NIN lookup
+//           (POST /kyc/nin, which on its own passes nobody), then a face match
+//           (POST /kyc/nin-selfie, which on a pass sets `ninVerified`). The host RSVPs only
+//           once `ninVerified` is true. Not skippable, by decision (2026-09-14) — so someone
+//           whose camera won't open can't RSVP to those events.
 //
 // Neither identity number is persisted on the device. The BVN needed for the selfie re-check
 // is read back from GET /participant/kyc; the NIN lives in component state for the life of
-// the modal and is then gone.
+// the modal and is then gone (the backend only echoes it back once verified).
 // "review" is not a step the user walks through — it's a terminal notice for the two states
 // that the form cannot move: already submitted and waiting on an officer, or declined by one.
 // See `isKycActionable` in lib/kyc-gate for why re-running the form there is a loop.
@@ -47,6 +52,8 @@ const MAX_BYTES = 900_000;
 
 const OVAL_W = 208;
 const OVAL_H = 272;
+
+const SERVICE_DOWN = "The verification service is down right now. Please try again shortly.";
 
 export function VerifyIdentitySheet({
   open,
@@ -87,11 +94,13 @@ export function VerifyIdentitySheet({
   const { data: meData } = useGetMe();
   const currentUser = meData?.data;
 
-  const { data: kycResp, isLoading: kycLoading } = useGetKycStatus(!isNin);
+  // Both modes read it now: BVN for its step progress and review states, NIN for `ninVerified`.
+  const { data: kycResp, isLoading: kycLoading, refetch: refetchKyc } = useGetKycStatus();
   const kyc = kycResp?.data;
   const step1Done = !!kyc?.steps?.step1?.completed;
   const verifiedBvn = kyc?.bvn;
-  // NIN has no backend and so no status to read — it always walks the form.
+  const ninVerified = !!kyc?.ninVerified;
+  // Review / declined are BVN-only states — an officer never reviews a NIN.
   const settled = !isNin && (isKycUnderReview(kyc) || isKycDeclined(kyc));
 
   const [stage, setStage] = useState<Stage>("id");
@@ -111,23 +120,28 @@ export function VerifyIdentitySheet({
   const { mutate: skipStep2 } = useKycStep2Skip();
   const { mutate: bvnSelfieCheck } = useBvnSelfieCheck();
   const { mutate: submitStep3 } = useKycStep3();
+  const { mutate: submitNin, isPending: ninPending } = useNinSubmit();
+  const { mutate: ninSelfieCheck } = useNinSelfie();
 
-  // Both numbers are 11 digits.
+  // Both numbers are 11 digits. Both modes need the consent box ticked; BVN also needs a DOB.
   const isIdValid = /^\d{11}$/.test(idNumber);
   const isDobValid = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/.test(dob);
-  const canSubmitId = isNin ? isIdValid : isIdValid && isDobValid && hasConsented;
+  const canSubmitId = isNin ? isIdValid && hasConsented : isIdValid && isDobValid && hasConsented;
 
   function stopCamera() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
   }
 
-  // A BVN already on file has nothing to re-enter — open on the face step rather than asking
-  // for a number the backend has already accepted. NIN has no backend state to resume from.
+  // Pick the opening stage from what the backend already has.
+  //   • BVN: a BVN already on file has nothing to re-enter — open on the face step.
+  //   • NIN: already passed → straight to "done" (host then RSVPs). Otherwise the NIN step,
+  //     even if one was submitted on an earlier visit: the backend only echoes the NIN back
+  //     once verified, and the face step has to send it, so it must be re-entered.
   //
-  // This effect depends on step1Done, so it re-runs when the KYC query resolves. If that lands
-  // while the user is already typing (the query was still in flight when the sheet opened),
-  // jumping the stage would throw their input away — so once they've started, leave them alone.
+  // This effect re-runs when the KYC query resolves. If that lands while the user is already
+  // typing (the query was still in flight when the sheet opened), jumping the stage would throw
+  // their input away — so once they've started, leave them alone.
   const userStartedTyping = useRef(false);
   useEffect(() => {
     if (!open) {
@@ -137,9 +151,11 @@ export function VerifyIdentitySheet({
     if (userStartedTyping.current) return;
     // Order matters: a settled status (under review / declined) outranks resuming the form,
     // because for those the form has nothing left to achieve.
-    setStage(settled ? "review" : !isNin && step1Done ? "face" : "id");
+    if (settled) setStage("review");
+    else if (isNin) setStage(ninVerified ? "done" : "id");
+    else setStage(step1Done ? "face" : "id");
     setErrorMsg(null);
-  }, [open, isNin, step1Done, settled]);
+  }, [open, isNin, step1Done, settled, ninVerified]);
 
   useEffect(() => stopCamera, []);
   useEffect(() => {
@@ -153,15 +169,50 @@ export function VerifyIdentitySheet({
     else setDob(`${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`);
   }
 
+  // NIN step 1 — the lookup. A 200 only means the number exists and matches the account's
+  // name; it passes nobody. The face step is next.
+  function onSubmitNin() {
+    submitNin(
+      // `consent: true` only reaches here with the box ticked (`canSubmitId`). The backend
+      // timestamps it as an audit record, so it must reflect a real tick on this screen.
+      { nin: idNumber, consent: true },
+      {
+        onSuccess: () => setStage("face"),
+        onError: async (err: any) => {
+          const code = err?.response?.status;
+          const msg: string | undefined = err?.response?.data?.message;
+          if (code === 409) {
+            // Two meanings: already verified on THIS account (nothing left to do), or linked to
+            // another account. Ask the server which rather than parsing its wording.
+            const res = await refetchKyc();
+            if (res.data?.data?.ninVerified) {
+              setStage("done");
+              return;
+            }
+            setErrorMsg(msg || "This NIN is already linked to another account.");
+            return;
+          }
+          if (code === 422) {
+            setErrorMsg(msg || "These details don't match the name on your account. Please check your NIN.");
+            return;
+          }
+          if (code === 503) {
+            setErrorMsg(SERVICE_DOWN);
+            return;
+          }
+          setErrorMsg(msg || "We couldn't check your NIN. Please try again.");
+        },
+      },
+    );
+  }
+
   function onSubmitId(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmitId) return;
     setErrorMsg(null);
 
-    // No NIN endpoint exists yet. Advance rather than inventing a call that would fail and
-    // strand the user short of the RSVP this modal is standing in front of.
     if (isNin) {
-      setStage("face");
+      onSubmitNin();
       return;
     }
 
@@ -245,12 +296,52 @@ export function VerifyIdentitySheet({
       return;
     }
 
-    // Nothing to send a NIN selfie to yet — the stage is played for the flow, not stored.
     if (isNin) {
-      setStage("done");
+      submitNinSelfie(selfieImage);
       return;
     }
     submitSelfie(selfieImage);
+  }
+
+  // NIN step 2 — the face match. This is the step that actually passes someone: on a match the
+  // backend sets `ninVerified`, and the hook awaits the status refetch before this onSuccess
+  // runs, so "done" (and the host's RSVP gate) read the fresh flag.
+  function submitNinSelfie(selfieImage: string) {
+    setSubmitting(true);
+    ninSelfieCheck(
+      { nin: idNumber, selfieImage },
+      {
+        // A failed match is still HTTP 200 — `data.valid` is the result, not the status code.
+        onSuccess: (res) => {
+          setSubmitting(false);
+          if (res?.data?.valid) {
+            setStage("done");
+            return;
+          }
+          setErrorMsg(
+            res?.data?.message ||
+              "Your face didn't match your NIN photo. Please try again facing the camera, in good light."
+          );
+        },
+        onError: (err: any) => {
+          setSubmitting(false);
+          const code = err?.response?.status;
+          const msg: string | undefined = err?.response?.data?.message;
+          if (code === 503) {
+            setErrorMsg(SERVICE_DOWN);
+            return;
+          }
+          if (code === 409) {
+            // No NIN on file for this account, a different NIN from step 1, or it's since been
+            // verified on another account — in every case the NIN step has to be redone.
+            setStage("id");
+            setErrorMsg(msg || "Please enter your NIN again.");
+            return;
+          }
+          setErrorMsg(msg || "We couldn't check your photo. Please try again.");
+        },
+      },
+    );
   }
 
   function submitSelfie(selfieImage: string) {
@@ -381,6 +472,42 @@ export function VerifyIdentitySheet({
 
   // ── Stage 3: confirmed ──────────────────────────────────────────────────────
   if (stage === "done") {
+    // NIN: only claim success when the backend's own flag says so. We reach "done" in NIN mode
+    // on a passed face match (whose hook awaits the status refetch) or when the flag was already
+    // set, so this should never show — but if the refetch came back without it, "You're
+    // Confirmed!" would be a lie the host's RSVP gate then contradicts by not RSVPing. Say so.
+    if (isNin && !ninVerified) {
+      return (
+        <Dialog open={open} onClose={dismiss} className="max-w-[380px]">
+          <div className="flex flex-col items-center gap-4 py-2 text-center">
+            <AlertCircle className="h-12 w-12 text-amber-500" />
+            <div>
+              <h2 className="text-lg font-semibold tracking-[-0.4px] text-foreground">
+                We couldn&apos;t confirm your check
+              </h2>
+              <p className="mt-1.5 text-sm leading-relaxed tracking-[-0.14px] text-foreground/60">
+                Please take the photo again.
+              </p>
+            </div>
+            <Button
+              fullWidth
+              size="lg"
+              onClick={() => {
+                userStartedTyping.current = true;
+                setErrorMsg(null);
+                setStage(idNumber ? "face" : "id");
+              }}
+            >
+              Try again
+            </Button>
+            <Button fullWidth size="lg" variant="outline" onClick={dismiss}>
+              {dismissLabel}
+            </Button>
+          </div>
+        </Dialog>
+      );
+    }
+
     // A completed submission does not always mean verified — it can land in the KYC-officer
     // review queue, or come back declined. Showing "You're Confirmed!" for those was a lie the
     // gates then contradicted by blocking the user, so defer to the notice instead. This reads
@@ -483,21 +610,8 @@ export function VerifyIdentitySheet({
                 : "Ensure your face is well-lit and clearly visible"}
           </p>
 
-          {/* NIN verification isn't wired to anything yet, so a camera that won't open must
-              not be what stops someone RSVPing. The AGM/BVN path has no such escape. */}
-          {isNin && !submitting && (
-            <button
-              type="button"
-              onClick={() => {
-                stopCamera();
-                setCapturing(false);
-                setStage("done");
-              }}
-              className="mt-3 text-xs text-white/40 underline underline-offset-2 transition-colors hover:text-white/70"
-            >
-              I&apos;ll do this later
-            </button>
-          )}
+          {/* No "I'll do this later" here any more — NIN is a real gate now and not skippable
+              (decision 2026-09-14). The AGM/BVN path never had one. */}
 
           <canvas ref={canvasRef} className="hidden" />
         </div>
@@ -505,7 +619,7 @@ export function VerifyIdentitySheet({
     );
   }
 
-  // ── Stage 1: identity number (+ DOB and consent, BVN only) ──────────────────
+  // ── Stage 1: identity number (+ DOB for BVN, and a consent box for both) ────
   return (
     <Dialog open={open} onClose={dismiss} className="max-w-[420px]">
       <form onSubmit={onSubmitId} className="flex flex-col gap-4">
@@ -562,7 +676,8 @@ export function VerifyIdentitySheet({
         </div>
 
         {/* BVN only. Step 1 verifies the BVN *against* a date of birth, so the lookup needs it
-            even though the frame shows a lone field; NIN has no such lookup to satisfy. */}
+            even though the frame shows a lone field. NIN deliberately doesn't ask for one — it's
+            optional on the backend and left out by decision (2026-09-14). */}
         {!isNin && (
           <Input
             name="dob"
@@ -576,6 +691,28 @@ export function VerifyIdentitySheet({
               handleDobChange(e.target.value);
             }}
           />
+        )}
+
+        {/* NIN consent — one short line with a tick box (decision 2026-09-14), without BVN's long
+            disclosure section. Unticked by default and gates submit. The backend requires
+            `consent: true` and timestamps it as an audit record, so it must come from a real tick
+            here. Signup's passive "you agree to our Terms" line was deliberately NOT reused: it
+            never mentions NIN, and it isn't recorded anywhere. */}
+        {isNin && (
+          <label
+            htmlFor="ninConsent"
+            className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-foreground/6 bg-foreground/3 p-3 text-xs leading-relaxed text-foreground"
+          >
+            <input
+              id="ninConsent"
+              name="ninConsent"
+              type="checkbox"
+              checked={hasConsented}
+              onChange={(e) => setHasConsented(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-foreground/20 accent-primary"
+            />
+            <span>I agree to Attend checking my NIN with NIMC.</span>
+          </label>
         )}
 
         {/* Mandatory NDPA/CBN consent for the BVN lookup — un-ticked by default, gates submit. */}
@@ -640,12 +777,20 @@ export function VerifyIdentitySheet({
           </div>
         )}
 
-        <Button type="submit" fullWidth size="lg" loading={step1Pending} disabled={!canSubmitId}>
-          {step1Pending ? "Verifying…" : "Verify & Confirm"}
+        <Button
+          type="submit"
+          fullWidth
+          size="lg"
+          loading={step1Pending || ninPending}
+          disabled={!canSubmitId}
+        >
+          {step1Pending || ninPending ? "Verifying…" : "Verify & Confirm"}
         </Button>
 
         <p className="text-center text-xs text-foreground/50">
-          Your {idLabel} is encrypted and used only to verify your identity.
+          {isNin
+            ? "Your NIN is encrypted and used only for this check."
+            : `Your ${idLabel} is encrypted and used only to verify your identity.`}
         </p>
       </form>
     </Dialog>

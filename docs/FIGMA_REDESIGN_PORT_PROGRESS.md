@@ -1950,3 +1950,98 @@ Do NOT commit unless the user says so. Do NOT add Claude as a git co-author.
 
   `tsc` clean in `src/`. The form isn't a `<form>` (Continue is an `onClick`), so `type="url"` can't
   trigger the browser's own validation popup. Not verified in a browser (needs a signed-in session).
+
+- **2026-09-14 (46)** — **Login carousel: phone sliced mid-panel at browser zoom ≤ 80%.**
+  Reproduced with headless Edge renders of `/login` at 1920×1080 (100%), 2400×1350 (~80%) and
+  2880×1620 (~67%) — zooming out is just a bigger CSS viewport.
+  - **Cause:** the phone sat in a fixed `342×398` `object-cover` box, so its bottom was cut by *the
+    box*, not by the card. At 100% the cut landed near the card's bottom and passed for the Figma
+    bleed; zoomed out, the card grows taller but the box doesn't, leaving a sliced phone floating
+    over ~520px (80%) / ~780px (67%) of empty black.
+  - The user's screenshot also showed halves of two slides side by side — that was the 500ms slide
+    transition caught mid-way, not a layout bug; at rest every size shows one slide cleanly.
+  - **Fix:** the three exports are *already-cropped* phones (1336×1680, 1195×1613 ×2 — only the top of
+    a phone), so their straight bottom edge has to sit on the card's bottom edge. The slide track is
+    now `absolute` inside the `flex-1 overflow-hidden` window so slides get a real height; the phone
+    renders at its natural shape (intrinsic `width`/`height`, `h-auto`) pinned with `mt-auto`, with
+    `pt-10` keeping the old minimum 40px gap under the text. Short screens: the window crops the
+    phone's bottom instead. Trade-off: on tall/zoomed-out screens the extra room now shows as space
+    between the text and the phone rather than as black under a sliced phone.
+  - **Checked, not a bug:** the headline's inline `fontFamily: "Outfit"` looked fragile, but the served
+    CSS registers next/font's face under the plain family `Outfit` (Outfit isn't installed on this
+    machine and still renders), so it resolves everywhere.
+
+  **Verified** by re-rendering `/login` after the fix at 1920×1080, 2400×1350, 2880×1620 and a short
+  1366×768: at every size the phone's bottom now meets the card's bottom edge (bleeds off it); on
+  1366×768 it sits 40px under the text and the card crops it. `tsc` clean in `src/`.
+
+- **2026-09-14 (47)** — **Login carousel: whole-phone photos on tall screens (browser zoom < 80%).**
+  User supplied `public/auth/phone-{1,2,3}.png` — full phones (1168×2419, 1195×2465 ×2; same AGM /
+  Launches / Innovation screens as the cropped slides; corners fully transparent, checked).
+  - Zoom itself isn't detectable; zooming out just makes the CSS viewport taller, so the switch is
+    **`min-height: 1200px`** — the height at which the whole 342px-wide phone (~707px) fits under
+    the text with 40px gaps. On a 1080p screen with browser toolbars that's just under 80% zoom;
+    it also (correctly) applies to tall monitors at 100%.
+  - Under 1200px: unchanged from (46) — cropped phone pinned to the card's bottom edge.
+    1200px+: the full phone, centred in the space below the text (`my-auto`, `py-10`).
+  - **Both versions are in the DOM and ONE Tailwind media query shows one and hides the other**, so
+    the photo and its placement can't disagree. First cut used `<picture>` (`getImageProps`) for the
+    photo plus a separate media-query class for the layout; a headless render at 1920×1267 caught
+    them out of step — centred full-phone layout with the *cropped* photo, i.e. the floating slice
+    from (46) again. Hidden images aren't fetched unless eager, so the only extra download is
+    slide 1's cropped photo (it's `priority`) on tall screens.
+
+  **Verified** with fresh-profile headless Edge renders of `/login`: 1920×1080 and 1920×1188 show the
+  cropped phone bleeding off the card edge; 1920×1267, 2400×1350 and 2880×1620 show the whole phone
+  (bottom nav visible) centred under the text. `tsc` clean in `src/`. Not checked: a *live* zoom
+  change on an open page — CSS media queries re-evaluate on zoom, so it should follow, but it wasn't
+  exercised.
+
+- **2026-09-14 (42)** — **NIN connected to the real backend check.** Until now the NIN sheet
+  never called the backend: it played its screens and finished locally, so **any 11 digits got
+  through**, and it offered "I'll do this later". The backend is now live (confirmed in the API
+  spec) with the proper two-step check we asked for:
+  1. `POST /participant/kyc/nin` — lookup only. `{ nin, consent }`. Passes nobody on its own.
+  2. `POST /participant/kyc/nin-selfie` — face match. **On a pass sets `ninVerified`.** A failed
+     match is HTTP 200 with `valid: false`.
+  NIN is only the gate for Innovation and Launch RSVPs — not identity verification, and it never
+  touches `kycStatus` or the AGM (BVN) steps.
+
+  **Decisions (user, 2026-09-14):** not skippable; no date of birth box (optional on the API); a
+  **one-line consent tick box** — "I agree to Attend checking my NIN with NIMC." — without BVN's
+  long disclosure. Signup consent was considered and not reused: signup has no tick box (just a
+  passive "you agree to our Terms" line), doesn't record it, and never mentions NIN, while the
+  backend timestamps `consent` at NIN submission as an audit record.
+
+  **Changes:**
+  - `types/kyc.ts` — `ninVerified`, `ninSubmitted`, `nin` on `KycStatusData`; `NinSubmitRequest`,
+    `NinSelfieRequest`, `NinSelfieResult`/`Response`. (Also fixed three mojibake em dashes in
+    existing comments while rewriting the file.)
+  - `api/kyc/client.ts` + `hooks.ts` — `ninSubmit`/`ninSelfie`, `useNinSubmit`/`useNinSelfie`.
+    Both hooks **return** their status invalidation, so the sheet's "done" and the page's RSVP
+    gate read a refreshed `ninVerified`, not the stale "not passed" copy.
+  - `VerifyIdentitySheet.tsx` (NIN mode) — reads the KYC status (it was disabled for NIN); real
+    step 1 with messages for 409 (asks the server whether it's already verified on *this*
+    account before saying "linked to another account"), 422, 503; real face step with a retake on
+    `valid: false` and a return to step 1 on 409; the consent tick box gates submit; **"I'll do
+    this later" removed**; the "done" stage only says "You're Confirmed!" when `ninVerified` is
+    actually true, otherwise "We couldn't confirm your check" with a retry. Opens on "done" for
+    someone already passed. A half-finished attempt from an earlier visit reopens on step 1,
+    because the backend only echoes the NIN back once verified and the face step must send it.
+  - `events/[id]/page.tsx` — the KYC status query now runs for Innovation/Launch too, not just
+    AGM. `handleRsvp`: `ninVerified` → RSVP straight away, otherwise open the sheet (fails
+    closed). The sheet's success runs new `rsvpAfterNin`, which re-reads `ninVerified` from the
+    query cache before RSVPing — same pattern as `runPendingKycAction`. Closing the sheet never
+    RSVPs. This is the app's **only** RSVP call site, so one gate covers every entry point.
+
+  ⚠️ **Consequences worth knowing:**
+  - Not skippable means **someone whose camera won't open can't RSVP** to Innovation or Launch.
+  - The gate is **app-only**. A direct `POST /participant/events/{id}/rsvp` skips it — asked the
+    backend to enforce `ninVerified` server-side (`FE_FIXES_AND_QUESTIONS_2026-09-11.md` §2).
+  - **Waitlist not touched.** If an organiser's approval of a waitlisted person registers them
+    automatically, they'd get in without NIN — asked the backend. Also found: our "On waitlist"
+    state reads `event.waitlisted`, which the live detail schema doesn't list.
+
+  `tsc` clean. **Not tested end to end** — it needs a signed-in user with a real NIN and a camera
+  (the backend's sandbox test NIN won't work against production), and whether the backend has
+  tested against the real provider is still unconfirmed.
