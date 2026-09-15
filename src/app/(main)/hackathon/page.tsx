@@ -124,8 +124,12 @@ export default function HackathonPage() {
               className="flex flex-col gap-3 rounded-xl border border-foreground/6 bg-white p-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]"
             >
               <div className="flex gap-2.5">
+                {/* `fit="contain"` — the organiser logo, same treatment as the AGM list
+                    (agm/page.tsx), not the flyer/teaser image filling and cropping the tile
+                    (reported 2026-09-15). */}
                 <EventThumb
                   event={c}
+                  fit="contain"
                   className="h-15 w-15 rounded-[10px]"
                   fallback={<Lightbulb className="h-6 w-6 text-foreground/60" strokeWidth={1.75} />}
                 />

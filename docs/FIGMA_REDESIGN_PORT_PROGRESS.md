@@ -172,3 +172,55 @@
   working in (44).
 
   `tsc` clean.
+
+- **2026-09-15 (49)** — **Fixed my own regression from (46): the flyer was being cropped, not
+  shrunk.** `EventBanner`'s sharp foreground flyer had `inset-[8%]` with no explicit height/width,
+  on the reasoning that all four inset offsets set would make the browser auto-stretch it to fit —
+  true for an ordinary `<div>`, **not reliably true for `<img>`**, a "replaced element" with its
+  own intrinsic size. Without an explicit size it rendered close to its natural pixel dimensions,
+  and the parent's `overflow-hidden` silently cropped whatever spilled out — for a tall/portrait
+  flyer in the wide short banner frame, that meant only the top slice stayed visible and the rest
+  (tagline, venue, date) was chopped off at the frame's bottom edge. Fixed with explicit
+  `h-[84%] w-[84%]` (100% − 8% − 8%) alongside the inset, sidestepping the replaced-element sizing
+  quirk entirely rather than relying on it.
+
+  **Noted, not fixed:** the blurred backdrop looked flat pale pink/lavender rather than an obvious
+  teal blur in the report screenshot. Likely explanation, not fully confirmed: the backdrop uses
+  `object-cover` on a portrait flyer inside a wide-short frame, which crops toward the image's
+  *vertical middle* — for this particular flyer that middle band is mostly plain background, not
+  the teal graphics concentrated near the top. That crop choice is unrelated to the sizing bug just
+  fixed and may persist independently; flagged to check once the crop bug's fix is visible, rather
+  than guessed at further without seeing it.
+
+  `tsc` clean.
+
+- **2026-09-15 (50)** — **Banner backdrop confirmed as the flat-pink issue flagged in (49); fixed.**
+  `object-cover`'s default crop position is centre, and for a tall flyer squeezed into this wide,
+  short banner that crop keeps only the flyer's vertical *middle* — the plainest part of a typical
+  flyer, since the graphic header/logo sits near the top and the fine-print venue/date sits near
+  the bottom (true of every reference flyer seen in this thread). That's why the blur read as a
+  flat, unrecognisable pastel instead of visibly "the artwork, blurred." Added `object-top`, so the
+  crop anchors to the part of the flyer that actually carries colour and graphics.
+
+  `tsc` clean.
+
+- **2026-09-15 (51)** — Banner backdrop blur bumped again: `blur-3xl` (64px, Tailwind's built-in
+  max) → `blur-[90px]`, on request. An arbitrary value since 64px was already the largest named
+  step.
+
+- **2026-09-15 (52)** — Blur reverted to `blur-3xl` (64px) per request. Innovation list
+  (`hackathon/page.tsx`) switched to `fit="contain"` — organiser logo, same treatment as the AGM
+  list, instead of the flyer/teaser image filling and cropping each tile. `tsc` clean.
+
+- **2026-09-15 (53)** — Two changes, both requested:
+  1. **Logo made bigger** — removed the `p-1.5` padding `EventThumb` put around a `fit="contain"`
+     image. It now fills as much of the tile as its own aspect ratio allows; `object-contain`
+     still guarantees it's never cropped or stretched. Since this lives in the shared
+     `EventThumb`, it also enlarges the logo on every other list already using `fit="contain"` —
+     AGM, Receipts, Minutes — not only Innovation. Flagging that as a side effect, not something
+     asked for on those three, but consistent with them and not worth a special case to avoid.
+  2. **Launches and General switched to the organiser logo** — `fit="contain"` added to
+     `EventListRow`, the one component both pages share, so both picked it up from a single edit.
+     Matches AGM/Innovation now; previously these two filled the tile with the flyer/banner.
+
+  `tsc` clean.

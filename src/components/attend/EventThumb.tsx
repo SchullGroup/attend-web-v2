@@ -91,7 +91,10 @@ export function EventThumb({
         <img
           src={src}
           alt=""
-          className={cn("h-full w-full", contain ? "object-contain p-1.5" : "object-cover")}
+          // No padding on the `contain` path any more (was p-1.5) — on request 2026-09-15,
+          // the logo should fill as much of the tile as its own aspect ratio allows.
+          // `object-contain` alone still guarantees it never crops or distorts.
+          className={cn("h-full w-full", contain ? "object-contain" : "object-cover")}
           onError={() => setFailed((f) => (f.includes(src) ? f : [...f, src]))}
         />
       ) : (
