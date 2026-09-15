@@ -78,6 +78,16 @@ export function EventBanner({
               plain object-contain leaves. `scale-125` pushes the blur's own soft edge outside
               the frame, so no lighter fringe shows at the boundary.
 
+              `object-top`, not the object-cover default of centre: a tall flyer squeezed into
+              this wide, short frame gets cropped hard on `object-cover` — centred, that crop
+              keeps only the flyer's vertical MIDDLE, which for a typical flyer is the plainest,
+              least colourful part (the graphic header/logo sits near the top, the fine-print
+              venue/date near the bottom). Reported 2026-09-15: that centre-crop read as a flat,
+              washed-out pastel with no visible resemblance to the actual artwork. Anchoring the
+              crop to the top keeps the part of the flyer that actually carries colour and
+              graphics — matches every reference flyer seen so far, which all put their branding
+              and decoration near the top and the plain details lower down.
+
               Different from tier 2's logo fill on purpose: that tier samples the logo's own
               background colour instead of blurring it, because blurring averaged the mark's
               colours into a washed-out mush (see the note below). A flyer is a full-bleed
@@ -87,20 +97,25 @@ export function EventBanner({
             src={flyerUrl!}
             alt=""
             aria-hidden
-            className="absolute inset-0 h-full w-full scale-125 object-cover blur-3xl"
+            className="absolute inset-0 h-full w-full scale-125 object-cover object-top blur-3xl"
           />
           {/* The real, uncropped flyer on top — object-contain, so nothing is ever cut off.
-              `inset-[8%]` (not inset-0) shrinks the box it fits into a little on every side, on
-              request 2026-09-15: at inset-0 a flyer close to the frame's own aspect ratio could
-              fill it edge to edge and leave no blurred backdrop visible at all. Note this drops
-              the usual `h-full w-full` — with all four inset offsets set and no explicit size,
-              the browser stretches the image to exactly that box on its own; adding h-full/w-full
-              back would size it against the outer frame instead and cancel the shrink. */}
+              `inset-[8%]` shrinks the box it fits into a little on every side, on request
+              2026-09-15: at inset-0 a flyer close to the frame's own aspect ratio could fill it
+              edge to edge and leave no blurred backdrop visible at all.
+
+              `h-[84%] w-[84%]` (100% - 8% - 8%) is REQUIRED alongside the inset, not redundant
+              with it — this was the actual bug reported 2026-09-15 (a flyer's own text getting
+              cropped at the frame's edge). `<img>` is a "replaced element": unlike an ordinary
+              div, a browser does not reliably auto-stretch it to fill four matching inset
+              offsets, so with no explicit size it rendered close to its own natural pixel
+              dimensions and `overflow-hidden` on the parent silently cropped whatever spilled
+              out. Explicit percentages sidestep that sizing quirk entirely. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={flyerUrl!}
             alt=""
-            className="absolute inset-[8%] object-contain"
+            className="absolute inset-[8%] h-[84%] w-[84%] object-contain"
             onError={() => setFlyerFailed(true)}
           />
         </>

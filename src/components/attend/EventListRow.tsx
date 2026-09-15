@@ -41,8 +41,12 @@ export function EventListRow({
   return (
     <div className="relative flex gap-2.5 rounded-xl border border-foreground/6 bg-white p-1.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]">
       <Link href={`/events/${e.id}`} className="flex min-w-0 flex-1 gap-2.5">
+        {/* `fit="contain"` — the organiser logo, same treatment as the AGM and Innovation
+            lists, instead of the flyer filling and cropping the tile (reported 2026-09-15).
+            This one component is shared by Launches and General, so both pick it up here. */}
         <EventThumb
           event={e}
+          fit="contain"
           className="h-15 w-15 rounded-[10px]"
           fallback={<FallbackIcon className="h-6 w-6 text-foreground/60" strokeWidth={1.75} />}
         />
