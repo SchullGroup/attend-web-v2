@@ -1,4 +1,5 @@
 import type { EventListItem } from "@/types";
+import { isEventCurrent, compareByStartAsc } from "@/lib/rsvp";
 
 // The frames give My Events and Saved Events the same four tabs.
 export const EVENT_TABS = ["All", "Attended", "RSVPs", "Challenges"] as const;
@@ -23,8 +24,12 @@ export function filterEventsByTab(events: EventListItem[], tab: EventTab): Event
     return events.filter((e) => e.status === "ENDED" && (e.hasRsvped ?? e.registered));
   }
 
-  const live = events.filter((e) => e.status !== "ENDED");
-  if (tab === "RSVPs") return live.filter((e) => e.hasRsvped ?? e.registered);
-  if (tab === "Challenges") return live.filter(isChallenge);
-  return live;
+  // `isEventCurrent`, not a bare status check — something whose date has passed but was
+  // never marked ENDED used to sit in All/RSVPs/Challenges indefinitely (2026-09-15). No
+  // `excludeLive`: none of these three has a separate Live section, so a live event must
+  // stay. Sorted soonest-first, since nothing else does.
+  const current = events.filter((e) => isEventCurrent(e)).sort(compareByStartAsc);
+  if (tab === "RSVPs") return current.filter((e) => e.hasRsvped ?? e.registered);
+  if (tab === "Challenges") return current.filter(isChallenge);
+  return current;
 }

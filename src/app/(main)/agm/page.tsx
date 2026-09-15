@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { AgmHero, AgmSubNav } from "@/components/attend/AgmSubNav";
 import { EventThumb } from "@/components/attend/EventThumb";
 import { cn, formatDate } from "@/lib/utils";
+import { isEventCurrent, compareByStartAsc } from "@/lib/rsvp";
 
 // Ported from the figma-redesign branch. Clean adoption — AgmSubNav/AgmHero and
 // the Input component already exist here. The old page's per-card Proxy/Pre-vote
@@ -46,7 +47,10 @@ export default function AgmPage() {
   const visible = useMemo(() => {
     let list = agms;
     if (tab === "live") list = list.filter((e) => e.status === "LIVE");
-    else if (tab === "upcoming") list = list.filter((e) => e.status !== "LIVE" && e.status !== "ENDED");
+    // `excludeLive: true` — Live has its own tab here, so an AGM whose date has passed but
+    // whose status was never flipped no longer lingers under Upcoming (reported 2026-09-15).
+    else if (tab === "upcoming")
+      list = list.filter((e) => isEventCurrent(e, { excludeLive: true })).sort(compareByStartAsc);
     if (query.trim()) {
       const q = query.trim().toLowerCase();
       list = list.filter(
@@ -123,8 +127,14 @@ function AgmListCard({ event: e }: { event: EventListItem }) {
       href={`/events/${e.id}`}
       className="flex items-center gap-2.5 rounded-xl border border-foreground/6 bg-white p-1.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
     >
+      {/* `fit="contain"` — the AGM list shows the COMPANY LOGO, not the uploaded flyer/banner
+          (reported 2026-09-15: a card was showing an illegible cropped sliver of the AGM
+          banner graphic where the logo should be). This is the opposite default from Home's
+          cards, which deliberately fill with the flyer — a shareholder scanning this list is
+          matching a company by its mark, not by banner art. */}
       <EventThumb
         event={e}
+        fit="contain"
         className="h-15 w-15 rounded-[10px]"
         fallback={<Building2 className="h-6 w-6 text-foreground/60" strokeWidth={1.75} />}
       />

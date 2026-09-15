@@ -51,3 +51,124 @@
   running dev server post-change — all 200, no runtime errors. Not verified: an actual production
   `next build` bundle-size comparison (didn't want to stop the user's running dev server for it
   without asking) and a real Lighthouse/PageSpeed pass.
+
+- **2026-09-15 (44)** — **Two reported bugs fixed on the AGM side, found in a build from a session
+  I don't have transcript for** (the media gallery / `EventMediaGallery` / `event.launchMedia` /
+  "Contact us" support-email pill visible in the screenshots are all new since I last touched this
+  page — `git log` traces them to `c208385`).
+
+  1. **Duplicate flyer banner on the detail page.** For AGM and Innovation, the same flyer image
+     rendered **twice**: once cropped inside the hero (`EventBanner`), once again further down at
+     full size, uncropped (`events/[id]/page.tsx:613-632`). The second copy was added earlier on
+     purpose — a wide crop can clip a flyer's logo/date text — but it read exactly as reported: two
+     near-identical banners on one page. Removed. Launches/General never had this second copy and
+     were never missing content for lacking it, so AGM/Innovation now match them: the flyer shows
+     **once**, in the hero. If a specific flyer's crop is actually losing real content, that's a
+     hero-crop fix, not a reason to repeat the whole image.
+  2. **AGM list showing the flyer instead of the company logo.** `AgmListCard`
+     (`agm/page.tsx:126`) called `EventThumb` with no `fit`, defaulting to `fit="cover"` —
+     flyer-first ordering, same as Home. For an AGM with a banner-style flyer that reads as an
+     illegible cropped sliver in a 60px tile. Added `fit="contain"`, which already existed on
+     `EventThumb` (built for the Settings lists) and switches to logo-first ordering
+     (`branding.logoUrl → organizerLogo → flyerUrl`). **Deliberately the opposite of Home's
+     cards**, which fill with the flyer on purpose — a shareholder scanning the AGM list is
+     matching a company by its mark, not by banner art.
+
+  Neither fix touches `EventMediaGallery` or the teaser video — both are correct and unrelated to
+  either report.
+
+  `tsc` clean. Not verified in a browser this session — the dev server from earlier isn't running,
+  and the user has their own instance up (that's the source of the screenshots).
+
+- **2026-09-15 (45)** — **Flyer banner gets a blurred backdrop instead of a crop**, on request
+  (reference: an AGM notice poster and a "Launching soon" square, both shown centred over a
+  blurred, zoomed copy of themselves). `EventBanner`'s flyer tier was plain `object-cover`, which
+  is exactly what forced the duplicate-banner hack removed in (44) — a portrait/square flyer got
+  cropped, clipping the logo or date, so a second uncropped copy was added elsewhere on the page
+  as a workaround. This fixes the actual cause instead: two stacked layers, the same flyer twice —
+  a `blur-2xl scale-125 object-cover` copy filling every edge of the frame, with the real flyer on
+  top at `object-contain` so nothing is ever cropped. `scale-125` pushes the blur's own soft edge
+  outside the frame so no lighter fringe shows at the boundary.
+
+  **Deliberately not applied to tier 2 (the logo)** — the file already carries a comment from an
+  earlier attempt explaining why: blurring averages the whole image, so a black-backed logo came
+  out washed-out purple-grey. That tier keeps sampling the logo's real background colour instead.
+  A flyer is a full-bleed design meant to read well blurred; a logo is a mark on a flat background
+  and isn't. Tier 3 (stock poster) is untouched — landscape source, no aspect mismatch to solve.
+
+  `tsc` clean. Not verified in a browser — no dev server running this session.
+
+- **2026-09-15 (46)** — **"Upcoming" now checks the actual date, not just status; banner flyer
+  shrunk with visible blur margin.**
+
+  **The date fix.** Confirmed by reading every "upcoming"/"not ended" filter in the app (7 pages
+  + one shared helper) — every single one trusted `status` alone (not ENDED, not LIVE, not
+  CANCELLED), never comparing the event's real date/time against now. So an event whose date had
+  passed, but whose backend status was never flipped to LIVE/ENDED, sat in "Upcoming" forever.
+
+  New `isEventCurrent(event, { excludeLive })` + `compareByStartAsc` in `lib/rsvp.ts`, next to the
+  existing `parseEventStart`/`getRsvpEligibility` this reuses. Deliberately **not** touching
+  `getRsvpEligibility` itself — that one is correct to stay status-only, since the backend really
+  does keep accepting RSVPs past an event's nominal start until someone changes its status; a
+  clock check there would incorrectly block a still-open RSVP. This is a different question:
+  which section a card sits in.
+
+  Two shapes needed different treatment, so `excludeLive` exists:
+  - **Strict Upcoming tabs with their own separate Live section** (Home, AGM's Upcoming tab, the
+    event detail page's own `isUpcoming` which feeds the Launch countdown widget) —
+    `excludeLive: true`.
+  - **Merged "not ended" lists with no Live section of their own** (Innovation, Search, General,
+    Launches, My/Saved Events) — `excludeLive: false` (default). A currently LIVE event must stay
+    here regardless of its start time already being in the past — that's what LIVE means, and
+    excluding it would make it vanish from the only list it appears in.
+
+  Sorted soonest-first everywhere this touched, since none of these lists sorted by date at all —
+  **except Search**, left unsorted on purpose: it's ranked by relevance to the query, not a
+  chronological browse list. "Past"/"Attended" tabs are untouched everywhere — those stay
+  backend-authoritative, matching the reasoning already on record for `eventTabs.ts`'s Attended tab.
+
+  **The banner fix.** `EventBanner`'s flyer tier: the sharp foreground copy shrank from
+  `inset-0` to `inset-[8%]`, leaving the blurred backdrop from (45) visible on every side instead
+  of a flyer whose own aspect ratio could fill the frame edge to edge and hide the blur entirely.
+  One shared component, so this — and the earlier blur — apply to Innovation/Hackathon detail
+  pages automatically; confirmed by reading `hackathon/[id]/page.tsx`, which renders the same
+  `<EventBanner>` and has no separate flyer code of its own to duplicate the fix into.
+
+  `tsc` clean, confirmed no unused imports across all eight touched files. Not verified in a
+  browser — no dev server running this session.
+
+- **2026-09-15 (47)** — **Receipts/Minutes pickers now show the company logo; banner blur
+  increased.**
+
+  `agm/receipt` and `agm/minutes` each hardcoded a plain grey building icon on every row,
+  regardless of which company the AGM belonged to — never reading the event's logo at all (same
+  root cause class as the AGM-list bug fixed in (44), just never touched then because these are
+  separate files, not `AgmListCard`). Both now use `EventThumb` with `fit="contain"`, matching the
+  AGM list card exactly. `proxy-history` was checked and left alone — its row isn't a company-logo
+  slot at all, it's a small circular icon marking "this is a person" (the appointed proxy), which
+  is correct as drawn.
+
+  `EventBanner`'s blurred backdrop bumped from `blur-2xl` to `blur-3xl` (Tailwind's next step up,
+  40px → 64px), on request — the shrink in (46) made the backdrop visible; this makes it stronger.
+
+  `tsc` clean. **Also worth recording:** the "isEventCurrent is not a function" error the user hit
+  after (46) was a stale Turbopack dev-server cache (their own overlay read "Next.js 16.2.7
+  (stale)") — confirmed the export was present and correct on disk, so no code was at fault;
+  resolved by restarting their dev server.
+
+- **2026-09-15 (48)** — **Receipts/Minutes text was centred, not misaligned by content — root
+  cause was the element type.** Both rows are a `<button>` (they call `onSelect` rather than
+  navigating); a `<button>` centres text by default in every browser, and nothing in this app's
+  reset overrides that. `AgmListCard` on the AGM list uses the *identical* title/date markup
+  inside a `<Link>` (an `<a>`), which has no such default — so the same JSX rendered left-aligned
+  there "for free" and centred here. Added `text-left` to both buttons' className; no change
+  needed on the AGM list.
+
+  **On the missing organiser logos in the same screenshot: not a bug.** Confirmed directly from
+  the user's own two screenshots — "Martins Proxy test" shows the same plain grey fallback icon on
+  the *working* AGM list too. Receipts/Minutes are pulling up mostly QA/test AGMs
+  ("Test Pipeline", "Proxy Code Test", etc.) that were never given a logo or flyer; the fallback is
+  correct. `EventThumb` wiring is identical and shared with the AGM list, already confirmed
+  working in (44).
+
+  `tsc` clean.

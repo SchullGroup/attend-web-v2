@@ -117,7 +117,60 @@ export function rsvpBlockedMessage(reason: RsvpBlockedReason): string | null {
   }
 }
 
-/** "13:10" ΓÇö the local time the late-registration window shuts. */
+/** "13:10" - the local time the late-registration window shuts. */
 export function formatWindowTime(d: Date): string {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+/**
+ * Whether an event still belongs in a "current" section - as opposed to getRsvpEligibility
+ * above, which decides whether the RSVP button works.
+ *
+ * Every "Upcoming" / "not ended" list in the app used to trust `status` alone: not ENDED, not
+ * CANCELLED, nothing else. That is *right* for RSVP eligibility - the backend keeps accepting
+ * registrations past an event's nominal start until someone changes its status, so a client-side
+ * clock check would incorrectly block a still-open RSVP (see the comment above). It is *wrong*
+ * for deciding which section a card sits in: if a status update never lands (nobody ever marks
+ * an AGM LIVE or ENDED), the event's actual date can be days in the past while it still sits in
+ * "Upcoming" - reported 2026-09-15.
+ *
+ * `excludeLive` matters because two different shapes of list exist in this app:
+ *   - Strict Upcoming tabs that have their own separate Live section (Home, the AGM page's
+ *     Upcoming tab) - pass `true`, so a LIVE event moves to its own section instead of double-
+ *     counting here.
+ *   - Merged "not ended" lists with no Live section of their own (search, Innovation, General,
+ *     Launches, My/Saved Events) - pass `false` (the default), so a currently LIVE event stays
+ *     regardless of its start time already being in the past. That IS what LIVE means; excluding
+ *     it here would make an event vanish from the only list it appears in.
+ */
+export function isEventCurrent(
+  event: { status?: string; date?: string; startTime?: string },
+  { excludeLive = false }: { excludeLive?: boolean } = {},
+  now: Date = new Date(),
+): boolean {
+  const status = (event.status || "").toUpperCase();
+  if (status === "ENDED" || status === "CANCELLED") return false;
+  if (status === "LIVE") return !excludeLive;
+
+  const startsAt = parseEventStart(event.date, event.startTime);
+  // Unparseable - fail open, the same convention getRsvpEligibility uses above: don't hide an
+  // event over a missing or malformed field.
+  if (!startsAt) return true;
+  return startsAt.getTime() > now.getTime();
+}
+
+/**
+ * Soonest-first. Events with no parseable start time sort last, not first - a missing date is
+ * not evidence an event is happening soon.
+ */
+export function compareByStartAsc(
+  a: { date?: string; startTime?: string },
+  b: { date?: string; startTime?: string },
+): number {
+  const ta = parseEventStart(a.date, a.startTime)?.getTime();
+  const tb = parseEventStart(b.date, b.startTime)?.getTime();
+  if (ta == null && tb == null) return 0;
+  if (ta == null) return 1;
+  if (tb == null) return -1;
+  return ta - tb;
 }
