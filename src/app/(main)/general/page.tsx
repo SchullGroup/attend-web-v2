@@ -5,6 +5,7 @@ import { useGetEvents, useGetSavedEvents } from "@/api/events/hooks";
 import { EventListItem } from "@/types";
 import { EventListRow } from "@/components/attend/EventListRow";
 import { cn } from "@/lib/utils";
+import { isEventCurrent, compareByStartAsc } from "@/lib/rsvp";
 
 // Same frame as Launches & Events — the two lists are drawn identically, so this shares
 // EventListRow with it rather than keeping a second card style. Only the type filter and
@@ -55,14 +56,19 @@ export default function GeneralEventsPage() {
 
   const visible = useMemo((): EventListItem[] => {
     const fmtKey = norm(fmt);
-    return apiEvents
+    // "all"/"bookmarked" use `isEventCurrent`, not a bare status check — an event whose date
+    // has passed but was never marked ENDED used to sit here indefinitely (2026-09-15). No
+    // `excludeLive`: neither tab has a separate Live section, so a live event must stay. "past"
+    // is untouched — it's meant to be backend-authoritative, same as Attended elsewhere.
+    const list = apiEvents
       .filter((e) => isGeneralType(e.eventType))
       .filter((e) => (fmt === "All" ? true : norm(e.format) === fmtKey))
       .filter((e) => {
         if (tab === "past") return e.status === "ENDED";
-        if (tab === "bookmarked") return savedIds.has(e.id) && e.status !== "ENDED";
-        return e.status !== "ENDED";
+        if (tab === "bookmarked") return savedIds.has(e.id) && isEventCurrent(e);
+        return isEventCurrent(e);
       });
+    return tab === "past" ? list : list.sort(compareByStartAsc);
   }, [apiEvents, fmt, tab, savedIds]);
 
   const emptyMessage =

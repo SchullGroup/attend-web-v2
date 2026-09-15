@@ -5,6 +5,7 @@ import { useGetEvents, useGetSavedEvents } from "@/api/events/hooks";
 import { EventListItem } from "@/types";
 import { cn } from "@/lib/utils";
 import { EventListRow } from "@/components/attend/EventListRow";
+import { isEventCurrent, compareByStartAsc } from "@/lib/rsvp";
 
 // Ported from the figma-redesign branch. Clean adoption — every hook and field
 // already exists in this repo. This design is a functional superset of the old
@@ -47,14 +48,19 @@ export default function EventsPage() {
 
   const visible = useMemo((): EventListItem[] => {
     const fmtKey = norm(fmt);
-    return apiEvents
+    // "all"/"bookmarked" use `isEventCurrent`, not a bare status check — an event whose date
+    // has passed but was never marked ENDED used to sit here indefinitely (2026-09-15). No
+    // `excludeLive`: neither tab has a separate Live section, so a live event must stay. "past"
+    // is untouched — it's meant to be backend-authoritative, same as Attended elsewhere.
+    const list = apiEvents
       .filter((e) => isLaunchType(e.eventType))
       .filter((e) => (fmt === "All" ? true : norm(e.format) === fmtKey))
       .filter((e) => {
         if (tab === "past") return e.status === "ENDED";
-        if (tab === "bookmarked") return savedIds.has(e.id) && e.status !== "ENDED";
-        return e.status !== "ENDED";
+        if (tab === "bookmarked") return savedIds.has(e.id) && isEventCurrent(e);
+        return isEventCurrent(e);
       });
+    return tab === "past" ? list : list.sort(compareByStartAsc);
   }, [apiEvents, fmt, tab, savedIds]);
 
   const emptyMessage =

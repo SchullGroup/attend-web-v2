@@ -70,13 +70,40 @@ export function EventBanner({
       style={{ backgroundColor: (showLogo && sampled) || tileTint(seed) }}
     >
       {showFlyer && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={flyerUrl!}
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover"
-          onError={() => setFlyerFailed(true)}
-        />
+        <>
+          {/* Blurred backdrop: the SAME flyer, scaled up and blurred, filling every corner of
+              the frame. This is what makes a portrait or square flyer (an AGM notice, a
+              "launching soon" square) work in a wide banner without the crop that used to
+              lose the logo/date text at the edges — and without the flat letterbox bars a
+              plain object-contain leaves. `scale-125` pushes the blur's own soft edge outside
+              the frame, so no lighter fringe shows at the boundary.
+
+              Different from tier 2's logo fill on purpose: that tier samples the logo's own
+              background colour instead of blurring it, because blurring averaged the mark's
+              colours into a washed-out mush (see the note below). A flyer is a full-bleed
+              design meant to read well blurred; a logo is a mark on a background and isn't. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={flyerUrl!}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 h-full w-full scale-125 object-cover blur-3xl"
+          />
+          {/* The real, uncropped flyer on top — object-contain, so nothing is ever cut off.
+              `inset-[8%]` (not inset-0) shrinks the box it fits into a little on every side, on
+              request 2026-09-15: at inset-0 a flyer close to the frame's own aspect ratio could
+              fill it edge to edge and leave no blurred backdrop visible at all. Note this drops
+              the usual `h-full w-full` — with all four inset offsets set and no explicit size,
+              the browser stretches the image to exactly that box on its own; adding h-full/w-full
+              back would size it against the outer frame instead and cancel the shrink. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={flyerUrl!}
+            alt=""
+            className="absolute inset-[8%] object-contain"
+            onError={() => setFlyerFailed(true)}
+          />
+        </>
       )}
 
       {showLogo && (

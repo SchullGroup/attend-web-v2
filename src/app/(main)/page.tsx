@@ -17,6 +17,7 @@ import { EventListItem } from "@/types";
 import { eventArtwork } from "@/components/attend/EventThumb";
 import { CardCarousel } from "@/components/attend/CardCarousel";
 import { posterForEventType } from "@/lib/posters";
+import { isEventCurrent, compareByStartAsc } from "@/lib/rsvp";
 import { cn, formatShortDate, tileTint } from "@/lib/utils";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -120,11 +121,15 @@ export default function HomePage() {
     () => allEvents.filter((e) => e.status === "LIVE"),
     [allEvents],
   );
+  // `isEventCurrent(e, { excludeLive: true })`, not a bare status check — the old version
+  // trusted `status` alone, so an event whose date had already passed but whose status was
+  // never flipped to LIVE/ENDED sat in "Upcoming" indefinitely (reported 2026-09-15). Sorted
+  // soonest-first too, since nothing else does — the API's own order isn't chronological.
   const upcoming = useMemo(
     () =>
-      allEvents.filter(
-        (e) => e.status !== "ENDED" && e.status !== "LIVE" && e.status !== "CANCELLED",
-      ),
+      allEvents
+        .filter((e) => isEventCurrent(e, { excludeLive: true }))
+        .sort(compareByStartAsc),
     [allEvents],
   );
 

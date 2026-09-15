@@ -44,6 +44,7 @@ import {
   rsvpBlockedMessage,
   parseEventStart,
   formatWindowTime,
+  isEventCurrent,
 } from "@/lib/rsvp";
 
 // Laid out to Figma's event-detail frame; OUR logic is preserved wholesale (every hook,
@@ -339,7 +340,10 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
   const hasRsvped = event.hasRsvped ?? event.registered;
   const isLive = event.status === "LIVE";
   const isEnded = event.status === "ENDED";
-  const isUpcoming = !isLive && !isEnded;
+  // `isEventCurrent`, not `!isLive && !isEnded` — that bare check let the Launch "Launching
+  // soon" countdown below show a positive day count (or "Launching today!") for an event whose
+  // date had already passed but whose status was never flipped (reported 2026-09-15).
+  const isUpcoming = isEventCurrent(event, { excludeLive: true });
   // Case-insensitive: this gates the venue map and QR check-in, and a lower-case "virtual"
   // slipping through would put a map on an online-only event.
   const isVirtual = (event.format || "").toUpperCase() === "VIRTUAL";
@@ -610,26 +614,14 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
         </div>
       )}
 
-      {/* Event flyer — shown full and uncropped here in the body. The list cards crop the
-          flyer to fill their header (object-cover); this view uses object-contain + a capped
-          height so the whole poster stays visible whatever its aspect ratio. */}
-      {/* On Launches/General the hero already shows this artwork, so repeating it here would
-          be the same picture twice — the frames show it once. The other modules keep the
-          uncropped poster, where a flyer often carries text the hero's crop would cut off. */}
-      {!isSimpleLayout && heroArt && (
-        <section className="overflow-hidden rounded-xl border border-foreground/6 bg-foreground/3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={heroArt}
-            alt={`${event.title} flyer`}
-            className="mx-auto max-h-[520px] w-full object-contain"
-            onError={(e) => {
-              const sec = (e.currentTarget as HTMLImageElement).closest("section");
-              if (sec) (sec as HTMLElement).style.display = "none";
-            }}
-          />
-        </section>
-      )}
+      {/* REMOVED 2026-09-15 — this repeated the exact same flyer already shown in the hero
+          above, just uncropped. The idea was that a wide crop could clip a flyer's logo or
+          date text, so this full-size copy was added as a safety net. In practice it read as
+          a duplicate banner (reported by the user), not a safety net — Launches/General never
+          had this second copy and were never missing content because of it. Now every module
+          shows its flyer exactly once, in the hero, matching Launches/General. If a specific
+          flyer's crop is genuinely losing important text, that's a hero-crop problem to solve
+          (e.g. a gentler crop or object-contain there), not a reason to repeat the whole image. */}
 
       {/* AGM module section — Figma renders these as an equal-width icon-over-label tile
           row (not the list rows the other modules use), with the live quorum bar above.

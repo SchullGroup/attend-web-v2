@@ -8,6 +8,7 @@ import { EventListItem } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { EventThumb } from "@/components/attend/EventThumb";
 import { formatDate } from "@/lib/utils";
+import { isEventCurrent, compareByStartAsc } from "@/lib/rsvp";
 
 // Ported from the figma-redesign branch. figma's card design is kept as-is, but
 // the primary CTA is made state-aware again via useGetMyTeams (figma had a plain
@@ -51,9 +52,16 @@ export default function HackathonPage() {
   const eventInnovation = (evData?.data?.events ?? []).filter(
     (e) => e.eventType === "HACKATHON" || e.eventType === "INNOVATION_CHALLENGE",
   );
+  // `isEventCurrent`, not a bare status check — a challenge whose date has passed but was
+  // never marked ENDED used to sit in this list indefinitely (reported 2026-09-15). No
+  // `excludeLive` here: this is one merged list with no separate Live section of its own (each
+  // card shows its own Live badge), so a currently live challenge must stay regardless of its
+  // start time already being in the past. Sorted soonest-first, since nothing else does.
   const apiChallenges = Array.from(
     new Map([...challengeEvents, ...eventInnovation].map((e) => [e.id, e])).values(),
-  ).filter((e) => e.status !== "ENDED");
+  )
+    .filter((e) => isEventCurrent(e))
+    .sort(compareByStartAsc);
 
   const isLoading = chLoading || evLoading;
 
