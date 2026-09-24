@@ -57,6 +57,10 @@ import {
 // the API doesn't serve.
 
 // Backend formats are upper-case (VIRTUAL/HYBRID/IN_PERSON).
+// Same segmented-bar treatment LiveRoom's quorum indicator uses, so the number reads
+// identically whether it's shown before or during the meeting.
+const QUORUM_SEGMENTS = 20;
+
 const FORMAT_LABEL: Record<string, string> = {
   VIRTUAL: "Virtual Event", HYBRID: "Hybrid Event", IN_PERSON: "In-Person Event",
 };
@@ -198,6 +202,10 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
   // entry point into that page can say "Change proxy" instead of promising a fresh
   // appointment it won't actually offer once you get there.
   const hasProxy = resData?.data?.hasProxy === true;
+  // Submission is all-or-nothing (PreVoteSheet.submit() requires every open resolution
+  // answered before it allows Submit Vote), so there's no partial-vote state to account
+  // for here — every resolution has myVote or none do.
+  const allVoted = resolutions.length > 0 && resolutions.every((r) => r.myVote);
 
   // Quorum — AGM-only and live-only, same loosely-typed endpoint LiveRoom reads for its
   // in-session ballot header (the backend publishes no fixed schema for it).
@@ -469,7 +477,10 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
         >
           <>
             {isLive && (
-              <span className="absolute left-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+              // z-10, not z-20 — the sticky "About event" nav bar (NavShell.tsx) is also
+              // z-20, and as the hero scrolls under it this badge (later in the DOM, same
+              // stacking level) was painting on top of the header instead of under it.
+              <span className="absolute left-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
                 <span className="h-1.5 w-1.5 rounded-full bg-white" /> Live
               </span>
             )}
@@ -593,8 +604,10 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
           rule reads as a divider between two blocks rather than a floating line. */}
       {isSimpleLayout && <hr className="-my-1 border-foreground/8" />}
 
-      {/* Capacity — the slim bar replaces the old card's capacity row */}
-      {event.maximumCapacity > 0 && (
+      {/* Capacity — the slim bar replaces the old card's capacity row. Hidden on AGMs:
+          registered/capacity doesn't matter there once the quorum bar (shareholder
+          turnout) is showing directly below it in the AGM section. */}
+      {mod !== "AGM" && event.maximumCapacity > 0 && (
         <div className="max-w-sm">
           <div className="flex items-center justify-between text-xs tracking-[-0.12px] text-foreground/60">
             <span>{event.registeredCount.toLocaleString()} registered</span>
@@ -632,18 +645,33 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
       {mod === "AGM" && (
         <section className="flex flex-col gap-3">
           {quorum && (
-            <div className="max-w-sm">
-              <div className="flex items-center justify-between text-xs tracking-[-0.12px] text-foreground/60">
-                <span>Quorum ({quorum.pct}%)</span>
-                {quorum.total !== null && (
-                  <span className="inline-flex items-center gap-1">
-                    <Users className="h-3.5 w-3.5" /> {quorum.total.toLocaleString()} Shareholders
-                  </span>
-                )}
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-xs tracking-[-0.12px] text-foreground">
+                  Quorum <span className="text-[10px] text-foreground/50">({quorum.pct}%)</span>
+                </p>
+                <div className="mt-1.5 flex gap-[3px]" role="img" aria-label={`Quorum ${quorum.pct}%`}>
+                  {Array.from({ length: QUORUM_SEGMENTS }, (_, i) => (
+                    <span
+                      key={i}
+                      className={cn(
+                        "h-2.5 w-1.5 rounded-[1px]",
+                        i < Math.round((Math.min(quorum.pct, 100) / 100) * QUORUM_SEGMENTS)
+                          ? "bg-amber-400"
+                          : "bg-foreground/10",
+                      )}
+                    />
+                  ))}
+                </div>
               </div>
-              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-foreground/10">
-                <div className="h-full rounded-full bg-orange-500" style={{ width: `${quorum.pct}%` }} />
-              </div>
+              {quorum.total !== null && (
+                <div className="text-right">
+                  <p className="text-sm font-medium text-foreground">{quorum.total.toLocaleString()}</p>
+                  <p className="inline-flex items-center gap-1 text-xs text-foreground/60">
+                    <Users className="h-3.5 w-3.5" /> Shareholders
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -675,7 +703,11 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
                   onClick={() => requireKyc(() => setPreVoteOpen(true))}
                   className="text-left"
                 >
-                  <ActionTile icon={<Vote className="h-5 w-5" style={{ color }} />} label="Pre-AGM Voting" />
+                  <ActionTile
+                    icon={<Vote className="h-5 w-5" style={{ color }} />}
+                    label={allVoted ? "Voted" : "Pre-AGM Voting"}
+                    voted={allVoted}
+                  />
                 </button>
               )}
 
@@ -1020,10 +1052,17 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
             {mod === "AGM" && !isLive && !isEnded && (
               <Button
                 className="flex-1"
-                style={{ backgroundColor: color }}
+                variant={allVoted ? "outline" : undefined}
+                style={allVoted ? undefined : { backgroundColor: color }}
                 onClick={() => requireKyc(() => setPreVoteOpen(true))}
               >
-                Pre-Vote
+                {allVoted ? (
+                  <span className="flex items-center gap-1.5 text-emerald-700">
+                    <CheckCircle2 className="h-4 w-4" /> Voted
+                  </span>
+                ) : (
+                  "Pre-Vote"
+                )}
               </Button>
             )}
             {mod === "HACKATHON" && (
@@ -1121,9 +1160,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
 // Figma's AGM action row — equal-width icon-over-label tiles, as opposed to ActionRow's
 // list treatment which the other modules keep.
-function ActionTile({ icon, label }: { icon: React.ReactNode; label: string }) {
+function ActionTile({ icon, label, voted }: { icon: React.ReactNode; label: string; voted?: boolean }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl border border-foreground/6 bg-white px-2 py-3.5 text-center transition-colors hover:bg-foreground/2">
+    <div className="relative flex h-full flex-col items-center justify-center gap-2 rounded-xl border border-foreground/6 bg-white px-2 py-3.5 text-center transition-colors hover:bg-foreground/2">
+      {voted && (
+        <CheckCircle2 className="absolute right-2 top-2 h-4 w-4 text-emerald-600" />
+      )}
       {icon}
       <span className="text-xs font-medium leading-tight tracking-[-0.12px] text-foreground">{label}</span>
     </div>
