@@ -8,7 +8,8 @@ import { EVENT_TABS, type EventTab, filterEventsByTab } from "./eventTabs";
 export function SavedEventsPanel({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<EventTab>("All");
   const { data, isLoading } = useGetSavedEvents();
-  const events = filterEventsByTab(data?.data?.events ?? [], tab);
+  // A bookmark isn't tied to whether the event is still upcoming — see eventTabs.ts.
+  const events = filterEventsByTab(data?.data?.events ?? [], tab, { includeEnded: true });
 
   return (
     <PanelShell
