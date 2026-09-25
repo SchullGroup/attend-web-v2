@@ -1,6 +1,6 @@
 ﻿import { parseApiDate } from "./utils";
 
-export type RsvpBlockedReason = "disabled" | "cancelled" | "unavailable" | null;
+export type RsvpBlockedReason = "disabled" | "cancelled" | "ended" | "unavailable" | null;
 
 export interface RsvpEligibility {
   allowed: boolean;
@@ -38,25 +38,23 @@ export function parseEventStart(date?: string, startTime?: string): Date | null 
  * registration the server would have honoured.
  */
 const NOT_PUBLIC = new Set(["DRAFT", "PENDING", "PENDING_APPROVAL", "REJECTED", "SUSPENDED"]);
+const FINISHED = new Set(["COMPLETED", "ENDED", "CLOSED", "ARCHIVED"]);
 
 /**
  * Whether the RSVP button should be offered.
  *
- * Product decision (2026-09-25): RSVP should be offered at any point of an event's life —
- * upcoming, live, or even after it's ended — not cut off by a clock-based window. This used to
- * enforce a 30-minute late-registration grace period after LIVE and block registration outright
- * once ENDED (see git history / docs/RSVP_LATE_REGISTRATION.md for that older rule); both of
- * those time/status checks are removed here.
+ * Product decision (2026-09-25): RSVP should be offered at any point *while the event is
+ * still happening* — no clock cutoff partway through a LIVE session — but not after it's over.
+ * This used to enforce a 30-minute late-registration grace period after LIVE and treat that
+ * exactly like ended (see git history / docs/RSVP_LATE_REGISTRATION.md for that older rule).
+ * Only the LIVE-window cutoff is removed; ENDED (and the other finished statuses) is still
+ * blocked outright, matching the backend's own rule (confirmed against its live API
+ * description 2026-09-25: "Event must be PUBLISHED, UPCOMING or LIVE... no time limit while
+ * it is LIVE" — ENDED was never on that accepted list).
  *
- * The backend has NOT been updated to match yet as of this change — it may still reject an
- * RSVP outside its own rules. This function only controls whether the button is OFFERED; a
- * live rejection still surfaces through the existing onError handling on the RSVP call itself
- * (see `doRsvp` in events/[id]/page.tsx), so the backend stays the actual source of truth while
- * the frontend just stops guessing a narrower window than may actually be enforced.
- *
- * What's left blocked is deliberately NOT about timing: an explicit `rsvpEnabled: false`, a
- * cancelled event (nothing scheduled to attend), or a status meaning the event was never
- * published in the first place. Those are organiser/admin decisions, not clock artifacts.
+ * What's left blocked is deliberately NOT about a clock *within* an event: an explicit
+ * `rsvpEnabled: false`, a cancelled event, a finished one, or a status meaning the event was
+ * never published in the first place. Those are organiser/admin/lifecycle decisions.
  */
 export function getRsvpEligibility(
   event?: { status?: string; rsvpEnabled?: boolean },
@@ -69,6 +67,7 @@ export function getRsvpEligibility(
 
   const status = (event.status || "").toUpperCase();
   if (status === "CANCELLED") return { allowed: false, reason: "cancelled" };
+  if (FINISHED.has(status)) return { allowed: false, reason: "ended" };
   if (NOT_PUBLIC.has(status)) return { allowed: false, reason: "unavailable" };
 
   return { allowed: true, reason: null };
@@ -79,6 +78,8 @@ export function rsvpBlockedMessage(reason: RsvpBlockedReason): string | null {
   switch (reason) {
     case "cancelled":
       return "This event has been cancelled.";
+    case "ended":
+      return "This event has ended.";
     case "disabled":
       return "This event is not accepting registrations.";
     case "unavailable":
