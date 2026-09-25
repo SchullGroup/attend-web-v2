@@ -118,10 +118,9 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
     return () => clearInterval(interval);
   }, []);
 
-  // RSVP is offered at any point of the event's life now (2026-09-25 product decision) — no
-  // FE-side clock/status cutoff for LIVE or ENDED. See the comment on getRsvpEligibility for
-  // what's actually still blocked (organiser/admin decisions, not timing) and why the backend
-  // remains the real source of truth while it catches up to this rule.
+  // RSVP is offered at any point while a LIVE event is still running now (2026-09-25 product
+  // decision) — no more FE-side 30-minute cutoff partway through. Still blocked once ENDED,
+  // matching the backend. See the comment on getRsvpEligibility for the full rule.
   const rsvpEligibility = getRsvpEligibility(event);
   const rsvpBlocked = rsvpBlockedMessage(rsvpEligibility.reason);
 
