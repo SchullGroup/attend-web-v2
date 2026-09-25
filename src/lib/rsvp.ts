@@ -1,23 +1,10 @@
 ﻿import { parseApiDate } from "./utils";
 
-/**
- * How long after an event starts a participant may still register.
- *
- * Product decision (PM, 2026-08-11): late arrivals get a 30-minute grace period to RSVP and
- * join. Documented in docs/Attend-web-user-flow-guide.html and docs/RSVP_LATE_REGISTRATION.md.
- *
- * This is the single source of truth on the frontend. The backend does not currently send a
- * window length ΓÇö if it ever does, read it from the event payload and fall back to this.
- */
-export const LATE_RSVP_MINUTES = 30;
-
-export type RsvpBlockedReason = "disabled" | "late" | "ended" | "unavailable" | null;
+export type RsvpBlockedReason = "disabled" | "cancelled" | "unavailable" | null;
 
 export interface RsvpEligibility {
   allowed: boolean;
   reason: RsvpBlockedReason;
-  /** Set while a LIVE event is still inside its grace period. */
-  lateWindowClosesAt: Date | null;
 }
 
 /**
@@ -45,69 +32,53 @@ export function parseEventStart(date?: string, startTime?: string): Date | null 
 }
 
 /**
- * Statuses that close registration outright, whatever the clock says.
- *
- * Enumerating the refused statuses rather than the accepted ones is deliberate: an
- * unfamiliar status falls through to allowed and lets the backend arbitrate, so a status we
- * have not seen yet cannot silently block a registration the server would have honoured.
+ * Statuses that mean there is genuinely nothing to RSVP to. Enumerating the refused statuses
+ * rather than the accepted ones is deliberate: an unfamiliar status falls through to allowed
+ * and lets the backend arbitrate, so a status we have not seen yet cannot silently block a
+ * registration the server would have honoured.
  */
-const LIVE_STATUSES = new Set(["LIVE", "IN_PROGRESS", "ONGOING"]);
-const FINISHED = new Set(["COMPLETED", "ENDED", "CLOSED", "CANCELLED", "ARCHIVED"]);
 const NOT_PUBLIC = new Set(["DRAFT", "PENDING", "PENDING_APPROVAL", "REJECTED", "SUSPENDED"]);
 
 /**
  * Whether the RSVP button should be offered.
  *
- * A LIVE event stays open for LATE_RSVP_MINUTES past its start time, then closes. Everything
- * else is decided by status alone ΓÇö notably NOT by the clock, so an event still PUBLISHED
- * after its nominal start keeps accepting registrations, which is what the backend does.
+ * Product decision (2026-09-25): RSVP should be offered at any point of an event's life —
+ * upcoming, live, or even after it's ended — not cut off by a clock-based window. This used to
+ * enforce a 30-minute late-registration grace period after LIVE and block registration outright
+ * once ENDED (see git history / docs/RSVP_LATE_REGISTRATION.md for that older rule); both of
+ * those time/status checks are removed here.
  *
- * The backend agrees on the rule as of 2026-08-11: `POST /participant/events/{id}/rsvp` accepts
- * "PUBLISHED or UPCOMING, or LIVE within 30 minutes of its scheduled start time". It measures
- * from the scheduled start too, so LATE_RSVP_MINUTES here and the server's window should shut at
- * the same moment ΓÇö see docs/RSVP_LATE_REGISTRATION.md ┬º4 for how that was confirmed.
+ * The backend has NOT been updated to match yet as of this change — it may still reject an
+ * RSVP outside its own rules. This function only controls whether the button is OFFERED; a
+ * live rejection still surfaces through the existing onError handling on the RSVP call itself
+ * (see `doRsvp` in events/[id]/page.tsx), so the backend stays the actual source of truth while
+ * the frontend just stops guessing a narrower window than may actually be enforced.
+ *
+ * What's left blocked is deliberately NOT about timing: an explicit `rsvpEnabled: false`, a
+ * cancelled event (nothing scheduled to attend), or a status meaning the event was never
+ * published in the first place. Those are organiser/admin decisions, not clock artifacts.
  */
 export function getRsvpEligibility(
-  event?: { status?: string; rsvpEnabled?: boolean; date?: string; startTime?: string },
-  now: Date = new Date(),
+  event?: { status?: string; rsvpEnabled?: boolean },
 ): RsvpEligibility {
-  const closed = (reason: RsvpBlockedReason): RsvpEligibility => ({
-    allowed: false,
-    reason,
-    lateWindowClosesAt: null,
-  });
-
-  if (!event) return closed("unavailable");
+  if (!event) return { allowed: false, reason: "unavailable" };
 
   // Only an explicit false blocks. The field is optional on the participant payload, and a
   // missing value must not be read as "registration disabled".
-  if (event.rsvpEnabled === false) return closed("disabled");
+  if (event.rsvpEnabled === false) return { allowed: false, reason: "disabled" };
 
   const status = (event.status || "").toUpperCase();
-  if (FINISHED.has(status)) return closed("ended");
-  if (NOT_PUBLIC.has(status)) return closed("unavailable");
+  if (status === "CANCELLED") return { allowed: false, reason: "cancelled" };
+  if (NOT_PUBLIC.has(status)) return { allowed: false, reason: "unavailable" };
 
-  if (LIVE_STATUSES.has(status)) {
-    const startsAt = parseEventStart(event.date, event.startTime);
-    // No parseable start time means no way to measure the grace period. Stay open and let
-    // the backend decide rather than locking out a participant over a missing field.
-    if (!startsAt) return { allowed: true, reason: null, lateWindowClosesAt: null };
-
-    const closesAt = new Date(startsAt.getTime() + LATE_RSVP_MINUTES * 60 * 1000);
-    if (now > closesAt) return closed("late");
-    return { allowed: true, reason: null, lateWindowClosesAt: closesAt };
-  }
-
-  return { allowed: true, reason: null, lateWindowClosesAt: null };
+  return { allowed: true, reason: null };
 }
 
 /** The sentence shown in place of the RSVP button when registration is refused. */
 export function rsvpBlockedMessage(reason: RsvpBlockedReason): string | null {
   switch (reason) {
-    case "late":
-      return `Registration closed ${LATE_RSVP_MINUTES} minutes after this event started.`;
-    case "ended":
-      return "This event has ended.";
+    case "cancelled":
+      return "This event has been cancelled.";
     case "disabled":
       return "This event is not accepting registrations.";
     case "unavailable":
@@ -115,11 +86,6 @@ export function rsvpBlockedMessage(reason: RsvpBlockedReason): string | null {
     default:
       return null;
   }
-}
-
-/** "13:10" - the local time the late-registration window shuts. */
-export function formatWindowTime(d: Date): string {
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 /**

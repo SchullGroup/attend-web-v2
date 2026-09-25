@@ -42,8 +42,6 @@ import { useEffect } from "react";
 import {
   getRsvpEligibility,
   rsvpBlockedMessage,
-  parseEventStart,
-  formatWindowTime,
   isEventCurrent,
 } from "@/lib/rsvp";
 
@@ -120,16 +118,12 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
     return () => clearInterval(interval);
   }, []);
 
-  const startsAt = event ? parseEventStart(event.date, event.startTime) : null;
-
-  // Late registration: a LIVE event keeps accepting RSVPs for LATE_RSVP_MINUTES past its
-  // start, per the PM decision. Everything else is decided by status and rsvpEnabled rather
-  // than by the clock, so an event still PUBLISHED after its nominal start keeps accepting
-  // registrations — which is what the backend does, and what the old clock-only gate wrongly
-  // blocked. See docs/RSVP_LATE_REGISTRATION.md.
+  // RSVP is offered at any point of the event's life now (2026-09-25 product decision) — no
+  // FE-side clock/status cutoff for LIVE or ENDED. See the comment on getRsvpEligibility for
+  // what's actually still blocked (organiser/admin decisions, not timing) and why the backend
+  // remains the real source of truth while it catches up to this rule.
   const rsvpEligibility = getRsvpEligibility(event);
   const rsvpBlocked = rsvpBlockedMessage(rsvpEligibility.reason);
-  const lateWindow = rsvpEligibility.lateWindowClosesAt;
 
   const [shared, setShared] = useState(false);
   const { mutate: rsvp, isPending: rsvping } = useRsvp(id);
@@ -1011,9 +1005,8 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
           rsvpEligibility.allowed ? (
             <div className="w-full space-y-2">
               <div className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-                <Clock className="h-4 w-4 shrink-0 animate-pulse" />
-                Late registration open
-                {lateWindow && ` — closes ${formatWindowTime(lateWindow)}`}
+                <Radio className="h-4 w-4 shrink-0 animate-pulse" />
+                This event is already live — RSVP to join now
               </div>
               <div className="flex gap-2">
                 <Button
@@ -1031,7 +1024,6 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
               <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
                 {rsvpBlocked}
-                {startsAt && ` It started at ${formatWindowTime(startsAt)}.`}
                 <span className="mt-0.5 block font-medium">
                   Contact the organiser if you were expecting access.
                 </span>
