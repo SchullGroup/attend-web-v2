@@ -8,6 +8,7 @@ import { downloadNodeAsPdf } from "@/lib/dom-to-pdf";
 import { voteLabel } from "@/lib/agm-format";
 import { ProxyCastVotes } from "@/components/attend/ProxyCastVotes";
 import { useGetVoteReceipt, useGetProxy, useRevokeProxy } from "@/api/agm/hooks";
+import { useGetEvent } from "@/api/events/hooks";
 import { Dialog, DialogHeader } from "@/components/ui/Dialog";
 import { formatDate } from "@/lib/utils";
 
@@ -40,6 +41,7 @@ export function ReceiptSheet({
   const [revokeError, setRevokeError] = useState<string | null>(null);
   const [revokeSuccess, setRevokeSuccess] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
   const docRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading } = useGetVoteReceipt(eventId);
@@ -47,6 +49,12 @@ export function ReceiptSheet({
   const { data: proxyData } = useGetProxy(eventId);
   const proxy = proxyData?.data;
   const { mutate: revokeProxy, isPending: revoking } = useRevokeProxy(eventId);
+  // The receipt payload carries no branding — same event-detail fetch MinutesSheet uses,
+  // same branding.logoUrl-over-organizerLogo precedence (organizerLogo is the registrar's
+  // mark on an AGM, not the company holding the meeting).
+  const { data: eventResp } = useGetEvent(eventId);
+  const event = eventResp?.data;
+  const orgLogo = event?.branding?.logoUrl || event?.organizerLogo || null;
 
   function handleRevoke() {
     setRevokeError(null);
@@ -175,8 +183,18 @@ export function ReceiptSheet({
           <div className="rounded-xl border border-foreground/6 bg-white p-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
             <div className="flex items-start justify-between gap-3 pb-4">
               <Row label="Meeting" value={view.meeting} />
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-primary/10">
-                <Building2 className="h-5 w-5 text-primary" />
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-primary/10">
+                {orgLogo && !logoFailed ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={orgLogo}
+                    alt=""
+                    className="h-full w-full object-contain p-1.5"
+                    onError={() => setLogoFailed(true)}
+                  />
+                ) : (
+                  <Building2 className="h-5 w-5 text-primary" />
+                )}
               </span>
             </div>
             <hr className="border-foreground/6" />

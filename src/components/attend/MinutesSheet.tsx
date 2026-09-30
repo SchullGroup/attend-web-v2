@@ -34,12 +34,18 @@ export function MinutesSheet({
   const { data, isLoading, error } = useGetMinutes(eventId);
   const minutes = data?.data ?? null;
   const [downloading, setDownloading] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
   const docRef = useRef<HTMLDivElement>(null);
   // The minutes payload itself has no organiser field; the event detail already does
   // (same registerName-over-organizerName precedence used on /agm and /events/[id]).
   const { data: eventResp } = useGetEvent(eventId);
   const event = eventResp?.data;
   const organiser = event?.registerName || event?.organizerName || "";
+  // branding.logoUrl ahead of organizerLogo — same precedence EventThumb/EventBanner use:
+  // on an AGM, organizerLogo is the registrar's mark (Meristem), not the company holding
+  // the meeting. Most events only ever set one of the two, so without this fallback the
+  // hero showed the generic document icon far more often than it needed to.
+  const heroLogo = event?.branding?.logoUrl || event?.organizerLogo || null;
 
   if (isLoading) {
     return (
@@ -118,15 +124,13 @@ export function MinutesSheet({
             document label. Finalised date moves to the footer credit below. */}
         <div className="flex flex-col items-center gap-2 pb-2 text-center">
           <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-foreground/4">
-            {event?.branding?.logoUrl ? (
+            {heroLogo && !logoFailed ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={event.branding.logoUrl}
+                src={heroLogo}
                 alt=""
                 className="h-full w-full object-contain p-1.5"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                }}
+                onError={() => setLogoFailed(true)}
               />
             ) : (
               <FileText className="h-6 w-6 text-foreground/60" />
