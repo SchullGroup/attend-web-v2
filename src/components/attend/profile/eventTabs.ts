@@ -44,3 +44,14 @@ export function filterEventsByTab(
   if (tab === "Challenges") return current.filter(isChallenge);
   return current;
 }
+
+/**
+ * Attended AGMs — the candidate set for minutes/vote-receipt rows in the Document Vault.
+ * Shared by DocumentVaultPanel (the rows themselves) and the profile page (the vault's
+ * document count), so the two can never disagree about which events are in scope.
+ */
+export function attendedAgms(events: EventListItem[]): EventListItem[] {
+  return filterEventsByTab(events, "Attended").filter(
+    (e) => (e.eventType || "").toUpperCase() === "AGM_EGM",
+  );
+}
