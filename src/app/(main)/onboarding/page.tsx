@@ -1,7 +1,9 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { Building2, Lightbulb, Rocket, ShieldCheck, ArrowRight, Star } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { VerifyIdentitySheet } from "@/components/attend/VerifyIdentitySheet";
 import { useGetMe } from "@/api/auth/hooks";
 import { initialsFor } from "@/lib/utils";
 
@@ -36,7 +38,9 @@ const FEATURES = [
     bg: "#fffbeb",
     title: "Identity Verification",
     desc: "Complete KYC with your BVN and CHN to unlock shareholder voting and full platform access.",
-    href: "/intro",
+    // Verification has no page of its own — it's a modal raised at the point of use, and the
+    // AGM list is where that point is. The CTA below opens the modal directly.
+    href: "/agm",
   },
 ];
 
@@ -44,6 +48,7 @@ export default function OnboardingPage() {
   const { data: meResp } = useGetMe();
   const fullName = meResp?.data?.fullName || "there";
   const firstName = fullName.split(" ")[0];
+  const [verifyOpen, setVerifyOpen] = useState(false);
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 py-4">
@@ -92,12 +97,19 @@ export default function OnboardingPage() {
             Verify your BVN and CHN to unlock AGM voting and full shareholder access. Takes about 2 minutes.
           </p>
         </div>
-        <Link href="/intro" className="shrink-0">
-          <Button size="sm" className="gap-1">
-            Verify now <ArrowRight className="h-3.5 w-3.5" />
-          </Button>
-        </Link>
+        <Button size="sm" className="shrink-0 gap-1" onClick={() => setVerifyOpen(true)}>
+          Verify now <ArrowRight className="h-3.5 w-3.5" />
+        </Button>
       </div>
+
+      {verifyOpen && (
+        <VerifyIdentitySheet
+          open
+          onClose={() => setVerifyOpen(false)}
+          // Nothing to enforce from a checklist — declining just closes.
+          onDismiss={() => setVerifyOpen(false)}
+        />
+      )}
 
       {/* Skip CTA */}
       <div className="text-center">

@@ -47,6 +47,16 @@ export function fileDisplayName(
   return fallback;
 }
 
+// A full http(s) address with a real domain — "youtube.com/…" without a scheme doesn't count.
+export function isHttpUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw.trim());
+    return (u.protocol === "https:" || u.protocol === "http:") && u.hostname.includes(".");
+  } catch {
+    return false;
+  }
+}
+
 // Admins paste whatever stream link they have (often a YouTube/Vimeo *watch*
 // URL). Watch URLs can't be iframed, so convert known providers to their embed
 // form; anything else is returned unchanged (assumed already embeddable).
@@ -137,4 +147,20 @@ export function formatEventFormat(f: string) {
   if (key === "virtual") return "Virtual";
   if (key === "hybrid") return "Hybrid";
   return key.replace(/_/g, "-");
+}
+
+/**
+ * Deterministic pastel per organiser — the tint behind a logo tile, and the base layer under a
+ * detail-page banner's blurred-logo fill.
+ *
+ * Same seed always yields the same colour, so an event looks identical everywhere it appears and
+ * doesn't change on re-render. Lifted here after being copy-pasted into four pages; import it
+ * rather than adding a fifth copy.
+ */
+export const TILE_TINTS = ["#f9b6ff", "#8ba6ff", "#c3e1d0", "#dbe1c3", "#f6f6f6", "#e2e2e2"];
+
+export function tileTint(seed: string) {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 997;
+  return TILE_TINTS[h % TILE_TINTS.length];
 }

@@ -131,14 +131,14 @@
       if (!event.data || event.data.type !== 'ZOOM_JOIN') return;
 
       var params = event.data;
-      join(params.sdkKey, params.signature, params.meetingNumber, params.password, params.userName);
+      join(params.sdkKey, params.signature, params.meetingNumber, params.password, params.userName, params.userEmail);
     });
 
     // The parent (ZoomStage.tsx) uses the iframe's onLoad event to know when
     // scripts are ready, then posts ZOOM_JOIN directly — no handshake needed.
     console.log('[zoom-meeting.html] SDK loaded, ZoomMtg available:', !!ZoomMtg, '— waiting for ZOOM_JOIN from parent');
 
-    function join(sdkKey, signature, meetingNumber, password, userName) {
+    function join(sdkKey, signature, meetingNumber, password, userName, userEmail) {
       if (!ZoomMtg) {
         postError('Zoom SDK failed to load. Please refresh and try again.');
         return;
@@ -157,7 +157,7 @@
         disablePreview: true,
         success: function() {
           console.log('[zoom-meeting.html] init success, calling ZoomMtg.join()...');
-          ZoomMtg.join({
+          var joinOptions = {
             sdkKey: sdkKey,
             signature: signature,
             meetingNumber: String(meetingNumber),
@@ -174,7 +174,12 @@
                 'Failed to join the meeting.'
               );
             }
-          });
+          };
+          // Zoom's SDK reference: "userEmail: Required for webinar. ... optional if not"
+          // (meetings). It's also how Zoom recognises a panelist. Sent whenever we have one —
+          // the backend asks for it on meetings too — and omitted rather than sent blank.
+          if (userEmail) joinOptions.userEmail = userEmail;
+          ZoomMtg.join(joinOptions);
         },
         error: function(res) {
           console.error('[zoom-meeting.html] init error:', res);

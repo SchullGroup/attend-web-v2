@@ -5,6 +5,7 @@ import { Building2, ChevronRight, CalendarDays } from "lucide-react";
 import { useGetEvents } from "@/api/events/hooks";
 import { EventListItem } from "@/types";
 import { AgmHero, AgmSubNav } from "@/components/attend/AgmSubNav";
+import { EventThumb } from "@/components/attend/EventThumb";
 import { formatDate } from "@/lib/utils";
 import { MinutesSheet } from "@/components/attend/MinutesSheet";
 
@@ -82,11 +83,22 @@ function MinutesPicker({ onSelect }: { onSelect: (id: string) => void }) {
               key={e.id}
               type="button"
               onClick={() => onSelect(e.id)}
-              className="flex items-center gap-2.5 rounded-xl border border-foreground/6 bg-white p-1.5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+              // `text-left` matters here specifically: this row is a <button> (it calls
+              // onSelect rather than navigating), and a <button> centres text by default in
+              // every browser — nothing in this app's reset overrides that. The AGM list uses
+              // the identical title/date markup inside a <Link>, which has no such default, so
+              // it rendered left-aligned "for free" while this one didn't (reported 2026-09-15).
+              className="flex items-center gap-2.5 rounded-xl border border-foreground/6 bg-white p-1.5 text-left shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
             >
-              <span className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-[10px] bg-primary/10">
-                <Building2 className="h-6 w-6 text-primary" strokeWidth={1.75} />
-              </span>
+              {/* `fit="contain"` — same company-logo treatment as the AGM list card
+                  (agm/page.tsx), not the generic building icon every row showed before
+                  regardless of company (reported 2026-09-15, same bug as agm/receipt). */}
+              <EventThumb
+                event={e}
+                fit="contain"
+                className="h-15 w-15 rounded-[10px]"
+                fallback={<Building2 className="h-6 w-6 text-foreground/60" strokeWidth={1.75} />}
+              />
               <div className="min-w-0 flex-1 py-1">
                 <p className="truncate text-sm font-medium tracking-[-0.14px] text-foreground">{e.title}</p>
                 <p className="flex items-center gap-1 text-xs text-foreground/80">

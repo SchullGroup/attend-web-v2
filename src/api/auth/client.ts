@@ -38,13 +38,26 @@ export const authClient = {
     return response.data;
   },
 
-  // ⚠️ ASSUMED ROUTE. The backend has no participant profile-update endpoint yet — nothing in
-  // the API layer does PUT/PATCH on a user — so this 404s until one is added. The Settings
-  // "My profile" form calls it and shows a soft "please try again later" on failure rather
-  // than a hard error, so a missing route degrades quietly instead of looking broken.
-  // Confirm the path/shape with the backend when it lands.
+  // Profile update — the real contract, per the backend status doc §25 (2026-08-28). This was
+  // previously a guessed `PUT` with guessed field names; it's a PATCH, the phone field is
+  // `phone` (not `phoneNumber`), and there is no `fullName` field at all.
+  //
+  // PATCH, not PUT, is load-bearing: omitting a field means "leave unchanged", so editing a
+  // phone on one device can't blank a name changed on another. Only send what the user touched.
+  //
+  // Acts on the caller's own account only — the user is resolved from the JWT, never from the
+  // body. Returns the full updated profile in `GET /me`'s shape, so the caller can replace its
+  // cached profile from this one response.
+  //
+  // 400 blank first/last/phone, name >50 chars, username outside 3-30 or its charset, bad phone
+  // 409 phone or username already belongs to another account
+  // 404 token valid but the user row is gone
+  //
+  // ⚠️ May still 404 until the backend deploys §25 — that doc has §16-19 committed-but-undeployed
+  // as of 2026-08-31 and doesn't list §20-25 as deployed at all. The form's soft-failure path
+  // covers that; this now at least points at the route that will exist.
   updateProfile: async (data: UpdateProfileRequest) => {
-    const response = await apiClient.put<MeApiResponse>("/api/v1/auth/me", data);
+    const response = await apiClient.patch<MeApiResponse>("/api/v1/auth/me", data);
     return response.data;
   },
 

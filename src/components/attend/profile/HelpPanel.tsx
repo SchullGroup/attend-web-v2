@@ -4,12 +4,12 @@ import { ChevronDown, ChevronRight, Mail, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PanelShell } from "./PanelShell";
 
-// Contact details per the frame. The desktop and mobile frames disagreed
-// (contact@meristemng.com vs hello@experienceattend.com); the user picked the latter.
-const SUPPORT_EMAIL = "hello@experienceattend.com";
-const SUPPORT_PHONE_LABEL = "0800MERISTEM";
-// Letters keypad-mapped so the link actually dials: MERISTEM → 63747836.
-const SUPPORT_PHONE_TEL = "0800637478";
+// The only hardcoded support contacts in the app (the landing page carries social links only).
+const SUPPORT_EMAIL = "support@experienceattend.com";
+const SUPPORT_PHONE_LABEL = "+234 700 ATTEND";
+// The vanity letters keypad-mapped, or `tel:` has nothing to dial:
+// A=2 T=8 T=8 E=3 N=6 D=3 → 288363.
+const SUPPORT_PHONE_TEL = "+234700288363";
 
 const FAQ = [
   { q: "What is Attend?", a: "Attend is an enterprise events platform for AGMs, product launches, innovation challenges, and general corporate gatherings." },

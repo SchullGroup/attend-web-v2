@@ -113,10 +113,12 @@ function ProxyHistoryItemRow({ p }: { p: ProxyHistoryItem }) {
       },
       onError: (err: any) => {
         const msg = err?.response?.data?.message;
+        // Generic on purpose — see the matching note in PreVoteSheet. The old text claimed the
+        // revoke endpoint didn't exist, which stopped being true once the backend built it.
         setErrorMsg(
           msg && !msg.includes("Something went wrong")
             ? msg
-            : "Proxy revocation endpoint (DELETE /api/v1/participant/events/{eventId}/proxy) is currently unavailable on the server."
+            : "We couldn't revoke your proxy just now. Please try again."
         );
       },
     });

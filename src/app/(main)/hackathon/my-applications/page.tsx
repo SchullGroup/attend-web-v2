@@ -8,7 +8,7 @@ import { useGetMe } from "@/api/auth/hooks";
 import { Dialog } from "@/components/ui/Dialog";
 import { CertificateSheet } from "@/components/attend/CertificateSheet";
 import { Badge } from "@/components/ui/Badge";
-import { cn } from "@/lib/utils";
+import { cn, tileTint } from "@/lib/utils";
 
 // Laid out to Figma's "My Application" frame: it is a TAB of the Innovation Challenges
 // page (same header + underline tabs), and each application is a card — thumbnail,
@@ -47,12 +47,6 @@ const toneFor = (k: string): Tone => STATUS_TONE[k] ?? "muted";
 const CERT_EXCLUDED = new Set(["withdrawn", "rejected"]);
 const mayHaveCertificate = (statusKey: string) => !CERT_EXCLUDED.has(statusKey);
 
-const TILE_TINTS = ["#f9b6ff", "#8ba6ff", "#c3e1d0", "#dbe1c3", "#f6f6f6", "#e2e2e2"];
-function tileTint(seed: string) {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 997;
-  return TILE_TINTS[h % TILE_TINTS.length];
-}
 
 export default function MyApplicationsPage() {
   const { data, isLoading } = useGetMyApplications();

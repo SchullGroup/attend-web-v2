@@ -61,8 +61,11 @@ export function MinutesSheet({
     );
   }
 
-  // status:true with data:null → finalised minutes aren't published yet.
-  if (!minutes) {
+  // status:true with data:null → finalised minutes aren't published yet. A row that exists but
+  // carries no content counts the same: rendering it would produce a blank document above a
+  // Download button that saves an empty PDF. Same rule as the vote receipt — no document until
+  // there's something in it. (This branch renders no `footer`, so there is no download.)
+  if (!minutes || !minutes.content?.trim()) {
     return (
       <Sheet onClose={onClose} isOpen={isOpen}>
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-foreground/15 p-10 text-center">

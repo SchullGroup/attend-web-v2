@@ -6,7 +6,9 @@ import { useGetChallenges, useGetMyTeams } from "@/api/hackathon/hooks";
 import { useGetEvents } from "@/api/events/hooks";
 import { EventListItem } from "@/types";
 import { Button } from "@/components/ui/Button";
+import { EventThumb } from "@/components/attend/EventThumb";
 import { formatDate } from "@/lib/utils";
+import { isEventCurrent, compareByStartAsc } from "@/lib/rsvp";
 
 // Ported from the figma-redesign branch. figma's card design is kept as-is, but
 // the primary CTA is made state-aware again via useGetMyTeams (figma had a plain
@@ -15,14 +17,6 @@ import { formatDate } from "@/lib/utils";
 // their application, not the apply form. figma's "View Details" stays as the
 // secondary button.
 
-// Deterministic pastel tile per organiser — same approach as Home (no real
-// per-challenge photo asset from the API yet).
-const TILE_TINTS = ["#f9b6ff", "#8ba6ff", "#c3e1d0", "#dbe1c3", "#f6f6f6", "#e2e2e2"];
-function tileTint(seed: string) {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 997;
-  return TILE_TINTS[h % TILE_TINTS.length];
-}
 
 function fmtTime(startTime?: string) {
   if (!startTime) return "--";
@@ -35,8 +29,12 @@ function fmtTime(startTime?: string) {
 
 export default function HackathonPage() {
   const [q, setQ] = useState("");
-  const { data, isLoading: chLoading } = useGetChallenges({ search: q || undefined });
-  const { data: evData, isLoading: evLoading } = useGetEvents({ search: q || undefined });
+  // `size` matters: the backend defaults to 20 per page. This page pulls the *whole* events
+  // collection and filters to Innovation client-side, so on an organisation with more events
+  // than that (69 at time of writing) a newly created challenge simply fell off the first page
+  // and never appeared here at all. Same size the home and search pages already use.
+  const { data, isLoading: chLoading } = useGetChallenges({ search: q || undefined, size: 100 });
+  const { data: evData, isLoading: evLoading } = useGetEvents({ search: q || undefined, size: 100 });
   const { data: myTeamsResp } = useGetMyTeams();
 
   // Same progression as the challenge detail page (RSVP to Apply → Apply now →
@@ -54,9 +52,16 @@ export default function HackathonPage() {
   const eventInnovation = (evData?.data?.events ?? []).filter(
     (e) => e.eventType === "HACKATHON" || e.eventType === "INNOVATION_CHALLENGE",
   );
+  // `isEventCurrent`, not a bare status check — a challenge whose date has passed but was
+  // never marked ENDED used to sit in this list indefinitely (reported 2026-09-15). No
+  // `excludeLive` here: this is one merged list with no separate Live section of its own (each
+  // card shows its own Live badge), so a currently live challenge must stay regardless of its
+  // start time already being in the past. Sorted soonest-first, since nothing else does.
   const apiChallenges = Array.from(
     new Map([...challengeEvents, ...eventInnovation].map((e) => [e.id, e])).values(),
-  ).filter((e) => e.status !== "ENDED");
+  )
+    .filter((e) => isEventCurrent(e))
+    .sort(compareByStartAsc);
 
   const isLoading = chLoading || evLoading;
 
@@ -119,17 +124,15 @@ export default function HackathonPage() {
               className="flex flex-col gap-3 rounded-xl border border-foreground/6 bg-white p-3 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]"
             >
               <div className="flex gap-2.5">
-                <div
-                  className="flex h-[60px] w-[60px] shrink-0 items-center justify-center overflow-hidden rounded-[10px]"
-                  style={{ backgroundColor: tileTint(organiser || c.title) }}
-                >
-                  {c.organizerLogo ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={c.organizerLogo} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <Lightbulb className="h-6 w-6 text-foreground/60" strokeWidth={1.75} />
-                  )}
-                </div>
+                {/* `fit="contain"` — the organiser logo, same treatment as the AGM list
+                    (agm/page.tsx), not the flyer/teaser image filling and cropping the tile
+                    (reported 2026-09-15). */}
+                <EventThumb
+                  event={c}
+                  fit="contain"
+                  className="h-15 w-15 rounded-[10px]"
+                  fallback={<Lightbulb className="h-6 w-6 text-foreground/60" strokeWidth={1.75} />}
+                />
                 <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-1 pr-2">
                   <div className="flex items-center gap-1.5">
                     <p className="truncate text-sm font-medium tracking-[-0.14px] text-foreground">

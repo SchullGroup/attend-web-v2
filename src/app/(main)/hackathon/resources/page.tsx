@@ -1,8 +1,9 @@
 "use client";
 import { Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft, FileText, PlayCircle, ExternalLink } from "lucide-react";
 import { useGetResources } from "@/api/hackathon/hooks";
+import { useGoBack } from "@/hooks/useGoBack";
 
 interface ResourceRow {
   id: string;
@@ -13,8 +14,10 @@ interface ResourceRow {
 }
 
 function ResourcesInner() {
-  const router = useRouter();
   const challengeId = useSearchParams().get("challengeId") ?? "";
+  // Returns where the user came from; falls back to the challenge itself (or the list when no
+  // id is present), since a bare `router.back()` does nothing on a directly-opened link.
+  const goBack = useGoBack(challengeId ? `/hackathon/${challengeId}` : "/hackathon");
   const { data, isLoading } = useGetResources(challengeId);
   const apiResources = data?.data ?? [];
 
@@ -29,7 +32,7 @@ function ResourcesInner() {
   return (
     <div className="flex flex-col gap-6">
       <button
-        onClick={() => router.back()}
+        onClick={goBack}
         className="inline-flex items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Back

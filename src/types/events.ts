@@ -5,6 +5,23 @@ export interface EventBranding {
   brandColor?: string | null;
 }
 
+// Teaser gallery. `url` is a signed link that expires in ~urlExpiresInSeconds (~1h) — read
+// fresh off the event detail response, never persisted or cached across page loads. Only
+// READY items carry a usable `url`; AWAITING_UPLOAD is organiser-side only and never appears
+// in the participant response, but the check costs nothing.
+export interface LaunchMediaItem {
+  id: string;
+  mediaType: "IMAGE" | "VIDEO";
+  status: "READY" | "AWAITING_UPLOAD";
+  url: string | null;
+  urlExpiresInSeconds?: number;
+  contentType?: string;
+  originalFilename?: string;
+  sizeBytes?: number;
+  title?: string | null;
+  orderIndex?: number;
+}
+
 export interface EventListItem {
   id: string;
   title: string;
@@ -36,6 +53,17 @@ export interface EventListItem {
   registered: boolean;
   /** True only once a real RSVP (`EventRegistration` row) exists. */
   hasRsvped?: boolean;
+  /**
+   * How many people have RSVP'd. The detail response calls this `registeredCount`; the LIST
+   * response calls it `rsvpCount`.
+   *
+   * Optional and treated as unproven: the backend's list schema declares it, but that schema is
+   * known to be stale in both directions (it omits `flyerUrl`, `organizerLogo` and `branding`,
+   * which list responses demonstrably do return). So every consumer must render only when it is
+   * actually present rather than defaulting to 0 — a card claiming "0 registered" for an event
+   * with attendees is worse than a card that says nothing.
+   */
+  rsvpCount?: number | null;
   branding?: EventBranding;
   flyerUrl?: string | null;
   bannerUrl?: string | null;
@@ -96,6 +124,30 @@ export interface EventDetail {
   bannerUrl?: string | null;
   brandPrimary?: string | null;
   brandAccent?: string | null;
+  /** Resolved AGM override → organisation setting → platform default. Never null per the backend. */
+  supportEmail?: string | null;
+  /** Teaser images/videos. Generalised to every event type as of 2026-09-14; was Launch-only. */
+  launchMedia?: LaunchMediaItem[];
+  /** Known before the event goes live. A webinar's join link is `zoom.us/w/…`, not `/j/`. */
+  zoomType?: "MEETING" | "WEBINAR" | null;
+  /**
+   * The SDK join number — the webinar id for a webinar. Prefer this over reading the number
+   * out of the join link. Participant detail: set whenever the event has a Zoom session.
+   * Guest /view: null until the event is LIVE.
+   */
+  zoomMeetingNumber?: number | string | null;
+  /** The real SDK passcode. A join link's `pwd` is an encoded token, not always this. */
+  zoomPassword?: string | null;
+  /**
+   * Guest /join and /view only. Always set: the proxy's email when one was given at assignment,
+   * otherwise a per-session placeholder. Pass as the SDK `userEmail` (mandatory for webinars);
+   * never show it to the guest. Signed-in users use their own account email instead.
+   */
+  zoomUserEmail?: string | null;
+  /** Guest /view's name for the join link. */
+  zoomJoinUrl?: string | null;
+  /** Guest proxy sessions only; null when none was given at assignment. */
+  proxyEmail?: string | null;
 }
 
 // Public guest browse (`GET /guest/events`) returns a deliberately slim event ΓÇö no
