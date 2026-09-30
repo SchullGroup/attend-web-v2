@@ -137,6 +137,10 @@ export function LiveRoom({
   const zoomUserEmail = isGuest
     ? event?.zoomUserEmail || undefined
     : session.user?.email?.trim().toLowerCase() || undefined;
+  // The join goes to Zoom once, when its frame loads, and is never re-sent. If it goes before
+  // the profile (and so the email) has loaded, Zoom treats a webinar panelist as an anonymous
+  // attendee and shows its "Join link or TK" screen. So hold the join until the session settles.
+  const zoomIdentityReady = isGuest || !session.loading;
   const canVote = !isGuest && (session.user ? session.user.capabilities.includes("VOTE") : true);
   // §11: a guest who signed in with a proxy code (or proxy QR) at /join gets canVote:true
   // on the view payload, and may then vote directly — no per-vote code entry. Read live
@@ -604,7 +608,7 @@ export function LiveRoom({
             )}
           >
               {zoom ? (
-                coiState === "ready" ? (
+                coiState === "ready" && zoomIdentityReady ? (
                   <ZoomStage
                     eventId={eventId}
                     meetingNumber={zoom.meetingNumber}
