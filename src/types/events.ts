@@ -128,6 +128,26 @@ export interface EventDetail {
   supportEmail?: string | null;
   /** Teaser images/videos. Generalised to every event type as of 2026-09-14; was Launch-only. */
   launchMedia?: LaunchMediaItem[];
+  /** Known before the event goes live. A webinar's join link is `zoom.us/w/…`, not `/j/`. */
+  zoomType?: "MEETING" | "WEBINAR" | null;
+  /**
+   * The SDK join number — the webinar id for a webinar. Prefer this over reading the number
+   * out of the join link. Participant detail: set whenever the event has a Zoom session.
+   * Guest /view: null until the event is LIVE.
+   */
+  zoomMeetingNumber?: number | string | null;
+  /** The real SDK passcode. A join link's `pwd` is an encoded token, not always this. */
+  zoomPassword?: string | null;
+  /**
+   * Guest /join and /view only. Always set: the proxy's email when one was given at assignment,
+   * otherwise a per-session placeholder. Pass as the SDK `userEmail` (mandatory for webinars);
+   * never show it to the guest. Signed-in users use their own account email instead.
+   */
+  zoomUserEmail?: string | null;
+  /** Guest /view's name for the join link. */
+  zoomJoinUrl?: string | null;
+  /** Guest proxy sessions only; null when none was given at assignment. */
+  proxyEmail?: string | null;
 }
 
 // Public guest browse (`GET /guest/events`) returns a deliberately slim event ΓÇö no

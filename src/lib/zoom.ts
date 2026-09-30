@@ -7,23 +7,42 @@
 import { apiClient } from "@/lib/api-client";
 import { ApiResponse } from "@/types";
 
+export type ZoomJoinTarget = { meetingNumber: string; passcode: string };
+
 // Detect a Zoom join link and pull out the meeting number (+ pwd if present).
 // Returns null for non-Zoom URLs so callers fall back to the iframe embed.
-// NOTE: the URL's `pwd` is Zoom's encoded token, not always the plain passcode the
-// SDK's join() wants — the backend should ideally supply the plain passcode.
-export function parseZoomUrl(
-  url: string | undefined | null,
-): { meetingNumber: string; passcode: string } | null {
+// Meetings are `/j/<id>`, webinars `/w/<id>` — the number is the id to join with either way.
+// The URL's `pwd` is Zoom's encoded token, not always the plain passcode the SDK wants, so
+// this is only the fallback — resolveZoomJoin prefers the backend's own fields.
+export function parseZoomUrl(url: string | undefined | null): ZoomJoinTarget | null {
   if (!url) return null;
   try {
     const u = new URL(url.trim());
     if (!/(^|\.)zoom\.us$/i.test(u.hostname)) return null;
-    const m = u.pathname.match(/\/j\/(\d+)/);
+    const m = u.pathname.match(/\/[jw]\/(\d+)/);
     if (!m) return null;
     return { meetingNumber: m[1], passcode: u.searchParams.get("pwd") || "" };
   } catch {
     return null;
   }
+}
+
+// What to join with. The backend's zoomMeetingNumber + zoomPassword (added 2026-09-28) win:
+// link formats vary, and zoomPassword is the real passcode. Falls back to parsing the link
+// for payloads that don't carry them yet (guest /view before LIVE, older responses).
+export function resolveZoomJoin(
+  fields: { zoomMeetingNumber?: number | string | null; zoomPassword?: string | null } | null | undefined,
+  streamUrl: string | undefined | null,
+): ZoomJoinTarget | null {
+  const parsed = parseZoomUrl(streamUrl);
+  const num = fields?.zoomMeetingNumber;
+  if (num != null && String(num).trim()) {
+    return {
+      meetingNumber: String(num).trim(),
+      passcode: fields?.zoomPassword ?? parsed?.passcode ?? "",
+    };
+  }
+  return parsed;
 }
 
 // Fetch a fresh streamUrl from the backend for a given event.

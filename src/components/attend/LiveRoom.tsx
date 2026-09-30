@@ -23,9 +23,9 @@ import {
 } from "lucide-react";
 import { useGetEvent, useGetStream, useGetCountdown, useGetQuorum, useGetActivePoll, useRespondToPoll, useGetPressKit, useGuestEventView, useGuestResolutions, useGuestQuestions, useGuestSubmitQuestion, useGuestUpvoteQuestion, useGuestPolls, useGuestRespondToPoll, useGuestProxyVote, useGuestVote } from "@/api/events/hooks";
 import { useGetMe } from "@/api/auth/hooks";
-import { ZoomStage } from "@/components/attend/ZoomStage";
+import { ZoomStage, ZOOM_STAGE_HEIGHT } from "@/components/attend/ZoomStage";
 import { AgendaPanel } from "@/components/attend/AgendaPanel";
-import { parseZoomUrl } from "@/lib/zoom";
+import { resolveZoomJoin } from "@/lib/zoom";
 import {
   useGetResolutions,
   useCastVote,
@@ -119,15 +119,24 @@ export function LiveRoom({
   
   let streamUrl = "";
   if (isGuest) {
-    streamUrl = (guestViewResp?.data?.streamUrl as string) || event?.streamUrl || "";
+    streamUrl =
+      (guestViewResp?.data?.streamUrl as string) || guestViewResp?.data?.zoomJoinUrl || event?.streamUrl || "";
   } else {
     streamUrl = (streamData?.data?.streamUrl as string) || event?.streamUrl || "";
   }
 
-  // If the stream is a Zoom meeting we render the Zoom SDK; otherwise the iframe.
-  // A zoomOverride (test-only) takes precedence over the event's streamUrl.
-  const zoom = zoomOverride?.meetingNumber ? zoomOverride : parseZoomUrl(streamUrl);
+  // If the stream is a Zoom meeting or webinar we render the Zoom SDK; otherwise the iframe.
+  // A zoomOverride (test-only) takes precedence; then the backend's meeting number/passcode;
+  // then the number read out of the link.
+  const zoom = zoomOverride?.meetingNumber ? zoomOverride : resolveZoomJoin(event, streamUrl);
   const displayName = session.user?.fullName || (isGuest ? getGuestName() : "Participant");
+  // Zoom requires an email for every webinar joiner and matches it against the panelist list.
+  // Signed-in: their own account email (lowercased — the backend stores panelists lowercased).
+  // Guests and proxies: the backend's zoomUserEmail (the proxy's email, or a per-session
+  // placeholder). Never shown to the guest.
+  const zoomUserEmail = isGuest
+    ? event?.zoomUserEmail || undefined
+    : session.user?.email?.trim().toLowerCase() || undefined;
   const canVote = !isGuest && (session.user ? session.user.capabilities.includes("VOTE") : true);
   // §11: a guest who signed in with a proxy code (or proxy QR) at /join gets canVote:true
   // on the view payload, and may then vote directly — no per-vote code entry. Read live
@@ -361,8 +370,7 @@ export function LiveRoom({
   const [qSentAt, setQSentAt] = useState<string | null>(null);
   const [userQuestion, setUserQuestion] = useState("");
   const [videoHidden, setVideoHidden] = useState(false);
-  // Reveal the Minimise button only while the pointer is over the video box, so it
-  // never sits on top of (or blocks) Zoom's own controls.
+  // Minimise shows only while the pointer is over the video, so it stays out of the way.
   const [videoHover, setVideoHover] = useState(false);
 
   // Show the user's just-submitted question optimistically — but only until the
@@ -602,10 +610,11 @@ export function LiveRoom({
                     meetingNumber={zoom.meetingNumber}
                     passcode={zoom.passcode}
                     userName={displayName}
+                    userEmail={zoomUserEmail}
                   />
                 ) : (
                   // Isolating (a one-time reload). Don't load the Zoom SDK yet.
-                  <div className="flex min-h-105 w-full flex-col items-center justify-center gap-3 text-white">
+                  <div className={cn("flex w-full flex-col items-center justify-center gap-3 text-white", ZOOM_STAGE_HEIGHT)}>
                     <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/25 border-t-white/80" />
                     <p className="text-sm font-semibold text-white/85">Preparing the meeting…</p>
                   </div>
@@ -643,10 +652,13 @@ export function LiveRoom({
                   </div>
                 </>
               )}
+              {/* Top-CENTRE, not top-right: at top-right it covered Zoom's own controls (the View
+                  switcher). Shown only on hover so the video stays clean. */}
               <button
+                type="button"
                 onClick={() => setVideoHidden(true)}
                 className={cn(
-                  "absolute right-3 top-3 z-10 flex items-center gap-1 rounded-lg bg-black/40 px-2.5 py-1.5 text-xs font-semibold text-white transition-opacity hover:bg-black/60",
+                  "absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-1 rounded-lg bg-black/40 px-2.5 py-1.5 text-xs font-semibold text-white transition-opacity hover:bg-black/60",
                   videoHover ? "opacity-100" : "pointer-events-none opacity-0",
                 )}
               >
