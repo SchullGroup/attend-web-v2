@@ -179,6 +179,8 @@
           // (meetings). It's also how Zoom recognises a panelist. Sent whenever we have one —
           // the backend asks for it on meetings too — and omitted rather than sent blank.
           if (userEmail) joinOptions.userEmail = userEmail;
+          // Shows in DevTools which email Zoom actually got — "(none)" means an anonymous join.
+          console.log('[zoom-meeting.html] joining', meetingNumber, 'email:', userEmail || '(none)');
           ZoomMtg.join(joinOptions);
         },
         error: function(res) {
