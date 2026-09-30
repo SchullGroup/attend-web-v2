@@ -5,7 +5,7 @@ import { useGetEvents, useGetSavedEvents } from "@/api/events/hooks";
 import { EventListItem } from "@/types";
 import { cn } from "@/lib/utils";
 import { EventListRow } from "@/components/attend/EventListRow";
-import { isEventCurrent, compareByStartAsc } from "@/lib/rsvp";
+import { isEventCurrent, compareByStartAsc, compareLiveFirst } from "@/lib/rsvp";
 
 // Ported from the figma-redesign branch. Clean adoption — every hook and field
 // already exists in this repo. This design is a functional superset of the old
@@ -60,7 +60,10 @@ export default function EventsPage() {
         if (tab === "bookmarked") return savedIds.has(e.id) && isEventCurrent(e);
         return isEventCurrent(e);
       });
-    return tab === "past" ? list : list.sort(compareByStartAsc);
+    // Live first, then soonest-first.
+    return tab === "past"
+      ? list
+      : list.sort((a, b) => compareLiveFirst(a, b) || compareByStartAsc(a, b));
   }, [apiEvents, fmt, tab, savedIds]);
 
   const emptyMessage =

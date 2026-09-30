@@ -5,7 +5,7 @@ import { useGetEvents, useGetSavedEvents } from "@/api/events/hooks";
 import { EventListItem } from "@/types";
 import { EventListRow } from "@/components/attend/EventListRow";
 import { cn } from "@/lib/utils";
-import { isEventCurrent, compareByStartAsc } from "@/lib/rsvp";
+import { isEventCurrent, compareByStartAsc, compareLiveFirst } from "@/lib/rsvp";
 
 // Same frame as Launches & Events — the two lists are drawn identically, so this shares
 // EventListRow with it rather than keeping a second card style. Only the type filter and
@@ -68,7 +68,10 @@ export default function GeneralEventsPage() {
         if (tab === "bookmarked") return savedIds.has(e.id) && isEventCurrent(e);
         return isEventCurrent(e);
       });
-    return tab === "past" ? list : list.sort(compareByStartAsc);
+    // Live first, then soonest-first.
+    return tab === "past"
+      ? list
+      : list.sort((a, b) => compareLiveFirst(a, b) || compareByStartAsc(a, b));
   }, [apiEvents, fmt, tab, savedIds]);
 
   const emptyMessage =

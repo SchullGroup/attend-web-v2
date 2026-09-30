@@ -141,3 +141,8 @@ export function compareByStartAsc(
   if (tb == null) return -1;
   return ta - tb;
 }
+
+/** Live events before everything else — they're the ones people need to get into right now. */
+export function compareLiveFirst(a: { status?: string }, b: { status?: string }): number {
+  return Number(b.status === "LIVE") - Number(a.status === "LIVE");
+}

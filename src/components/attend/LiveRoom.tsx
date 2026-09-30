@@ -405,6 +405,14 @@ export function LiveRoom({
     }
   };
 
+  // Jump to the Resolution tab when a vote opens, so nobody misses it on Agenda or Q&A.
+  // Keyed on the resolution id: it fires once per newly opened resolution, not on every poll,
+  // so someone who clicks back to Q&A stays there until the next one opens.
+  useEffect(() => {
+    if (showBallot && openRes?.id) selectTab("ballot");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openRes?.id, showBallot]);
+
   // Local "starts in" ticker — re-syncs to the backend's secondsUntilStart on
   // each poll, ticks down locally in between.
   const [startsIn, setStartsIn] = useState<number | null>(null);
@@ -560,7 +568,13 @@ export function LiveRoom({
   function statusBadge(r: Resolution) {
     const v = (r.myVote || "").toUpperCase();
     const s = (r.status || "").toUpperCase();
-    if (v) return { label: `Voted ${v.charAt(0) + v.slice(1).toLowerCase()}`, tone: "bg-emerald-100 text-emerald-700" };
+    if (v) {
+      const tone =
+        v === "AGAINST" ? "bg-red-100 text-red-700"
+        : v === "ABSTAIN" ? "bg-slate-100 text-slate-600"
+        : "bg-emerald-100 text-emerald-700";
+      return { label: `Voted ${v.charAt(0) + v.slice(1).toLowerCase()}`, tone };
+    }
     if (s === "OPEN") return { label: "Open", tone: "bg-amber-100 text-amber-700" };
     if (s === "CLOSED") return { label: "Closed", tone: "bg-slate-100 text-slate-600" };
     if (s === "WAITING") return { label: "Waiting", tone: "bg-slate-100 text-slate-600" };
