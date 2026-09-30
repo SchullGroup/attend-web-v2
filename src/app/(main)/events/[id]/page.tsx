@@ -13,7 +13,7 @@ import {
   useGetEvent, useRsvp, useCancelRsvp, useJoinWaitlist,
   useGetSavedEvents, useSaveEvent, useUnsaveEvent, useGetPressKit, useGetQuorum, useGetStream,
 } from "@/api/events/hooks";
-import { parseZoomUrl } from "@/lib/zoom";
+import { resolveZoomJoin } from "@/lib/zoom";
 import { toEmbedUrl } from "@/lib/utils";
 import { useGetResolutions, useSubmitQuestion, useCastVote } from "@/api/agm/hooks";
 import { useGetMyTeam } from "@/api/hackathon/hooks";
@@ -363,8 +363,9 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
   const agmLive = mod === "AGM";
   const missingStreamLink = agmLive ? needsStreamLink && !streamUrl : !streamUrl;
   // Zoom needs the page cross-origin isolated, which costs a full ?coi=1 reload — so Zoom
-  // goes to the dedicated room. Everything else (YouTube/Vimeo) plays in the hero.
-  const zoomStream = parseZoomUrl(streamUrl);
+  // (meeting or webinar) goes to the dedicated room. Everything else (YouTube/Vimeo) plays in
+  // the hero. Uses the backend's zoomMeetingNumber first: a webinar link is `/w/`, not `/j/`.
+  const zoomStream = resolveZoomJoin(event, streamUrl);
 
   function joinLive() {
     if (agmLive) {

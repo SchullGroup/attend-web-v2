@@ -6,11 +6,19 @@ import { parseZoomUrl, fetchStreamUrl } from "@/lib/zoom";
 
 type ZoomStatus = "connecting" | "joined" | "error" | "left";
 
+// Zoom draws its own dialogs inside this box (e.g. the panelist consent popup), and a fixed
+// 450px clipped the taller ones. On desktop the box is sized to the window instead — a fixed
+// size for the whole session, not grown per dialog, so the page never jumps. Phones keep 450px.
+// Shared with LiveRoom's "Preparing the meeting…" placeholder so the swap doesn't shift layout.
+export const ZOOM_STAGE_HEIGHT = "h-[450px] lg:h-[clamp(450px,72vh,820px)]";
+
 interface Props {
   eventId: string;
   meetingNumber: string;
   passcode: string;
   userName: string;
+  /** Zoom's SDK requires an email for every webinar joiner, and uses it to recognise panelists. */
+  userEmail?: string;
 }
 
 // Renders a live Zoom meeting (Client View) inside the video slot via an iframe
@@ -21,7 +29,7 @@ interface Props {
 // Retry-once: if join fails with a "meeting not found" style error, re-fetches
 // streamUrl from the backend (the meeting may have been rotated) and retries
 // with the fresh values before showing an error.
-export function ZoomStage({ eventId, meetingNumber, passcode, userName }: Props) {
+export function ZoomStage({ eventId, meetingNumber, passcode, userName, userEmail }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [status, setStatus] = useState<ZoomStatus>("connecting");
   const [errorMsg, setErrorMsg] = useState("");
@@ -57,11 +65,12 @@ export function ZoomStage({ eventId, meetingNumber, passcode, userName }: Props)
           meetingNumber: mn,
           password: pwd,
           userName,
+          userEmail,
         },
         window.location.origin,
       );
     },
-    [getSignature, userName],
+    [getSignature, userName, userEmail],
   );
 
   // Retry logic: fetch fresh streamUrl, re-parse, and send a new ZOOM_JOIN.
@@ -173,7 +182,7 @@ export function ZoomStage({ eventId, meetingNumber, passcode, userName }: Props)
   }
 
   return (
-    <div className="relative w-full h-[450px] bg-slate-900 rounded-xl">
+    <div className={`relative w-full rounded-xl bg-slate-900 ${ZOOM_STAGE_HEIGHT}`}>
       {/* Overlay: connecting / error / left — hides while joined */}
       {status !== "joined" && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-slate-900 px-6 text-center text-white">
