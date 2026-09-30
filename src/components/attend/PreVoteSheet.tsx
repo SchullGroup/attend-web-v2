@@ -364,7 +364,15 @@ function VotedCard({
           Resolution {number}
         </span>
         <div className="flex shrink-0 items-center gap-2">
-          <Badge variant="success">Voted {r.myVote}</Badge>
+          <Badge
+            variant={
+              r.myVote?.toUpperCase() === "AGAINST" ? "danger"
+              : r.myVote?.toUpperCase() === "ABSTAIN" ? "muted"
+              : "success"
+            }
+          >
+            Voted {r.myVote}
+          </Badge>
           {!hasProxy && (
             <button
               type="button"

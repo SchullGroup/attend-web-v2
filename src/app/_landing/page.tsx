@@ -1,4 +1,5 @@
 "use client";
+
 import Link from "next/link";
 import {
   ArrowRight, ArrowUpRight, Building2, Rocket, Lightbulb,
