@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { AgmHero, AgmSubNav } from "@/components/attend/AgmSubNav";
 import { EventThumb } from "@/components/attend/EventThumb";
 import { cn, formatDate } from "@/lib/utils";
-import { isEventCurrent, compareByStartAsc } from "@/lib/rsvp";
+import { isEventCurrent, compareByStartAsc, compareLiveFirst } from "@/lib/rsvp";
 
 // Ported from the figma-redesign branch. Clean adoption — AgmSubNav/AgmHero and
 // the Input component already exist here. The old page's per-card Proxy/Pre-vote
@@ -59,7 +59,8 @@ export default function AgmPage() {
           (e.registerName || e.organizerName || "").toLowerCase().includes(q),
       );
     }
-    return list;
+    // Live AGMs first. The sort is stable, so everything else keeps its order.
+    return [...list].sort(compareLiveFirst);
   }, [agms, tab, query]);
 
   return (
