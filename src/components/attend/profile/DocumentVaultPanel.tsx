@@ -1,17 +1,26 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { useGetDocuments } from "@/api/documents/hooks";
 import { documentsClient } from "@/api/documents/client";
+import { useGetMyEvents } from "@/api/events/hooks";
 import type { ParticipantDocument } from "@/types";
 import { PanelShell, PanelEmpty, PanelSkeleton } from "./PanelShell";
+import { attendedAgms as getAttendedAgms } from "./eventTabs";
+import { MinutesDocRow, ReceiptDocRow } from "./AgmDocumentRows";
+import { MinutesSheet } from "../MinutesSheet";
+import { ReceiptSheet } from "../ReceiptSheet";
 
 // Tabs per the frame. `documentType` is the only field to filter on, and the values the
 // backend actually sends are unconfirmed — the previous page only ever matched
-// notice/agenda/report/proxy. Minutes and Certificates may therefore stay empty until the
-// backend's vocabulary is known; matching is substring + case-insensitive so a
-// "MEETING_MINUTES" or "certificate_of_attendance" still lands in the right tab.
-const TABS = ["All", "Notices", "Agendas", "Minutes", "Certificates"] as const;
+// notice/agenda/report/proxy. Certificates may therefore stay empty until the backend's
+// vocabulary is known; matching is substring + case-insensitive so a "MEETING_MINUTES" or
+// "certificate_of_attendance" still lands in the right tab.
+//
+// "Receipts" has no backend documentType at all — vote receipts are generated per
+// participant (see AgmDocumentRows) rather than uploaded by the organiser, so this tab is
+// entirely populated by the synthetic AGM rows below, never by `docs`.
+const TABS = ["All", "Notices", "Agendas", "Minutes", "Receipts", "Certificates"] as const;
 type Tab = (typeof TABS)[number];
 type Category = Exclude<Tab, "All">;
 
@@ -21,6 +30,7 @@ type Category = Exclude<Tab, "All">;
 // separate documents. Most specific first.
 const CATEGORY_RULES: { category: Category; keyword: string }[] = [
   { category: "Certificates", keyword: "certificat" },
+  { category: "Receipts", keyword: "receipt" },
   { category: "Minutes", keyword: "minute" },
   { category: "Agendas", keyword: "agenda" },
   { category: "Notices", keyword: "notice" },
@@ -50,9 +60,24 @@ export function DocumentVaultPanel({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("All");
   const { data, isLoading } = useGetDocuments();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  // Which released minutes/receipt is open, if any — reuses the real sheets (and their
+  // Download buttons) rather than re-deriving a PDF out of context. See AgmDocumentRows.
+  const [openDoc, setOpenDoc] = useState<{ kind: "minutes" | "receipt"; eventId: string } | null>(null);
 
   const all = data?.data?.documents ?? [];
   const docs = tab === "All" ? all : all.filter((d) => resolveCategory(d.documentType) === tab);
+
+  // Minutes and receipts for AGMs the participant actually attended — "attended" using the
+  // same ended+RSVP'd rule the My Events "Attended" tab uses. Each candidate event renders a
+  // MinutesDocRow/ReceiptDocRow that fetches its own content and hides itself if there's
+  // nothing released yet, so an AGM with no minutes published doesn't show a dead row.
+  const { data: myEventsResp } = useGetMyEvents();
+  const attendedAgms = useMemo(
+    () => getAttendedAgms(myEventsResp?.data?.events ?? []),
+    [myEventsResp],
+  );
+  const showMinutesRows = tab === "All" || tab === "Minutes";
+  const showReceiptRows = tab === "All" || tab === "Receipts";
 
   // Unchanged from the old /profile/documents page: goes through /documents/{id}/download so
   // the backend's counter actually increments — the row's own downloadUrl/fileUrl is a bare
@@ -88,7 +113,7 @@ export function DocumentVaultPanel({ onBack }: { onBack: () => void }) {
     >
       {isLoading ? (
         <PanelSkeleton />
-      ) : docs.length === 0 ? (
+      ) : docs.length === 0 && !((showMinutesRows || showReceiptRows) && attendedAgms.length > 0) ? (
         <PanelEmpty>
           {tab === "All"
             ? "No documents have been shared with you yet."
@@ -96,6 +121,24 @@ export function DocumentVaultPanel({ onBack }: { onBack: () => void }) {
         </PanelEmpty>
       ) : (
         <ul className="flex flex-col gap-2">
+          {showMinutesRows &&
+            attendedAgms.map((e) => (
+              <MinutesDocRow
+                key={`minutes-${e.id}`}
+                eventId={e.id}
+                eventTitle={e.title}
+                onOpen={() => setOpenDoc({ kind: "minutes", eventId: e.id })}
+              />
+            ))}
+          {showReceiptRows &&
+            attendedAgms.map((e) => (
+              <ReceiptDocRow
+                key={`receipt-${e.id}`}
+                eventId={e.id}
+                eventTitle={e.title}
+                onOpen={() => setOpenDoc({ kind: "receipt", eventId: e.id })}
+              />
+            ))}
           {docs.map((d) => {
             const title = documentName(d);
             // Field names differ between the spec and the deployed response; take whichever arrives.
@@ -139,6 +182,13 @@ export function DocumentVaultPanel({ onBack }: { onBack: () => void }) {
             );
           })}
         </ul>
+      )}
+
+      {openDoc?.kind === "minutes" && (
+        <MinutesSheet eventId={openDoc.eventId} open onClose={() => setOpenDoc(null)} />
+      )}
+      {openDoc?.kind === "receipt" && (
+        <ReceiptSheet eventId={openDoc.eventId} open onClose={() => setOpenDoc(null)} />
       )}
     </PanelShell>
   );

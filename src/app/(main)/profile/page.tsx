@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Lock,
@@ -25,7 +25,8 @@ import { DocumentVaultPanel } from "@/components/attend/profile/DocumentVaultPan
 import { NotificationPrefsPanel } from "@/components/attend/profile/NotificationPrefsPanel";
 import { ChangePasswordPanel } from "@/components/attend/profile/ChangePasswordPanel";
 import { HelpPanel } from "@/components/attend/profile/HelpPanel";
-import { filterEventsByTab } from "@/components/attend/profile/eventTabs";
+import { filterEventsByTab, attendedAgms } from "@/components/attend/profile/eventTabs";
+import { AgmDocCounter } from "@/components/attend/profile/AgmDocumentRows";
 
 // Figma's Settings frames — one page, two panes. The list stays on the left and the chosen
 // section renders in a panel pinned to the right edge of the window.
@@ -83,7 +84,20 @@ function SettingsInner() {
   // one click away.
   const attendedCount = filterEventsByTab(myEventsResp?.data?.events ?? [], "Attended").length;
   const savedCount = savedResp?.data?.events?.length ?? 0;
-  const docsCount = docsResp?.data?.documents?.length ?? 0;
+  // Document Vault also carries a released-minutes/vote-receipt row per attended AGM
+  // (DocumentVaultPanel) — those aren't part of docsResp (organiser uploads only), so this
+  // count has to tally them itself via the same silent AgmDocCounter the panel would use,
+  // or "N documents" here would permanently undercount against what the panel shows.
+  const agmEvents = useMemo(
+    () => attendedAgms(myEventsResp?.data?.events ?? []),
+    [myEventsResp],
+  );
+  const [agmDocCounts, setAgmDocCounts] = useState<Record<string, { minutes: boolean; receipt: boolean }>>({});
+  const agmDocsCount = Object.values(agmDocCounts).reduce(
+    (n, c) => n + (c.minutes ? 1 : 0) + (c.receipt ? 1 : 0),
+    0,
+  );
+  const docsCount = (docsResp?.data?.documents?.length ?? 0) + agmDocsCount;
   const prefs = prefsResp?.data;
   const channels: string[] = [];
   if (prefs) {
@@ -288,6 +302,22 @@ function SettingsInner() {
           </div>
         )}
       </aside>
+
+      {/* Invisible — tallies released minutes/receipts per attended AGM so the "N documents"
+          meta above agrees with what the panel shows. See AgmDocCounter. */}
+      {agmEvents.map((e) => (
+        <AgmDocCounter
+          key={e.id}
+          eventId={e.id}
+          onCount={(counts) =>
+            setAgmDocCounts((prev) =>
+              prev[e.id]?.minutes === counts.minutes && prev[e.id]?.receipt === counts.receipt
+                ? prev
+                : { ...prev, [e.id]: counts }
+            )
+          }
+        />
+      ))}
     </div>
   );
 }
