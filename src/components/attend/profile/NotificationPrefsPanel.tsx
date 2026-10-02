@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import {
   useGetNotificationPreferences,
@@ -47,6 +47,8 @@ export function NotificationPrefsPanel({ onBack }: { onBack: () => void }) {
     document: false,
     email: false,
   });
+  // Mirrors `prefs`, but readable synchronously inside toggle() — see the note there.
+  const prefsRef = useRef(prefs);
   // A Set, not a single key: two rows can be in flight at once, and tracking only one meant
   // the second toggle re-enabled the first row's switch while its save was still running.
   const [saving, setSaving] = useState<ReadonlySet<keyof Prefs>>(new Set());
@@ -63,13 +65,15 @@ export function NotificationPrefsPanel({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     const p = prefResp?.data;
     if (!p) return;
-    setPrefs({
+    const next: Prefs = {
       rsvp: p.inAppRsvpConfirmation,
       reminder: p.inAppEventReminder,
       document: p.inAppNewDocument,
       // The three email flags are one control now; treat any of them as "email on".
       email: p.emailRsvpConfirmation || p.emailEventReminder || p.emailNewDocument,
-    });
+    };
+    prefsRef.current = next;
+    setPrefs(next);
   }, [prefResp]);
 
   function toggle(key: keyof Prefs, value: boolean) {
@@ -79,13 +83,14 @@ export function NotificationPrefsPanel({ onBack }: { onBack: () => void }) {
     // silently undid the second.
     const previousValue = prefs[key];
 
-    // Build the payload from the freshest state rather than a value captured at call time, so
-    // two overlapping toggles don't send each other's stale fields.
-    let payloadSource: Prefs = prefs;
-    setPrefs((p) => {
-      payloadSource = { ...p, [key]: value };
-      return payloadSource;
-    });
+    // Build the payload from a ref that always holds the latest state, so two overlapping
+    // toggles don't send each other's stale fields. It used to be read out of a setPrefs
+    // updater, but React doesn't always run that straight away — the payload then went out
+    // with the OLD value, the refetch confirmed it, and the switch flipped back (seen when
+    // turning Email back on).
+    const payloadSource: Prefs = { ...prefsRef.current, [key]: value };
+    prefsRef.current = payloadSource;
+    setPrefs(payloadSource);
 
     setErrorMsg(null);
     markSaving(key, true);
@@ -108,7 +113,8 @@ export function NotificationPrefsPanel({ onBack }: { onBack: () => void }) {
         onError: (err: any) => {
           // Revert just this key — leaving the switch flipped would claim a setting that
           // wasn't saved, but touching any other key would undo a save that did succeed.
-          setPrefs((p) => ({ ...p, [key]: previousValue }));
+          prefsRef.current = { ...prefsRef.current, [key]: previousValue };
+          setPrefs(prefsRef.current);
           markSaving(key, false);
           const code = err?.response?.data?.code;
           setErrorMsg(
