@@ -115,10 +115,13 @@ export function NavShell({ children }: { children: React.ReactNode }) {
   // The design shows the user's photo here. We already store one (`avatarUrl`, set from the
   // Profile panel's upload) — this card just never read it. A generic person icon is the
   // fallback for an account with no photo (initials were used until 2026-09-10), and
-  // `avatarFailed` covers a URL that 404s: without it a dead link renders a torn-image icon,
+  // `failedAvatar` covers a URL that 404s: without it a dead link renders a torn-image icon,
   // since the fallback lives in the other branch.
-  const [avatarFailed, setAvatarFailed] = useState(false);
-  const avatarUrl = !isGuest && !avatarFailed ? currentUser?.avatarUrl || null : null;
+  // Tracked by URL, not a true/false flag: a flag stayed "failed" after a new photo was saved,
+  // so the new one never showed until a full reload.
+  const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
+  const storedAvatar = !isGuest ? currentUser?.avatarUrl || null : null;
+  const avatarUrl = storedAvatar && storedAvatar !== failedAvatar ? storedAvatar : null;
 
   function handleSignOut() {
     if (isGuest) {
@@ -277,7 +280,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
                   src={avatarUrl}
                   alt=""
                   className="h-full w-full object-cover"
-                  onError={() => setAvatarFailed(true)}
+                  onError={() => setFailedAvatar(avatarUrl)}
                 />
               ) : (
                 <UserIcon className="h-4 w-4" strokeWidth={1.75} />
@@ -373,7 +376,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
                   src={avatarUrl}
                   alt=""
                   className="h-full w-full object-cover"
-                  onError={() => setAvatarFailed(true)}
+                  onError={() => setFailedAvatar(avatarUrl)}
                 />
               ) : (
                 <UserIcon className="h-5 w-5" strokeWidth={1.75} />

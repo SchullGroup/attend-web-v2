@@ -42,6 +42,15 @@ export function MyProfilePanel({ onBack }: { onBack: () => void }) {
   // fallback lives in the other branch.
   const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  // The picked file shown straight from the device, so the new photo appears the moment it's
+  // chosen — not only once the upload finishes and the stored URL happens to load. `avatarUrl`
+  // stays the uploaded address, which is what Save sends.
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
+  useEffect(() => {
+    return () => {
+      if (localPreview) URL.revokeObjectURL(localPreview);
+    };
+  }, [localPreview]);
   const [status, setStatus] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
 
   // Seed the form once, when the profile first arrives — not on every `me` change.
@@ -66,6 +75,7 @@ export function MyProfilePanel({ onBack }: { onBack: () => void }) {
     e.target.value = "";
     if (!file) return;
     setStatus(null);
+    setLocalPreview(URL.createObjectURL(file));
     setUploading(true);
     try {
       // POST /api/v1/upload already exists and returns a Cloudinary URL. Persisting it against
@@ -83,6 +93,7 @@ export function MyProfilePanel({ onBack }: { onBack: () => void }) {
         error: err,
       });
       setStatus({ tone: "err", text: "Couldn't upload that image. Please try another." });
+      setLocalPreview(null); // don't keep showing a photo that won't be saved
     } finally {
       setUploading(false);
     }
@@ -118,6 +129,7 @@ export function MyProfilePanel({ onBack }: { onBack: () => void }) {
         // photo that was never persisted — and disagreed with the avatar in the left pane,
         // which reads from the shared profile cache.
         setAvatarUrl(me?.avatarUrl ?? null);
+        setLocalPreview(null);
 
         const code = err?.response?.status;
         const msg = err?.response?.data?.message;
@@ -132,7 +144,8 @@ export function MyProfilePanel({ onBack }: { onBack: () => void }) {
     });
   }
 
-  const showPhoto = !!avatarUrl && avatarUrl !== failedAvatar;
+  const photoSrc = localPreview || avatarUrl;
+  const showPhoto = !!photoSrc && photoSrc !== failedAvatar;
 
   return (
     <PanelShell title="My profile" onBack={onBack}>
@@ -143,10 +156,10 @@ export function MyProfilePanel({ onBack }: { onBack: () => void }) {
             {showPhoto ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={avatarUrl!}
+                src={photoSrc!}
                 alt=""
                 className="h-20 w-20 rounded-full object-cover"
-                onError={() => setFailedAvatar(avatarUrl)}
+                onError={() => setFailedAvatar(photoSrc)}
               />
             ) : (
               // A person icon rather than initials, matching the sidebar's user card — the user

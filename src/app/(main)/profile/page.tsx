@@ -64,7 +64,9 @@ function SettingsInner() {
   const { mutate: logout } = useLogout();
   // Hooks stay above the early returns below. A dead avatar URL falls back to the person icon
   // rather than rendering a torn image.
-  const [avatarFailed, setAvatarFailed] = useState(false);
+  // Tracked by URL, not a true/false flag: a flag stayed "failed" after a new photo was saved,
+  // so the new one never showed until a full reload.
+  const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
   // This page deliberately reads no KYC state at all. It used to derive `verified` from
   // `useUserStore().kycStatus`, which seeds synchronously from localStorage["attend:demo:kyc"] —
   // a key `useLogout` used to leave behind, so user A could verify, log out, user B log in on the
@@ -184,7 +186,8 @@ function SettingsInner() {
     help: <HelpPanel onBack={close} />,
   };
 
-  const avatarUrl = !avatarFailed ? currentUser.avatarUrl || null : null;
+  const storedAvatar = currentUser.avatarUrl || null;
+  const avatarUrl = storedAvatar && storedAvatar !== failedAvatar ? storedAvatar : null;
 
   return (
     <div style={{ "--settings-panel-w": PANEL_WIDTH } as React.CSSProperties}>
@@ -206,7 +209,7 @@ function SettingsInner() {
                 src={avatarUrl}
                 alt=""
                 className="h-14 w-14 shrink-0 rounded-full object-cover"
-                onError={() => setAvatarFailed(true)}
+                onError={() => setFailedAvatar(avatarUrl)}
               />
             ) : (
               // Person icon, not initials — matches the sidebar's user card.
