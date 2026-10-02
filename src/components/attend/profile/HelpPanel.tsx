@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight, Mail, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PanelShell } from "./PanelShell";
+import { FAQ_SECTIONS, FAQ_TABS, type FaqSection } from "./faqs";
 
 // The only hardcoded support contacts in the app (the landing page carries social links only).
 const SUPPORT_EMAIL = "support@experienceattend.com";
@@ -11,33 +12,42 @@ const SUPPORT_PHONE_LABEL = "+234 700 ATTEND";
 // A=2 T=8 T=8 E=3 N=6 D=3 → 288363.
 const SUPPORT_PHONE_TEL = "+234700288363";
 
-const FAQ = [
-  { q: "What is Attend?", a: "Attend is an enterprise events platform for AGMs, product launches, innovation challenges, and general corporate gatherings." },
-  { q: "How do I verify my identity?", a: "From Home, complete the KYC flow which collects your BVN and CHN. Verification typically completes in under a minute." },
-  { q: "Can I attend an AGM virtually?", a: "Yes. Hybrid and virtual AGMs let you join the live stream and vote on resolutions in real time once your KYC is verified." },
-  { q: "How do I appoint a proxy?", a: "On the AGM page, tap Proxy and choose either the Chairman of the meeting or a named proxy. You must submit the form before the meeting begins." },
-  { q: "How are hackathon submissions judged?", a: "Submissions are evaluated by a panel of industry judges on innovation, technical depth, market fit and presentation quality." },
-];
-
 export function HelpPanel({ onBack }: { onBack: () => void }) {
+  const [tab, setTab] = useState<FaqSection>("AGM");
   const [open, setOpen] = useState<number | null>(0);
+  const faqs = FAQ_SECTIONS[tab];
 
   return (
-    <PanelShell title="Help & FAQ" onBack={onBack}>
+    <PanelShell
+      title="Help & FAQ"
+      onBack={onBack}
+      tabs={FAQ_TABS}
+      activeTab={tab}
+      onTabChange={(t) => {
+        setTab(t as FaqSection);
+        setOpen(0);
+      }}
+    >
       <p className="-mt-2 text-sm tracking-[-0.14px] text-foreground/60">
         Answers to the most common questions.
       </p>
 
       <ul className="divide-y divide-foreground/6 overflow-hidden rounded-xl border border-foreground/6 bg-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
-        {FAQ.map((f, i) => {
+        {faqs.map((f, i) => {
           const expanded = open === i;
           return (
-            <li key={i}>
+            <li key={f.q}>
               <button
                 onClick={() => setOpen(expanded ? null : i)}
                 className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left"
               >
-                <span className="text-sm font-medium tracking-[-0.14px] text-foreground">{f.q}</span>
+                <span className="min-w-0">
+                  {/* Same light green as the active sidebar item (NavShell). */}
+                  <span className="mb-1 inline-block rounded-full bg-[#e6f4ec] px-2 py-0.5 text-[11px] font-medium text-[#0A3D2E]">
+                    {f.tag}
+                  </span>
+                  <span className="block text-sm font-medium tracking-[-0.14px] text-foreground">{f.q}</span>
+                </span>
                 <ChevronDown
                   className={cn(
                     "h-4 w-4 shrink-0 text-foreground/40 transition-transform",
@@ -45,7 +55,10 @@ export function HelpPanel({ onBack }: { onBack: () => void }) {
                   )}
                 />
               </button>
-              {expanded && <div className="px-4 pb-4 text-sm text-foreground/60">{f.a}</div>}
+              {/* pre-line keeps the line breaks the FAQ sheets put inside step-by-step answers. */}
+              {expanded && (
+                <div className="whitespace-pre-line px-4 pb-4 text-sm text-foreground/60">{f.a}</div>
+              )}
             </li>
           );
         })}
