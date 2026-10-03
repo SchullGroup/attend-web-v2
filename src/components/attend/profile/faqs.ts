@@ -193,7 +193,7 @@ export const FAQ_SECTIONS = {
     {
       tag: "Finding a Launch",
       q: "How do I find a product launch event on Attend?",
-      a: "Tap Launches in the menu, or open it from Home.\nSelect the launch you want to attend.\nClick and verify your identity with your NIN and liveness check\nClick on ‘apply’ for the challenge of choice",
+      a: "Tap Launches in the menu, or open it from Home.\nSelect the launch you want to attend.\nClick and verify your identity with your NIN and liveness check.\nYou will see the event currently on-going.\nClick on “Join Event”",
     },
     {
       tag: "Countdown",
