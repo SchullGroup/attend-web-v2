@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { eventsClient } from "./client";
 import { EventsQueryParams, SubmitQuestionRequest, CastVoteRequest } from "@/types";
+import type { GuestEventListItem } from "@/types";
 
 export const eventKeys = {
   all: ["events"] as const,
@@ -169,18 +170,31 @@ export const useGetPressKit = (eventId: string, refetchInterval?: number, enable
   });
 };
 
-export const useGuestBrowseEvents = (params: {
-  search?: string;
-  eventType?: string;
-  page?: number;
-  size?: number;
-}) => {
+// Every page of the public guest list, not just the first. The endpoint returns events OLDEST
+// first, 50 at most per page, so page 0 alone was only ever the oldest events — every current
+// and live AGM sat on later pages and never reached the guest page (reported 2026-10-04). It
+// also ignores any type filter (spec: search/page/size only), so the caller filters by type.
+const GUEST_PAGE_SIZE = 50;
+const GUEST_MAX_PAGES = 20; // safety stop: 1,000 events
+
+export const useGuestBrowseAllEvents = (search?: string) => {
   return useQuery({
-    queryKey: [...eventKeys.all, "guest-browse", params] as const,
-    queryFn: () => eventsClient.guestBrowseEvents(params),
+    queryKey: [...eventKeys.all, "guest-browse-all", search ?? ""] as const,
+    queryFn: async () => {
+      const all: GuestEventListItem[] = [];
+      for (let page = 0; page < GUEST_MAX_PAGES; page++) {
+        const res = await eventsClient.guestBrowseEvents({ search, page, size: GUEST_PAGE_SIZE });
+        const batch = res?.data?.events ?? [];
+        all.push(...batch);
+        const total = res?.data?.totalCount;
+        if (batch.length < GUEST_PAGE_SIZE || (total != null && all.length >= total)) break;
+      }
+      return all;
+    },
     retry: false,
   });
 };
+
 
 export const useGuestJoin = (eventId: string) => {
   return useMutation({

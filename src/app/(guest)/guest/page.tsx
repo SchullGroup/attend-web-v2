@@ -1,24 +1,16 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Search, KeyRound, Calendar, Clock, AlertCircle, Tag } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import { useGuestBrowseEvents, useGuestJoin } from "@/api/events/hooks";
+import { useGuestBrowseAllEvents, useGuestJoin } from "@/api/events/hooks";
 import { storeGuestSession, resolveGuestLiveHref, readJoinResult } from "@/lib/guest-session";
 import { eventTypeLabel, guessEventTypeFromTitle } from "@/lib/event-type";
 import type { GuestEventListItem } from "@/types";
-
-type EventCategoryTab = "AGM" | "GENERAL" | "LAUNCH" | "ALL";
-
-const TABS: { id: EventCategoryTab; label: string; icon?: string }[] = [
-  { id: "AGM", label: "AGMs" },
-  { id: "GENERAL", label: "General" },
-  { id: "LAUNCH", label: "Launches" },
-  { id: "ALL", label: "All Events" },
-];
+import { GUEST_TABS as TABS, filterGuestEvents, type EventCategoryTab } from "@/lib/guest-events";
 
 function GuestBrowseContent() {
   const searchParams = useSearchParams();
@@ -28,40 +20,10 @@ function GuestBrowseContent() {
   const [activeTab, setActiveTab] = useState<EventCategoryTab>("AGM");
   const [selected, setSelected] = useState<GuestEventListItem | null>(null);
 
-  const { data, isLoading, isError } = useGuestBrowseEvents({
-    search: query || undefined,
-    eventType: activeTab !== "ALL" ? activeTab : undefined,
-    size: 50,
-  });
+  const { data: allEvents, isLoading, isError } = useGuestBrowseAllEvents(query || undefined);
+  const activeLabel = TABS.find((t) => t.id === activeTab)?.label ?? "events";
 
-  const rawEvents = data?.data?.events ?? [];
-
-  // Filter events client-side to ensure fallback compatibility if the backend returns all items
-  const events = rawEvents.filter((ev) => {
-    if (activeTab === "ALL") return true;
-
-    // Check explicit eventType if provided by backend
-    if (ev.eventType) {
-      const type = ev.eventType.toUpperCase();
-      if (activeTab === "AGM" && (type === "AGM" || type.includes("AGM"))) return true;
-      if (activeTab === "GENERAL" && (type === "GENERAL" || type.includes("GENERAL"))) return true;
-      if (activeTab === "LAUNCH" && (type === "LAUNCH" || type.includes("LAUNCH") || type.includes("PRODUCT"))) return true;
-    }
-
-    // Fallback: title-based heuristic detection
-    const titleUpper = ev.title.toUpperCase();
-    if (activeTab === "AGM") {
-      return titleUpper.includes("AGM") || titleUpper.includes("ANNUAL") || titleUpper.includes("GENERAL MEETING") || titleUpper.includes("SHAREHOLDER");
-    }
-    if (activeTab === "LAUNCH") {
-      return titleUpper.includes("LAUNCH") || titleUpper.includes("RELEASE") || titleUpper.includes("PRODUCT");
-    }
-    if (activeTab === "GENERAL") {
-      return !titleUpper.includes("AGM") && !titleUpper.includes("ANNUAL") && !titleUpper.includes("LAUNCH");
-    }
-
-    return true;
-  });
+  const events = useMemo(() => filterGuestEvents(allEvents ?? [], activeTab), [allEvents, activeTab]);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 space-y-6">
@@ -180,11 +142,11 @@ function GuestBrowseContent() {
       {!isLoading && !isError && events.length === 0 && (
         <div className="space-y-2 rounded-xl border border-dashed border-foreground/15 p-10 text-center">
           <Tag className="mx-auto h-8 w-8 text-foreground/40" />
-          <p className="text-base font-medium tracking-[-0.32px] text-foreground">No {activeTab !== "ALL" ? activeTab : ""} events found</p>
+          <p className="text-base font-medium tracking-[-0.32px] text-foreground">{activeTab === "ALL" ? "No events found" : `No ${activeLabel} found`}</p>
           <p className="mx-auto max-w-sm text-xs text-foreground/50">
             {query
               ? "Try a different search keyword or switch categories."
-              : `There are currently no ${activeTab !== "ALL" ? activeTab : ""} events open for guest attendance.`}
+              : `There are currently no ${activeTab === "ALL" ? "events" : activeLabel} open for guest attendance.`}
           </p>
         </div>
       )}

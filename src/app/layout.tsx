@@ -37,6 +37,7 @@ export const metadata: Metadata = {
 
 import { QueryProvider } from "@/components/providers/query-provider";
 import { SessionBootstrap } from "@/components/providers/session-bootstrap";
+import { OrganiserGuard } from "@/components/providers/organiser-guard";
 
 export default function RootLayout({
   children,
@@ -48,6 +49,7 @@ export default function RootLayout({
       <body className={outfit.className}>
         <QueryProvider>
           <SessionBootstrap />
+          <OrganiserGuard />
           <UserProvider>{children}</UserProvider>
         </QueryProvider>
       </body>

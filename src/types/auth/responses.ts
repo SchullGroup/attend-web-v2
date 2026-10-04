@@ -6,6 +6,8 @@ export interface AuthResponse {
   email: string;
   firstName: string;
   lastName: string;
+  /** Primary role, e.g. SUPER_ADMIN, CLIENT_ADMIN, ATTENDEE. See src/lib/roles.ts. */
+  role?: string;
   roles: string[];
   createdAt?: string;
 }
