@@ -9,6 +9,7 @@ import { useLogin } from "@/api/auth/hooks";
 import { getDeviceId } from "@/lib/device-id";
 import { apiErrorMessage } from "@/lib/api-error";
 import { toE164 } from "@/lib/phone";
+import { ORGANISER_ACCOUNT_MESSAGE } from "@/lib/roles";
 
 // Figma has a single "Email or Phone Number" field, so the identifier's shape decides
 // how it is normalised rather than a mode toggle. The payload is unchanged either way —
@@ -46,6 +47,8 @@ export default function LoginPage() {
       );
     } else if (reason === "idle") {
       setSessionEnded("Your session expired after 2 hours of inactivity. Please sign in again.");
+    } else if (reason === "organiser") {
+      setSessionEnded(ORGANISER_ACCOUNT_MESSAGE);
     }
   }, []);
 

@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { isOrganiserAccount, ORGANISER_ACCOUNT_CODE, ORGANISER_ACCOUNT_MESSAGE } from "@/lib/roles";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
@@ -22,6 +23,22 @@ export async function POST(request: Request) {
     }
 
     const { refreshToken, ...restData } = data.data;
+
+    // Organiser accounts can't use the participant app. Checked here, server-side, so no
+    // session cookie is ever set for them. The backend has already issued tokens, so revoke
+    // them rather than leave a live session behind.
+    if (isOrganiserAccount(restData.role, restData.roles)) {
+      if (restData.token) {
+        await fetch(`${API_URL}/api/v1/auth/logout`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${restData.token}` },
+        }).catch((err) => console.error("Revoking organiser login failed:", err));
+      }
+      return NextResponse.json(
+        { status: false, code: ORGANISER_ACCOUNT_CODE, message: ORGANISER_ACCOUNT_MESSAGE },
+        { status: 403 },
+      );
+    }
 
     // Set HttpOnly cookie for refreshToken
     const cookieStore = await cookies();
