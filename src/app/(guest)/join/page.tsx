@@ -1,9 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Search, CalendarDays, Users } from "lucide-react";
-import { useGetGuestEvents } from "@/api/guest/hooks";
-import { useDebounce } from "@/lib/utils";
+import { useGuestBrowseAllEvents } from "@/api/events/hooks";
+import { cn, useDebounce } from "@/lib/utils";
+import { GUEST_TABS, filterGuestEvents, type EventCategoryTab } from "@/lib/guest-events";
 
 // Figma "Web - Redesign" (7B0U0fGXTJGggQEKL0p08X), JOIN AS GUEST section,
 // "Guest events" frame — the primary landing for the login page's "Join as a
@@ -16,8 +17,12 @@ import { useDebounce } from "@/lib/utils";
 export default function GuestEventsPage() {
   const [search, setSearch] = useState("");
   const debounced = useDebounce(search, 400);
-  const { data, isLoading } = useGetGuestEvents({ search: debounced, size: 20 });
-  const events = data?.data?.events ?? [];
+  const [tab, setTab] = useState<EventCategoryTab>("AGM");
+  // Every page, not just the first 20: the endpoint lists oldest first, so page 0 was only ever
+  // old events and current AGMs never showed (2026-10-04). See src/lib/guest-events.ts.
+  const { data: allEvents, isLoading } = useGuestBrowseAllEvents(debounced || undefined);
+  const events = useMemo(() => filterGuestEvents(allEvents ?? [], tab), [allEvents, tab]);
+  const tabLabel = GUEST_TABS.find((t) => t.id === tab)?.label ?? "events";
 
   return (
     <div className="space-y-6">
@@ -49,13 +54,31 @@ export default function GuestEventsPage() {
         </div>
       </div>
 
+      <div className="flex gap-1.5 overflow-x-auto">
+        {GUEST_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={cn(
+              "whitespace-nowrap rounded-full px-4 py-2 text-xs font-semibold transition-colors",
+              tab === t.id
+                ? "bg-[#e6f4ec] text-[#0A3D2E]"
+                : "bg-foreground/4 text-foreground/60 hover:bg-foreground/8 hover:text-foreground",
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {isLoading && (
         <p className="py-10 text-center text-sm text-foreground/50">Loading events…</p>
       )}
 
       {!isLoading && events.length === 0 && (
         <div className="py-10 text-center text-sm text-foreground/50">
-          No guest events available right now.
+          {tab === "ALL" ? "No guest events available right now." : `No ${tabLabel} available right now.`}
         </div>
       )}
 
