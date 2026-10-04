@@ -156,6 +156,8 @@ export interface GuestEventListItem {
   id: string;
   title: string;
   date: string;
+  /** Last day of a multi-day event. Keeps an ongoing event on the guest list past its start. */
+  endDate?: string | null;
   startTime: string;
   branding?: EventBranding;
   eventType?: string;
