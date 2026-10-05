@@ -54,7 +54,7 @@ export default function GuestEventsPage() {
         </div>
       </div>
 
-      <div className="flex gap-1.5 overflow-x-auto">
+      <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
         {GUEST_TABS.map((t) => (
           <button
             key={t.id}

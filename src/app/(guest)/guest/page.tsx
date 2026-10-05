@@ -68,7 +68,7 @@ function GuestBrowseContent() {
       {/* Category Tabs & Search Bar */}
       <div className="flex flex-col gap-4 border-b border-foreground/6 pb-4 sm:flex-row sm:items-center sm:justify-between">
         {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none sm:pb-0">
+        <div className="flex items-center gap-1.5 no-scrollbar overflow-x-auto pb-1 sm:pb-0">
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
