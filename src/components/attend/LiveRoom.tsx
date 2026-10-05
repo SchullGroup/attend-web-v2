@@ -1542,8 +1542,18 @@ function ResolutionBars({ r }: { r: Resolution }) {
   // silently dropping the column. Percentages fall back to head counts in that case.
   const useShares = totalShares > 0;
   const denom = useShares ? totalShares : totalCount;
+  // Exact share, not rounded. Whole-number rounding hid real votes: a share-weighted minority
+  // (49,000 of ~10M shares) showed "0%" with an empty bar, and the majority "100%".
   const pct = (count: number, shares: number) =>
-    denom ? Math.round(((useShares ? shares : count) / denom) * 100) : 0;
+    denom ? ((useShares ? shares : count) / denom) * 100 : 0;
+  // One decimal place, never a misleading 0% or 100% while other options hold votes.
+  const pctLabel = (p: number) => {
+    if (p <= 0) return "0%";
+    if (p >= 100) return "100%";
+    if (p < 0.1) return "<0.1%";
+    if (p > 99.9) return ">99.9%";
+    return `${Number(p.toFixed(1))}%`;
+  };
   const rows = [
     { label: "For", count: r.forCount, shares: r.forShares, color: "bg-emerald-500" },
     { label: "Against", count: r.againstCount, shares: r.againstShares, color: "bg-red-500" },
@@ -1556,11 +1566,17 @@ function ResolutionBars({ r }: { r: Resolution }) {
             <div className="mb-0.5 flex items-center justify-between text-[11px]">
               <span className="font-medium text-foreground">{row.label}</span>
               <span className="text-foreground/60">
-                {row.count} · {row.shares.toLocaleString()} shares · {pct(row.count, row.shares)}%
+                {row.count} · {row.shares.toLocaleString()} shares · {pctLabel(pct(row.count, row.shares))}
               </span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-foreground/4">
-              <div className={`${row.color} h-full`} style={{ width: `${pct(row.count, row.shares)}%` }} />
+              {/* A sliver for any option with votes, so a tiny share still reads as "some". */}
+              <div
+                className={`${row.color} h-full`}
+                style={{
+                  width: `${row.count > 0 ? Math.max(pct(row.count, row.shares), 1.5) : 0}%`,
+                }}
+              />
             </div>
           </div>
         ))}
