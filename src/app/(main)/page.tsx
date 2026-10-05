@@ -10,6 +10,7 @@ import {
   Clock,
   Radio,
   Users,
+  CalendarDays,
 } from "lucide-react";
 import { useGetEvents } from "@/api/events/hooks";
 import { useGetMe } from "@/api/auth/hooks";
@@ -132,6 +133,8 @@ export default function HomePage() {
         .sort(compareByStartAsc),
     [allEvents],
   );
+  // Nothing live and nothing coming up — Home shows the "Nothing on the calendar" state.
+  const isEmpty = !isLoading && liveEvents.length === 0 && upcoming.length === 0;
 
   return (
     <div className="flex flex-col gap-8">
@@ -201,7 +204,10 @@ export default function HomePage() {
             Find events that interest you
           </p>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {/* Phones: one swipeable row of compact chips (icon + label), per the mobile frame,
+            which also orders them AGM, Launch Events, Innovation. Larger screens: the three
+            full tiles in a grid, in the desktop order. */}
+        <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto scroll-smooth px-4 sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-4 sm:overflow-visible sm:px-0">
           {/* Chip colours are the frame's: pale green / pale amber / pale blue, each with its
               icon in a darker shade of the same hue. Innovation was #f9b6ff (bright pink) and
               all three icons were the same navy-grey. The copy is ours on purpose — the frame
@@ -218,6 +224,7 @@ export default function HomePage() {
             href="/hackathon"
             icon={Lightbulb}
             label="Innovation"
+            className="order-3 sm:order-none"
             desc="Compete in innovation challenges and build to win"
             tint="#fde9b0"
             iconColor="#a16207"
@@ -226,6 +233,7 @@ export default function HomePage() {
             href="/events"
             icon={Rocket}
             label="Launch Events"
+            className="order-2 sm:order-none"
             desc="Follow product launches and live company events"
             tint="#c3d3ff"
             iconColor="#3352cc"
@@ -233,14 +241,16 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Upcoming Events */}
-      {(isLoading || upcoming.length > 0) && (
+      {/* Upcoming Events. Also shown, with its own empty note, when something is live but
+          nothing is coming up (the "no upcoming events" frame). When nothing is live either,
+          the whole-page empty state below replaces it. */}
+      {!isEmpty && (
         <section className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-medium tracking-[-0.32px] text-foreground">
               Upcoming Events
             </h2>
-            {upcoming.length > 0 && (
+            {(upcoming.length > 0 || liveEvents.length > 0) && (
               <Link
                 href="/events"
                 className="text-sm font-medium tracking-[-0.14px] text-foreground underline underline-offset-2"
@@ -252,6 +262,20 @@ export default function HomePage() {
 
           {isLoading ? (
             <CarouselSkeleton />
+          ) : upcoming.length === 0 ? (
+            <div className="flex flex-col items-center px-6 py-8 text-center">
+              <span className="relative mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-foreground/4 text-foreground/35">
+                <CalendarDays className="h-7 w-7" strokeWidth={1.5} />
+                <Clock className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-white text-foreground/45" />
+              </span>
+              <p className="text-base font-medium tracking-[-0.32px] text-foreground/80">
+                No upcoming events
+              </p>
+              <p className="mt-1 max-w-sm text-sm tracking-[-0.14px] text-foreground/60">
+                There are no upcoming events at the moment. Check back soon for new events and
+                opportunities to participate.
+              </p>
+            </div>
           ) : (
             <CardCarousel label="Upcoming events" autoPlayMs={2000}>
               {upcoming.map((e) => (
@@ -262,11 +286,32 @@ export default function HomePage() {
         </section>
       )}
 
+      {/* Empty state, per the "no events" frame: a faint Attend wordmark and a short note, in
+          place of the Live / Upcoming rows and the Browse All banner (nothing to browse). */}
+      {isEmpty && (
+        <section className="flex flex-col items-center px-6 py-12 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/attend-logo.png"
+            alt=""
+            aria-hidden
+            className="mb-6 h-14 w-auto opacity-[0.07] sm:h-20"
+          />
+          <p className="text-base font-medium tracking-[-0.32px] text-foreground/80">
+            Nothing on the calendar yet
+          </p>
+          <p className="mt-1 max-w-sm text-sm tracking-[-0.14px] text-foreground/60">
+            There are no upcoming events or AGMs at the moment. Check back soon for new
+            opportunities to participate.
+          </p>
+        </section>
+      )}
+
       {/* Browse All Events banner.
           Half the column on desktop, left-aligned, per the frame — it was full-width. Stays
           full-width on mobile, where half a phone screen can't hold the copy and the button
           side by side. */}
-      <Link
+      {upcoming.length > 0 && <Link
         href="/events"
         className="relative flex w-full items-center justify-between gap-4 overflow-hidden rounded-2xl px-5 py-5 text-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)] transition-transform hover:-translate-y-0.5 md:w-1/2"
         style={{
@@ -300,7 +345,7 @@ export default function HomePage() {
           Explore
           <ArrowRightCircle className="h-4 w-4" />
         </span>
-      </Link>
+      </Link>}
     </div>
   );
 }
@@ -440,8 +485,10 @@ function DiscoverTile({
   desc,
   tint,
   iconColor,
+  className,
 }: {
   href: string;
+  className?: string;
   icon: typeof Building2;
   label: string;
   desc: string;
@@ -452,10 +499,13 @@ function DiscoverTile({
   return (
     <Link
       href={href}
-      className="flex flex-col gap-3 rounded-xl border border-foreground/6 bg-white p-4 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+      className={cn(
+        "flex shrink-0 items-center gap-3 rounded-2xl border border-foreground/6 bg-white p-3 pr-5 shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)] sm:flex-col sm:items-start sm:gap-3 sm:p-4",
+        className,
+      )}
     >
       <span
-        className="flex h-11 w-11 items-center justify-center rounded-[10px]"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px]"
         style={{ backgroundColor: tint }}
       >
         <Icon
@@ -465,8 +515,11 @@ function DiscoverTile({
         />
       </span>
       <div className="flex flex-col gap-0.5">
-        <p className="text-sm font-medium tracking-[-0.14px] text-foreground">{label}</p>
-        <p className="text-xs leading-snug text-foreground/60">{desc}</p>
+        <p className="whitespace-nowrap text-[15px] font-medium tracking-[-0.14px] text-foreground sm:text-sm">
+          {label}
+        </p>
+        {/* Chips are icon + label only; the description is for the full tile. */}
+        <p className="hidden text-xs leading-snug text-foreground/60 sm:block">{desc}</p>
       </div>
     </Link>
   );
