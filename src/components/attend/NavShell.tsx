@@ -366,9 +366,11 @@ export function NavShell({ children }: { children: React.ReactNode }) {
                 </span>
               )}
             </button>
+            {/* On desktop too (was phone-only), next to the bell, per the frames. */}
             <Link
               href="/profile"
-              className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-sm font-semibold text-primary md:hidden"
+              aria-label="Your profile"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-sm font-semibold text-primary"
             >
               {avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
