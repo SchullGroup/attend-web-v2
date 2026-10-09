@@ -77,6 +77,7 @@ const SECTION_TITLE: { test: (p: string) => boolean; label: string; sub?: string
   // routes that live under /events/.
   { test: (p) => /^\/events\/(?!archive|gallery|live|qr-checkin)[^/]+$/.test(p), label: "About event" },
   { test: (p) => p.startsWith("/events"), label: "Launches" },
+  { test: (p) => p === "/browse", label: "All Events", sub: "Live and upcoming events of every kind" },
   { test: (p) => p.startsWith("/profile"), label: "Settings" },
   { test: (p) => p.startsWith("/notifications"), label: "Notifications" },
   { test: (p) => p.startsWith("/search"), label: "Search" },

@@ -146,6 +146,11 @@ export interface EventDetail {
   zoomUserEmail?: string | null;
   /** Guest /view's name for the join link. */
   zoomJoinUrl?: string | null;
+  /** The signed-in user's own webinar panelist token (the tk= in their Zoom panelist link).
+   *  Only present when they are a panelist on this event's webinar. Backend ask 2026-10-09. */
+  zoomPanelistToken?: string | null;
+  /** Alternative to zoomPanelistToken: their full panelist join link; the token is read from it. */
+  zoomPanelistJoinUrl?: string | null;
   /** Guest proxy sessions only; null when none was given at assignment. */
   proxyEmail?: string | null;
 }

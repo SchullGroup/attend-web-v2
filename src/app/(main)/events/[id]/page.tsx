@@ -44,6 +44,7 @@ import {
   rsvpBlockedMessage,
   isEventCurrent,
 } from "@/lib/rsvp";
+import { SHOW_QUORUM } from "@/lib/features";
 
 // Laid out to Figma's event-detail frame; OUR logic is preserved wholesale (every hook,
 // RSVP/waitlist/cancel handler, KYC gate, module switching, resolutions, press-kit, and
@@ -202,7 +203,10 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
 
   // Quorum — AGM-only and live-only, same loosely-typed endpoint LiveRoom reads for its
   // in-session ballot header (the backend publishes no fixed schema for it).
-  const { data: quorumResp } = useGetQuorum(id, mod === "AGM" && event?.status === "LIVE");
+  const { data: quorumResp } = useGetQuorum(
+    id,
+    SHOW_QUORUM && mod === "AGM" && event?.status === "LIVE",
+  );
   const quorum = (() => {
     const m = (quorumResp?.data ?? {}) as Record<string, unknown>;
     const pctRaw =
@@ -369,11 +373,11 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
 
   function joinLive() {
     if (agmLive) {
-      requireKyc(() => router.push(`/agm/live?eventId=${id}`));
+      requireKyc(() => router.push(`/agm/live?eventId=${id}&from=event`));
       return;
     }
     if (zoomStream) {
-      router.push(`/events/live?eventId=${id}`);
+      router.push(`/events/live?eventId=${id}&from=event`);
       return;
     }
     if (streamUrl) setJoinedLive(true);
@@ -638,7 +642,8 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
           hide themselves below instead, since neither is actionable on a finished AGM. */}
       {mod === "AGM" && (
         <section className="flex flex-col gap-3">
-          {quorum && (
+          {/* Hidden while SHOW_QUORUM is off (src/lib/features.ts). */}
+          {SHOW_QUORUM && quorum && (
             <div className="flex items-end justify-between gap-4">
               <div>
                 <p className="text-xs tracking-[-0.12px] text-foreground">
@@ -974,7 +979,7 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
             resolutions={resolutions}
             isLive={isLive}
             canJoinLive={isLive && hasRsvped && !missingStreamLink}
-            onJoinLive={() => requireKyc(() => router.push(`/agm/live?eventId=${id}`))}
+            onJoinLive={() => requireKyc(() => router.push(`/agm/live?eventId=${id}&from=event`))}
             requireKyc={requireKyc}
           />
         )}
