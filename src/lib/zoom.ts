@@ -59,3 +59,23 @@ export async function fetchStreamUrl(eventId: string): Promise<string | null> {
     return null;
   }
 }
+
+/**
+ * The signed-in user's webinar panelist token, if they're a panelist. Zoom gives every panelist
+ * a personal join link carrying a `tk=` token, and asks for it ("Join link or TK") when a
+ * panelist joins without it. Read from `zoomPanelistToken`, or from the `tk` in
+ * `zoomPanelistJoinUrl`, whichever the backend sends. Undefined for everyone else.
+ */
+export function panelistTokenOf(
+  event: { zoomPanelistToken?: string | null; zoomPanelistJoinUrl?: string | null } | null | undefined,
+): string | undefined {
+  const direct = event?.zoomPanelistToken?.trim();
+  if (direct) return direct;
+  const url = event?.zoomPanelistJoinUrl;
+  if (!url) return undefined;
+  try {
+    return new URL(url).searchParams.get("tk")?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}

@@ -25,7 +25,7 @@ import { useGetEvent, useGetStream, useGetCountdown, useGetQuorum, useGetActiveP
 import { useGetMe } from "@/api/auth/hooks";
 import { ZoomStage, ZOOM_STAGE_HEIGHT } from "@/components/attend/ZoomStage";
 import { AgendaPanel } from "@/components/attend/AgendaPanel";
-import { resolveZoomJoin } from "@/lib/zoom";
+import { resolveZoomJoin, panelistTokenOf } from "@/lib/zoom";
 import {
   useGetResolutions,
   useCastVote,
@@ -47,6 +47,8 @@ import { VerifyIdentitySheet } from "@/components/attend/VerifyIdentitySheet";
 import { useGetKycStatus } from "@/api/kyc/hooks";
 import { useKycGate } from "@/hooks/useKycGate";
 import Cookies from "js-cookie";
+import { SHOW_QUORUM } from "@/lib/features";
+import { useRouter } from "next/navigation";
 
 type Tab = "qa" | "ballot" | "poll" | "presskit" | "agenda";
 const QUORUM_SEGMENTS = 20;
@@ -83,6 +85,18 @@ export function LiveRoom({
 }: LiveRoomProps) {
   const defaultBackHref = eventId ? `/events/${eventId}` : "/events";
   const resolvedBackHref = backHref || defaultBackHref;
+  const router = useRouter();
+  // "Leave meeting" must not stack a new copy of the event page on top of the live room: the
+  // event page's own back button then returned here, and leaving again stacked another copy —
+  // going in circles (reported 2026-10-09). Coming from the event page (it adds from=event),
+  // step back to it. Otherwise (Home's Live now card, a pasted link) swap the live room for the
+  // event page, so back from there skips the room too.
+  function leaveMeeting(e: React.MouseEvent) {
+    e.preventDefault();
+    const cameFromEvent = new URLSearchParams(window.location.search).get("from") === "event";
+    if (cameFromEvent && window.history.length > 1) router.back();
+    else router.replace(resolvedBackHref);
+  }
   const session = useSession();
   // Trust useSession alone. This used to also OR in a raw sessionStorage read, which
   // overrode useSession's precedence: a leftover guest token from an earlier guest visit
@@ -115,7 +129,7 @@ export function LiveRoom({
   // Stream link: prefer the gated /stream endpoint (only resolves when live +
   // registered); fall back to the streamUrl the admin set on the event.
   const { data: streamData } = useGetStream(eventId, isLive && !isGuest);
-  const { data: quorumData } = useGetQuorum(eventId, isLive && !isGuest);
+  const { data: quorumData } = useGetQuorum(eventId, SHOW_QUORUM && isLive && !isGuest);
   
   let streamUrl = "";
   if (isGuest) {
@@ -141,6 +155,9 @@ export function LiveRoom({
   // the profile (and so the email) has loaded, Zoom treats a webinar panelist as an anonymous
   // attendee and shows its "Join link or TK" screen. So hold the join until the session settles.
   const zoomIdentityReady = isGuest || !session.loading;
+  // A webinar panelist joins with their personal Zoom token, or Zoom asks them for a TK
+  // (seen 2026-10-09: non-panelists got in, the panelist didn't). Signed-in users only.
+  const zoomPanelistToken = isGuest ? undefined : panelistTokenOf(event);
   const canVote = !isGuest && (session.user ? session.user.capabilities.includes("VOTE") : true);
   // §11: a guest who signed in with a proxy code (or proxy QR) at /join gets canVote:true
   // on the view payload, and may then vote directly — no per-vote code entry. Read live
@@ -585,6 +602,7 @@ export function LiveRoom({
     <div className="flex flex-col gap-6">
       <Link
         href={resolvedBackHref}
+        onClick={leaveMeeting}
         className="inline-flex w-fit items-center gap-1 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> {backLabel}
@@ -629,6 +647,7 @@ export function LiveRoom({
                     passcode={zoom.passcode}
                     userName={displayName}
                     userEmail={zoomUserEmail}
+                    panelistToken={zoomPanelistToken}
                   />
                 ) : (
                   // Isolating (a one-time reload). Don't load the Zoom SDK yet.
@@ -738,8 +757,9 @@ export function LiveRoom({
             </div>
           </div>
 
-          {/* Quorum is a participant-only endpoint, so read-only guests never get the bar. */}
-          {showBallot && !ballotReadOnly && quorum && (
+          {/* Quorum is a participant-only endpoint, so read-only guests never get the bar.
+              Hidden for everyone while SHOW_QUORUM is off (src/lib/features.ts). */}
+          {SHOW_QUORUM && showBallot && !ballotReadOnly && quorum && (
             <div className="flex items-end justify-between gap-4">
               <div>
                 <p className="text-xs tracking-[-0.12px] text-foreground">

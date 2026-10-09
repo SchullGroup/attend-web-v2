@@ -131,14 +131,14 @@
       if (!event.data || event.data.type !== 'ZOOM_JOIN') return;
 
       var params = event.data;
-      join(params.sdkKey, params.signature, params.meetingNumber, params.password, params.userName, params.userEmail);
+      join(params.sdkKey, params.signature, params.meetingNumber, params.password, params.userName, params.userEmail, params.tk);
     });
 
     // The parent (ZoomStage.tsx) uses the iframe's onLoad event to know when
     // scripts are ready, then posts ZOOM_JOIN directly — no handshake needed.
     console.log('[zoom-meeting.html] SDK loaded, ZoomMtg available:', !!ZoomMtg, '— waiting for ZOOM_JOIN from parent');
 
-    function join(sdkKey, signature, meetingNumber, password, userName, userEmail) {
+    function join(sdkKey, signature, meetingNumber, password, userName, userEmail, tk) {
       if (!ZoomMtg) {
         postError('Zoom SDK failed to load. Please refresh and try again.');
         return;
@@ -179,8 +179,11 @@
           // (meetings). It's also how Zoom recognises a panelist. Sent whenever we have one —
           // the backend asks for it on meetings too — and omitted rather than sent blank.
           if (userEmail) joinOptions.userEmail = userEmail;
+          // A webinar panelist's personal token (the tk= in their Zoom panelist link). Without
+          // it Zoom showed panelists its "Join link or TK" screen. Only ever set for a panelist.
+          if (tk) joinOptions.tk = tk;
           // Shows in DevTools which email Zoom actually got — "(none)" means an anonymous join.
-          console.log('[zoom-meeting.html] joining', meetingNumber, 'email:', userEmail || '(none)');
+          console.log('[zoom-meeting.html] joining', meetingNumber, 'email:', userEmail || '(none)', 'panelist token:', tk ? 'yes' : 'no');
           ZoomMtg.join(joinOptions);
         },
         error: function(res) {
