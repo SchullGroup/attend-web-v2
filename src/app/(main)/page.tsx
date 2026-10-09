@@ -172,7 +172,7 @@ export default function HomePage() {
             </h2>
             {liveEvents.length > 0 && (
               <Link
-                href="/events"
+                href="/browse?tab=live"
                 className="text-sm font-medium tracking-[-0.14px] text-foreground underline underline-offset-2"
               >
                 View all
@@ -252,7 +252,7 @@ export default function HomePage() {
             </h2>
             {(upcoming.length > 0 || liveEvents.length > 0) && (
               <Link
-                href="/events"
+                href="/browse?tab=upcoming"
                 className="text-sm font-medium tracking-[-0.14px] text-foreground underline underline-offset-2"
               >
                 View all
@@ -312,7 +312,7 @@ export default function HomePage() {
           full-width on mobile, where half a phone screen can't hold the copy and the button
           side by side. */}
       {upcoming.length > 0 && <Link
-        href="/events"
+        href="/browse"
         className="relative flex w-full items-center justify-between gap-4 overflow-hidden rounded-2xl px-5 py-5 text-white shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)] transition-transform hover:-translate-y-0.5 md:w-1/2"
         style={{
           backgroundColor: "#0A3D2E",

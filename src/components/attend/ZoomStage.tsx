@@ -19,6 +19,8 @@ interface Props {
   userName: string;
   /** Zoom's SDK requires an email for every webinar joiner, and uses it to recognise panelists. */
   userEmail?: string;
+  /** A webinar panelist's personal Zoom token. Only passed for panelists; see panelistTokenOf. */
+  panelistToken?: string;
 }
 
 // Renders a live Zoom meeting (Client View) inside the video slot via an iframe
@@ -29,7 +31,7 @@ interface Props {
 // Retry-once: if join fails with a "meeting not found" style error, re-fetches
 // streamUrl from the backend (the meeting may have been rotated) and retries
 // with the fresh values before showing an error.
-export function ZoomStage({ eventId, meetingNumber, passcode, userName, userEmail }: Props) {
+export function ZoomStage({ eventId, meetingNumber, passcode, userName, userEmail, panelistToken }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [status, setStatus] = useState<ZoomStatus>("connecting");
   const [errorMsg, setErrorMsg] = useState("");
@@ -66,11 +68,12 @@ export function ZoomStage({ eventId, meetingNumber, passcode, userName, userEmai
           password: pwd,
           userName,
           userEmail,
+          tk: panelistToken,
         },
         window.location.origin,
       );
     },
-    [getSignature, userName, userEmail],
+    [getSignature, userName, userEmail, panelistToken],
   );
 
   // Retry logic: fetch fresh streamUrl, re-parse, and send a new ZOOM_JOIN.
