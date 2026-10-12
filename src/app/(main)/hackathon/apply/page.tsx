@@ -544,7 +544,7 @@ function Gate({
         <ArrowLeft className="h-4 w-4" /> Back to Innovation
       </button>
       <div className="mx-auto w-full max-w-md rounded-xl border border-foreground/6 bg-white p-8 text-center shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)]">
-        <h1 className="text-xl font-medium text-foreground">{title}</h1>
+        <h1 className="break-words text-xl font-medium text-foreground">{title}</h1>
         <p className="mt-2 text-sm text-foreground/60">{body}</p>
         {action && (
           <Link href={action.href} className="mt-4 inline-block">

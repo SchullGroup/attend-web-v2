@@ -122,7 +122,7 @@ export function DialogHeader({
         )}
       </div>
       <div>
-        <h2 className="text-xl font-medium tracking-[-0.6px] text-foreground">{title}</h2>
+        <h2 className="break-words text-xl font-medium tracking-[-0.6px] text-foreground">{title}</h2>
         {description && (
           <p className="mt-1 text-sm tracking-[-0.14px] text-foreground/60">{description}</p>
         )}

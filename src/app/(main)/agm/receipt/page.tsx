@@ -87,7 +87,7 @@ function ReceiptPicker({ onSelect }: { onSelect: (id: string) => void }) {
               // every browser — nothing in this app's reset overrides that. The AGM list uses
               // the identical title/date markup inside a <Link>, which has no such default, so
               // it rendered left-aligned "for free" while this one didn't (reported 2026-09-15).
-              className="flex items-center gap-2.5 rounded-xl border border-foreground/6 bg-white p-1.5 text-left shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
+              className="flex w-full min-w-0 items-center gap-2.5 rounded-xl border border-foreground/6 bg-white p-1.5 text-left shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]"
             >
               {/* `fit="contain"` — same company-logo treatment as the AGM list card
                   (agm/page.tsx), not the generic building icon every row showed before

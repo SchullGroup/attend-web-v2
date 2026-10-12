@@ -72,7 +72,7 @@ export default function HackathonPage() {
 
       {/* Tabs — "My Application" is a real route (hackathon/my-applications), not a
           local filter, so the tab bar is just links between the two pages. */}
-      <div className="-mx-4 flex gap-2 overflow-x-auto border-b border-foreground/10 px-4 md:-mx-8 md:px-8">
+      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto border-b border-foreground/10 px-4 md:-mx-8 md:px-8">
         <span className="border-b-2 border-foreground px-6 py-2 text-sm font-semibold tracking-[-0.14px] text-foreground">
           All
         </span>
