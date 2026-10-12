@@ -34,7 +34,7 @@ export function PanelShell({
       <h1 className="text-xl font-medium tracking-[-0.6px] text-foreground">{title}</h1>
 
       {tabs && tabs.length > 0 && (
-        <div className="flex gap-5 overflow-x-auto border-b border-foreground/8">
+        <div className="no-scrollbar flex gap-5 overflow-x-auto border-b border-foreground/8">
           {tabs.map((tab) => (
             <button
               key={tab}

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect } from "react";
-import { FileText } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useGetMinutes, useGetVoteReceipt } from "@/api/agm/hooks";
 
 function hasMinutesContent(data: ReturnType<typeof useGetMinutes>["data"]): boolean {
@@ -22,8 +22,10 @@ function hasReceiptContent(data: ReturnType<typeof useGetVoteReceipt>["data"]): 
 // whether there's something to show, and open the real sheet (which has the actual download
 // button) rather than trying to reproduce the PDF export out of context.
 
+// w-full: a <button> sizes to its content by default, so a long title pushed the row past the
+// screen edge (and widened the whole page on phones) instead of truncating like the file rows.
 const rowClass =
-  "flex items-center gap-3 rounded-xl border border-foreground/6 bg-white p-3 text-left shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]";
+  "flex w-full min-w-0 items-center gap-3 rounded-xl border border-foreground/6 bg-white p-3 text-left shadow-[0px_4px_20px_0px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]";
 
 function DocRow({
   title, subtitle, onOpen,
@@ -35,13 +37,18 @@ function DocRow({
   return (
     <li>
       <button type="button" onClick={onOpen} className={rowClass}>
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-foreground/4">
-          <FileText className="h-[18px] w-[18px] text-foreground/50" />
+        {/* Same tile as the uploaded-file rows, which show the file type. These open as PDFs. */}
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-foreground/4 text-[10px] font-semibold uppercase tracking-wide text-foreground/50">
+          PDF
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold tracking-[-0.14px] text-foreground">{title}</p>
           <p className="truncate text-xs text-foreground/60">{subtitle}</p>
         </div>
+        {/* Opens the sheet (which has the download button), so a chevron, not a download icon. */}
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center text-foreground/40">
+          <ChevronRight className="h-[18px] w-[18px]" />
+        </span>
       </button>
     </li>
   );
@@ -57,7 +64,7 @@ export function MinutesDocRow({
 }) {
   const { data } = useGetMinutes(eventId);
   if (!hasMinutesContent(data)) return null;
-  return <DocRow title={`${eventTitle} — Minutes`} subtitle="Meeting minutes" onOpen={onOpen} />;
+  return <DocRow title="Meeting minutes" subtitle={eventTitle} onOpen={onOpen} />;
 }
 
 /** Renders nothing until there's at least one recorded vote for this event. */
@@ -70,7 +77,7 @@ export function ReceiptDocRow({
 }) {
   const { data } = useGetVoteReceipt(eventId);
   if (!hasReceiptContent(data)) return null;
-  return <DocRow title={`${eventTitle} — Vote receipt`} subtitle="Vote receipt" onOpen={onOpen} />;
+  return <DocRow title="Vote receipt" subtitle={eventTitle} onOpen={onOpen} />;
 }
 
 /**
