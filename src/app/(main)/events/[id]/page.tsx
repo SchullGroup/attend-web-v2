@@ -504,7 +504,7 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
       <div className="flex gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
-            <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">{event.title}</h1>
+            <h1 className="break-words text-2xl font-medium tracking-[-0.72px] text-foreground">{event.title}</h1>
             <div className="flex shrink-0 items-center gap-1">
               <button
                 onClick={toggleSave}

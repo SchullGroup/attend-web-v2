@@ -95,7 +95,7 @@ export default function MyApplicationsPage() {
       {/* Title + tagline live in the app bar for this section (NavShell SECTION_TITLE). */}
 
       {/* Same underline tab row as /hackathon, with this tab active. */}
-      <div className="-mx-4 flex gap-2 overflow-x-auto border-b border-foreground/10 px-4 md:-mx-8 md:px-8">
+      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto border-b border-foreground/10 px-4 md:-mx-8 md:px-8">
         <Link
           href="/hackathon"
           className="border-b-2 border-transparent px-6 py-2 text-sm tracking-[-0.14px] text-foreground/60 transition-colors hover:text-foreground"

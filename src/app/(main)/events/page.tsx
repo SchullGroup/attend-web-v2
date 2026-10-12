@@ -78,7 +78,7 @@ export default function EventsPage() {
       {/* Title + tagline live in the app bar for this section (NavShell SECTION_TITLE),
           per Figma — repeating them here stacked two near-identical headings. */}
 
-      <div className="-mx-4 flex gap-2 overflow-x-auto border-b border-foreground/10 px-4 md:-mx-8 md:px-8">
+      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto border-b border-foreground/10 px-4 md:-mx-8 md:px-8">
         {TABS.map((t) => (
           <button
             key={t.key}
