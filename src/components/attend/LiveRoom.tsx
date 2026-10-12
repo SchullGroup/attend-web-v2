@@ -727,7 +727,7 @@ export function LiveRoom({
           </div>
 
           <div>
-            <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">{title}</h1>
+            <h1 className="break-words text-2xl font-medium tracking-[-0.72px] text-foreground">{title}</h1>
             {!isGuest && event?.hasRsvped && (
               <div className="mt-2 flex items-center gap-1.5">
                 <CheckCircle2 className="h-[18px] w-[18px] text-emerald-700" />

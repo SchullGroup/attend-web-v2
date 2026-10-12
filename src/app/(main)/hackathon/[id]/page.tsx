@@ -195,7 +195,7 @@ export default function HackathonDetailPage({
       />
 
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-medium tracking-[-0.72px] text-foreground">{challenge.title}</h1>
+        <h1 className="break-words text-2xl font-medium tracking-[-0.72px] text-foreground">{challenge.title}</h1>
         <p className="text-xs tracking-[-0.12px] text-foreground/60">
           By: <span className="text-foreground/80">{challenge.organizerName}</span>
         </p>
@@ -213,7 +213,7 @@ export default function HackathonDetailPage({
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto border-b border-foreground/10">
+      <div className="no-scrollbar flex gap-2 overflow-x-auto border-b border-foreground/10">
         {TABS.map((t) => (
           <button
             key={t.key}

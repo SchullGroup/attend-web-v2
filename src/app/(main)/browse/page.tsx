@@ -63,7 +63,7 @@ function BrowseInner() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="-mx-4 flex gap-2 overflow-x-auto border-b border-foreground/10 px-4 md:-mx-8 md:px-8">
+      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto border-b border-foreground/10 px-4 md:-mx-8 md:px-8">
         {TABS.map((t) => (
           <button
             key={t.key}

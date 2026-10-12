@@ -81,7 +81,7 @@ export default function AgmPage() {
         onChange={(e) => setQuery(e.target.value)}
       />
 
-      <div className="flex gap-2 overflow-x-auto border-b border-foreground/10">
+      <div className="no-scrollbar flex gap-2 overflow-x-auto border-b border-foreground/10">
         {STATUS_TABS.map((t) => (
           <button
             key={t.key}
