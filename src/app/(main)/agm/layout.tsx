@@ -12,11 +12,9 @@ import { VerifyIdentitySheet } from "@/components/attend/VerifyIdentitySheet";
 // (RSVP, proxy, pre-vote, opening the Resolution tab — see events/[id]/page.tsx and
 // components/attend/LiveRoom.tsx, both of which gate those actions themselves via useKycGate).
 //
-// This layout is now only a backstop for the two routes that ARE the action, with no browsing
-// content of their own behind them — see DIALOG_ROUTES below. Every other /agm/* route,
-// including `/agm/live` (which the Home page links to directly for a LIVE AGM, bypassing the
-// detail page entirely), is free to enter; LiveRoom.tsx gates its own Resolution tab and vote
-// casting once inside.
+// This layout is now a backstop for the routes that ARE the action — see DIALOG_ROUTES below —
+// and for the live room, `/agm/live`, which Home and pasted links reach directly, bypassing the
+// detail page's own Join Live check (see LIVE_ROUTE). Every other /agm/* route is free to enter.
 
 // Routes an unverified user may use freely. An ALLOWLIST of free routes, deliberately, rather
 // than a blocklist of gated ones: a blocklist fails open for every route added later, and this
@@ -27,9 +25,15 @@ import { VerifyIdentitySheet } from "@/components/attend/VerifyIdentitySheet";
 // OWN appointment — which somebody who was verified and is now under review (or was declined)
 // must still be able to do. Gate that button in the page if it ever needs it, not the route.
 //
-// `/agm/live` is free too — see the block comment above. LiveRoom.tsx owns its own gate for the
-// one privileged thing reachable there (casting a ballot vote).
-const FREE_ROUTES = ["/agm", "/agm/minutes", "/agm/receipt", "/agm/proxy-history", "/agm/live"];
+// `/agm/live` is NOT free any more (2026-10-12). Joining an AGM needs verification — the event
+// page's Join Live asks for it, and the FAQ says so — but a direct link to the live room (Home's
+// "Live now" card, or a pasted /agm/live?eventId=… URL) skipped the event page and walked straight
+// in. It's gated here now, whichever way the user arrives. Guests are still exempt (below).
+const FREE_ROUTES = ["/agm", "/agm/minutes", "/agm/receipt", "/agm/proxy-history"];
+
+// The live room isn't mounted at all until verification is confirmed: mounting it behind the
+// sheet would start the Zoom join and the stream for an unverified user.
+const LIVE_ROUTE = "/agm/live";
 
 // These two "pages" are themselves Dialogs (PreVoteSheet / ProxySheet). Rendering them under the
 // gate stacks two portalled dialogs: two backdrops, and two document-level Escape handlers, so
@@ -58,7 +62,7 @@ export default function AgmLayout({ children }: { children: React.ReactNode }) {
   // `retry: false` left it permanently errored with no data — which under this design means no
   // gate at all. Keying on SHAREHOLDER makes the query start on the false→true transition once
   // SessionBootstrap has minted the token.
-  const { data: kycResp } = useGetKycStatus(gated && !session.loading && session.type === "SHAREHOLDER");
+  const { data: kycResp, isError: kycError } = useGetKycStatus(gated && !session.loading && session.type === "SHAREHOLDER");
 
   // `!!kycResp`, never `isLoading`. A disabled React Query reports `isLoading: false` while
   // knowing nothing at all, so it can't tell "no answer yet" from "answered".
@@ -96,11 +100,56 @@ export default function AgmLayout({ children }: { children: React.ReactNode }) {
     router.replace("/agm");
   }
 
-  const hideChildren = open && DIALOG_ROUTES.includes(pathname);
+  // The live room stays unmounted until we KNOW the user is verified: while the session or the
+  // status is loading, if the check failed (fail closed), and whenever they aren't verified.
+  const holdLiveRoom =
+    pathname === LIVE_ROUTE &&
+    !isGuest &&
+    (session.loading || session.type !== "SHAREHOLDER" || !kycResp || blocked);
+  const hideChildren = (open && DIALOG_ROUTES.includes(pathname)) || holdLiveRoom;
 
   return (
     <>
       {!hideChildren && children}
+
+      {/* Shown in the live room's place while it's held back. After the sheet is closed
+          (e.g. "under review"), this is what keeps the page from being blank. */}
+      {holdLiveRoom && !open && (
+        <div className="flex flex-col items-center gap-3 py-16 text-center">
+          {kycError ? (
+            <p className="max-w-sm text-sm text-foreground/60">
+              We couldn't check your verification right now. Please refresh to try again.
+            </p>
+          ) : !kycResp || session.loading ? (
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-foreground/15 border-t-foreground/60" />
+          ) : (
+            <>
+              <p className="text-base font-medium tracking-[-0.32px] text-foreground">
+                Verify your identity to join this meeting
+              </p>
+              <p className="max-w-sm text-sm text-foreground/60">
+                Only verified shareholders can join a live AGM.
+              </p>
+              <div className="mt-1 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOpen(true)}
+                  className="rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background"
+                >
+                  Verify identity
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.replace("/agm")}
+                  className="rounded-full border border-foreground/15 px-4 py-2 text-sm font-medium text-foreground"
+                >
+                  Back to AGMs
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {open && (
         <VerifyIdentitySheet
