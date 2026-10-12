@@ -1,0 +1,16 @@
+# Netlify only (production, app.experienceattend.com). Vercel ignores this file.
+#
+# The live room turns on cross-origin isolation (?coi=1 → COEP: credentialless, see
+# next.config.ts) because the Zoom Web SDK needs it. An isolated page may only embed pages
+# that declare COEP too. next.config.ts adds it to /zoom-meeting.html, and Vercel honours that,
+# but Netlify serves files from /public as plain static files and skips next.config headers for
+# them. Without this block the Zoom iframe is blocked and the live room shows
+# "app.experienceattend.com refused to connect" (seen on prod 2026-10-12).
+#
+# Only headers here: no [build] section, so Netlify's build settings stay as configured in its UI.
+
+[[headers]]
+  for = "/zoom-meeting.html"
+  [headers.values]
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "credentialless"
