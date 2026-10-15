@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "@/hooks/useSession";
 import { useGetKycStatus } from "@/api/kyc/hooks";
+import { useGetEvent } from "@/api/events/hooks";
+import Link from "next/link";
 import { isKycFull } from "@/lib/kyc-gate";
 import { VerifyIdentitySheet } from "@/components/attend/VerifyIdentitySheet";
 
@@ -64,6 +66,26 @@ export default function AgmLayout({ children }: { children: React.ReactNode }) {
   // SessionBootstrap has minted the token.
   const { data: kycResp, isError: kycError } = useGetKycStatus(gated && !session.loading && session.type === "SHAREHOLDER");
 
+  // RSVP, as well as verification. The event page only offers Join Live to someone who has
+  // RSVP'd, and the backend refuses an RSVP from someone who isn't on the AGM's register. A direct
+  // /agm/live link skipped that, so a non-shareholder could walk in, see the resolutions and
+  // vote (reported 2026-10-15). Same signal the event page uses: hasRsvped, falling back to
+  // `registered` for older responses. Read from the URL in an effect (not useSearchParams, which
+  // would force a Suspense boundary around every /agm page).
+  // null until read from the URL; "" means the link carries no eventId at all.
+  const [liveEventId, setLiveEventId] = useState<string | null>(null);
+  useEffect(() => {
+    setLiveEventId(
+      pathname === LIVE_ROUTE ? new URLSearchParams(window.location.search).get("eventId") ?? "" : "",
+    );
+  }, [pathname]);
+  const { data: liveEventResp, isError: liveEventError } = useGetEvent(
+    liveEventId ?? "",
+    pathname === LIVE_ROUTE && !isGuest && session.type === "SHAREHOLDER",
+  );
+  const liveEvent = liveEventResp?.data;
+  const notRsvped = !!liveEvent && !(liveEvent.hasRsvped ?? liveEvent.registered);
+
   // `!!kycResp`, never `isLoading`. A disabled React Query reports `isLoading: false` while
   // knowing nothing at all, so it can't tell "no answer yet" from "answered".
   const blocked = gated && !isGuest && !!kycResp && !isKycFull(kycResp.data);
@@ -105,7 +127,12 @@ export default function AgmLayout({ children }: { children: React.ReactNode }) {
   const holdLiveRoom =
     pathname === LIVE_ROUTE &&
     !isGuest &&
-    (session.loading || session.type !== "SHAREHOLDER" || !kycResp || blocked);
+    (session.loading ||
+      session.type !== "SHAREHOLDER" ||
+      !kycResp ||
+      blocked ||
+      !liveEvent ||
+      notRsvped);
   const hideChildren = (open && DIALOG_ROUTES.includes(pathname)) || holdLiveRoom;
 
   return (
@@ -116,12 +143,41 @@ export default function AgmLayout({ children }: { children: React.ReactNode }) {
           (e.g. "under review"), this is what keeps the page from being blank. */}
       {holdLiveRoom && !open && (
         <div className="flex flex-col items-center gap-3 py-16 text-center">
-          {kycError ? (
+          {liveEventId === "" ? (
+            <p className="max-w-sm text-sm text-foreground/60">
+              This meeting link is incomplete. Open the meeting from the AGM list instead.
+            </p>
+          ) : kycError || liveEventError ? (
             <p className="max-w-sm text-sm text-foreground/60">
               We couldn't check your verification right now. Please refresh to try again.
             </p>
-          ) : !kycResp || session.loading ? (
+          ) : !kycResp || session.loading || (!blocked && !liveEvent) ? (
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-foreground/15 border-t-foreground/60" />
+          ) : !blocked && notRsvped ? (
+            <>
+              <p className="text-base font-medium tracking-[-0.32px] text-foreground">
+                Confirm your attendance to join this meeting
+              </p>
+              <p className="max-w-sm text-sm text-foreground/60">
+                Only shareholders who have RSVP'd can join a live AGM. You can RSVP from the
+                meeting page.
+              </p>
+              <div className="mt-1 flex gap-2">
+                <Link
+                  href={`/events/${liveEventId}`}
+                  className="rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background"
+                >
+                  Go to meeting page
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => router.replace("/agm")}
+                  className="rounded-full border border-foreground/15 px-4 py-2 text-sm font-medium text-foreground"
+                >
+                  Back to AGMs
+                </button>
+              </div>
+            </>
           ) : (
             <>
               <p className="text-base font-medium tracking-[-0.32px] text-foreground">
