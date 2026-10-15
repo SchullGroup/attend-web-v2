@@ -108,8 +108,12 @@ export interface EventDetail {
   registeredCount: number;
   rsvpEnabled?: boolean;
   featured?: boolean;
-  /** See the note on `EventListItem.registered` ΓÇö eligibility, not necessarily an RSVP. */
+  /** RSVP'd OR on the register (backend, 2026-10-15). Not proof of either on its own: use
+   *  `hasRsvped` for RSVP actions and `isShareholder` for shareholder-only ones. */
   registered: boolean;
+  /** On this AGM's shareholder register (active), whether or not they RSVP'd. Always false for
+   *  non-AGM events. Decides voting, proxy and pre-vote. Added by the backend 2026-10-15. */
+  isShareholder?: boolean;
   /** True only once a real RSVP (`EventRegistration` row) exists. */
   hasRsvped?: boolean;
   agmProxyEnabled: boolean;
