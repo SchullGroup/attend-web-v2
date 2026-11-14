@@ -78,7 +78,7 @@ export default function GeneralEventsPage() {
     tab === "bookmarked"
       ? "No bookmarked events yet."
       : tab === "past"
-        ? "No past events yet."
+        ? "No events have ended in the last 24 hours."
         : "No general events right now.";
 
   return (

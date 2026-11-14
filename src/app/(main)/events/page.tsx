@@ -70,7 +70,7 @@ export default function EventsPage() {
     tab === "bookmarked"
       ? "No bookmarked events yet."
       : tab === "past"
-        ? "No past events yet."
+        ? "No events have ended in the last 24 hours."
         : "No events match those filters.";
 
   return (

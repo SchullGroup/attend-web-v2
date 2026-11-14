@@ -186,10 +186,14 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
   // Resolutions are a separate array from the agenda — only AGMs have them.
   // Poll while live so the panel's resolution status and countdown stay current
   // (same 5s cadence LiveRoom's ballot uses); no polling otherwise.
+  // Not on this AGM's register (backend isShareholder, 2026-10-15). The backend refuses their
+  // resolutions, votes, proxy and receipt with 403 NOT_A_SHAREHOLDER, so don't ask, and hide the
+  // shareholder-only actions. `=== false`: an older response without the field keeps today's UI.
+  const notShareholder = event?.eventType === "AGM_EGM" && event?.isShareholder === false;
   const { data: resData } = useGetResolutions(
     id,
-    event?.status === "LIVE" ? 5000 : undefined,
-    event?.eventType === "AGM_EGM",
+    event?.status === "LIVE" && !notShareholder ? 5000 : undefined,
+    event?.eventType === "AGM_EGM" && !notShareholder,
   );
   const resolutions = resData?.data?.resolutions ?? [];
   // Same signal agm/proxy/page.tsx uses to decide whether a proxy already exists — so the
@@ -222,7 +226,7 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
   // is read off `event?.…` because the flags below are computed after the early returns.
   const { data: streamResp } = useGetStream(
     id,
-    event?.status === "LIVE" && !!(event?.hasRsvped ?? event?.registered),
+    event?.status === "LIVE" && !!event?.hasRsvped,
   );
 
   // Only meaningful for HACKATHON — useGetMyTeam no-ops (enabled: !!challengeId) otherwise.
@@ -339,10 +343,10 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
   const organiser = event.registerName || event.organizerName;
   // `registered` means "eligible" for an AGM shareholder (register membership), not
   // necessarily an actual RSVP — that's what broke Cancel RSVP/Appoint Proxy for someone
-  // who was only added to the register. `hasRsvped` is the real signal; fall back to
-  // `registered` only while backend hasn't deployed that field yet, so this doesn't regress
-  // already-registered users into seeing the RSVP button again in the meantime.
-  const hasRsvped = event.hasRsvped ?? event.registered;
+  // who was only added to the register. `hasRsvped` is the real signal. The fallback to
+  // `registered` is gone (2026-10-15): the backend confirmed it means "RSVP'd OR on the
+  // register", so it said yes for shareholders who never RSVP'd, and hasRsvped is always sent.
+  const hasRsvped = !!event.hasRsvped;
   const isLive = event.status === "LIVE";
   const isEnded = event.status === "ENDED";
   // `isEventCurrent`, not `!isLive && !isEnded` — that bare check let the Launch "Launching
@@ -676,13 +680,22 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
 
           <h2 className="text-base font-medium tracking-[-0.32px] text-foreground">AGM Actions</h2>
 
+          {notShareholder && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <p className="font-medium">You are not a shareholder for this AGM</p>
+              <p className="mt-0.5 text-xs text-amber-800/80">
+                Voting, proxies and pre-voting are only for shareholders on this company's register.
+              </p>
+            </div>
+          )}
+
           {/* Both tiles always show now — verification is demanded per action (requireKyc),
               not up front. An unverified/under-review/declined click still opens the sheet;
               it reads the KYC status itself and shows the right stage (form, review notice,
               declined notice), so there's no separate banner duplicating that decision here. */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {/* Neither of these two survives the meeting ending. */}
-              {event.agmProxyEnabled && !isEnded && (
+              {event.agmProxyEnabled && !isEnded && !notShareholder && (
                 <button
                   type="button"
                   onClick={() => requireKyc(() => setProxyOpen(true))}
@@ -696,7 +709,7 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
               )}
               {/* Pre-voting closes once the meeting is live — live votes are cast in the
                   meeting room's ballot instead. */}
-              {!isLive && !isEnded && (
+              {!isLive && !isEnded && !notShareholder && (
                 <button
                   type="button"
                   onClick={() => requireKyc(() => setPreVoteOpen(true))}
@@ -981,6 +994,7 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
             canJoinLive={isLive && hasRsvped && !missingStreamLink}
             onJoinLive={() => requireKyc(() => router.push(`/agm/live?eventId=${id}&from=event`))}
             requireKyc={requireKyc}
+            notShareholder={notShareholder}
           />
         )}
 
@@ -1046,7 +1060,7 @@ function EventDetailInner({ params }: { params: Promise<{ id: string }> }) {
                 {cancelling ? "Cancelling…" : "Cancel RSVP"}
               </Button>
             )}
-            {mod === "AGM" && !isLive && !isEnded && (
+            {mod === "AGM" && !isLive && !isEnded && !notShareholder && (
               <Button
                 className="flex-1"
                 variant={allVoted ? "outline" : undefined}
@@ -1173,7 +1187,7 @@ function ActionTile({ icon, label, voted }: { icon: React.ReactNode; label: stri
 // endpoint (questions only exist inside the live room's websocket session), so that tab
 // points into the meeting rather than inventing an inbox the backend doesn't serve.
 function AgmSidePanel({
-  eventId, speakers, agenda, resolutions, isLive, canJoinLive, onJoinLive, requireKyc,
+  eventId, speakers, agenda, resolutions, isLive, canJoinLive, onJoinLive, requireKyc, notShareholder,
 }: {
   eventId: string;
   speakers: SpeakerItem[];
@@ -1183,6 +1197,8 @@ function AgmSidePanel({
   canJoinLive: boolean;
   onJoinLive: () => void;
   requireKyc: (action: () => void) => void;
+  /** Not on the register: the Resolution tab says so instead of listing (backend 403s it). */
+  notShareholder: boolean;
 }) {
   const [tab, setTab] = useState<"agenda" | "qa" | "resolution">("agenda");
   // Q&A composer — POST /participant/events/{id}/questions. The endpoint accepts a question
@@ -1366,7 +1382,11 @@ function AgmSidePanel({
             </div>
           )}
 
-          {sortedResolutions.length === 0 ? (
+          {notShareholder ? (
+            <PanelEmpty>
+              You are not a shareholder for this AGM, so its resolutions aren't available to you.
+            </PanelEmpty>
+          ) : sortedResolutions.length === 0 ? (
             <PanelEmpty>No resolutions have been published for this AGM.</PanelEmpty>
           ) : (
             sortedResolutions.map((r, i) => {

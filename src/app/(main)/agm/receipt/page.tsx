@@ -2,7 +2,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Building2, ChevronRight, CalendarDays } from "lucide-react";
-import { useGetEvents } from "@/api/events/hooks";
+import { useGetMyEvents } from "@/api/events/hooks";
 import { EventListItem } from "@/types";
 import { AgmHero, AgmSubNav } from "@/components/attend/AgmSubNav";
 import { EventThumb } from "@/components/attend/EventThumb";
@@ -45,9 +45,12 @@ export default function ReceiptPage() {
 }
 
 function ReceiptPicker({ onSelect }: { onSelect: (id: string) => void }) {
-  const { data, isLoading } = useGetEvents({ eventType: "AGM_EGM", size: 50 });
+  // /mine, not the discovery list: GET /participant/events only returns an ENDED event for 24h
+  // after it ends, so receipts for any older AGM would vanish from this picker. /mine keeps full
+  // history and holds only events the user RSVP'd to.
+  const { data, isLoading } = useGetMyEvents();
   const agms = (data?.data?.events ?? []).filter(
-    (e: EventListItem) => e.eventType === "AGM_EGM" && e.registered,
+    (e: EventListItem) => e.eventType === "AGM_EGM",
   );
 
   return (

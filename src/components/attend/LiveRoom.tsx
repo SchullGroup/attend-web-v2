@@ -158,7 +158,12 @@ export function LiveRoom({
   // A webinar panelist joins with their personal Zoom token, or Zoom asks them for a TK
   // (seen 2026-10-09: non-panelists got in, the panelist didn't). Signed-in users only.
   const zoomPanelistToken = isGuest ? undefined : panelistTokenOf(event);
-  const canVote = !isGuest && (session.user ? session.user.capabilities.includes("VOTE") : true);
+  // Not on this AGM's register (backend isShareholder, 2026-10-15). The backend refuses their
+  // votes and resolutions with 403 NOT_A_SHAREHOLDER, so the ballot shows a message instead.
+  // `=== false`, not falsy: an older response without the field keeps today's behaviour.
+  const notShareholder = !isGuest && event?.isShareholder === false;
+  const canVote =
+    !isGuest && !notShareholder && (session.user ? session.user.capabilities.includes("VOTE") : true);
   // §11: a guest who signed in with a proxy code (or proxy QR) at /join gets canVote:true
   // on the view payload, and may then vote directly — no per-vote code entry. Read live
   // from the polled view so a resumed session re-checks it without re-parsing the token.
@@ -213,8 +218,8 @@ export function LiveRoom({
   // Only AGMs poll resolutions for the live ballot.
   const { data: resData } = useGetResolutions(
     eventId,
-    showBallot && !isGuest ? 5000 : undefined,
-    showBallot && !isGuest,
+    showBallot && !isGuest && !notShareholder ? 5000 : undefined,
+    showBallot && !isGuest && !notShareholder,
   );
   // Proxy guests read the same resolutions from their own view-only endpoint, so the
   // ballot panel shows live tallies. Gated on guestCanVote, not just isGuest — backend
@@ -940,7 +945,15 @@ export function LiveRoom({
 
               {showBallot &&
                 tab === "ballot" &&
-                (ballotReadOnly ? (
+                (notShareholder ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    <p className="font-semibold">You are not a shareholder for this AGM</p>
+                    <p className="mt-1 text-xs text-amber-800/80">
+                      Only shareholders on this company's register can see and vote on resolutions.
+                      You can still follow the meeting and use Q&amp;A.
+                    </p>
+                  </div>
+                ) : ballotReadOnly ? (
                   /* Read-only guest ballot. As of 2026-08-17 backend hard-blocks resolution
                      data for non-proxy guests (403), so sortedRes is always empty for a plain
                      guest now — this used to show live tallies too, but the proxy-code entry

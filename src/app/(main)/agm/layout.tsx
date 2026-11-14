@@ -69,8 +69,7 @@ export default function AgmLayout({ children }: { children: React.ReactNode }) {
   // RSVP, as well as verification. The event page only offers Join Live to someone who has
   // RSVP'd, and the backend refuses an RSVP from someone who isn't on the AGM's register. A direct
   // /agm/live link skipped that, so a non-shareholder could walk in, see the resolutions and
-  // vote (reported 2026-10-15). Same signal the event page uses: hasRsvped, falling back to
-  // `registered` for older responses. Read from the URL in an effect (not useSearchParams, which
+  // vote (reported 2026-10-15). Same signal the event page uses: hasRsvped (see below). Read from the URL in an effect (not useSearchParams, which
   // would force a Suspense boundary around every /agm page).
   // null until read from the URL; "" means the link carries no eventId at all.
   const [liveEventId, setLiveEventId] = useState<string | null>(null);
@@ -84,7 +83,9 @@ export default function AgmLayout({ children }: { children: React.ReactNode }) {
     pathname === LIVE_ROUTE && !isGuest && session.type === "SHAREHOLDER",
   );
   const liveEvent = liveEventResp?.data;
-  const notRsvped = !!liveEvent && !(liveEvent.hasRsvped ?? liveEvent.registered);
+  // hasRsvped only. `registered` means "RSVP'd OR on the register" (backend, 2026-10-15), so
+  // falling back to it let a shareholder who never RSVP'd through.
+  const notRsvped = !!liveEvent && !liveEvent.hasRsvped;
 
   // `!!kycResp`, never `isLoading`. A disabled React Query reports `isLoading: false` while
   // knowing nothing at all, so it can't tell "no answer yet" from "answered".
