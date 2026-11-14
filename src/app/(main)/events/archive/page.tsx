@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { ArrowLeft, PlayCircle } from "lucide-react";
-import { useGetEvents } from "@/api/events/hooks";
+import { useGetMyEvents } from "@/api/events/hooks";
 import { Badge } from "@/components/ui/Badge";
 import { formatDate, initialsFor } from "@/lib/utils";
 import { useGoBack } from "@/hooks/useGoBack";
@@ -22,7 +22,9 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 export default function ArchivePage() {
-  const { data, isLoading } = useGetEvents({ status: "ENDED", size: 50 });
+  // /mine, not the discovery list: GET /participant/events now drops ENDED events after 24h, so
+  // an archive built on it would be near-empty. /mine keeps the user's full history.
+  const { data, isLoading } = useGetMyEvents();
   const events = (data?.data?.events ?? []).filter((e) => e.status === "ENDED");
   const goBack = useGoBack("/events");
 
